@@ -315,7 +315,8 @@ class Region:
         return [hz for hz in self.frames[skip:] if hz > 0.0]
 
 
-def find_regions(records: list[FrameRecord], frame_seconds: float) -> list[Region]:
+def find_regions(records: list[FrameRecord], frame_seconds: float,
+                 min_region_seconds: float = MIN_REGION_SECONDS) -> list[Region]:
     """Split the voiced frames into one region per sounded note.
 
     Splitting on non-voiced frames alone is not enough. Notes played without a
@@ -378,7 +379,7 @@ def find_regions(records: list[FrameRecord], frame_seconds: float) -> list[Regio
 
     flush()
 
-    minimum = MIN_REGION_SECONDS / frame_seconds
+    minimum = min_region_seconds / frame_seconds
     return [r for r in regions if len(r.frames) >= minimum]
 
 
@@ -505,7 +506,10 @@ def report_regions(regions: list[Region], reference_hz: float) -> None:
         print("  no sustained regions found")
         return
 
-    print(f"  {len(regions)} sustained region(s), post-attack statistics")
+    durations = [r.duration_seconds for r in regions]
+    print(f"  {len(regions)} note(s) resolved, shortest {min(durations) * 1000.0:.0f} ms, "
+          f"median {statistics.median(durations) * 1000.0:.0f} ms")
+    print("  post-attack statistics")
     print("      start    dur   nearest ET note      stdev   max excursion")
     for region in regions:
         scored = region.scored
@@ -665,7 +669,7 @@ def analyse_file(path: Path, args) -> None:
     report_gates(records)
     report_confidence(records, args.confidence)
 
-    regions = find_regions(records, frame_seconds)
+    regions = find_regions(records, frame_seconds, args.min_region_ms / 1000.0)
     report_regions(regions, args.reference_hz)
     report_outliers(records)
     report_dropouts(records, frame_seconds, args.silence_db)
@@ -717,6 +721,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sweep", action="store_true",
                         help="table of survival rates across threshold pairs")
     parser.add_argument("--trace", action="store_true", help="coarse pitch-vs-time view")
+    parser.add_argument("--min-region-ms", type=float, default=MIN_REGION_SECONDS * 1000.0,
+                        help="shortest run of voiced frames counted as a note "
+                             "(default 200 ms; lower it to study fast passages)")
     parser.add_argument("--no-cross-check", action="store_true",
                         help="skip the spectral octave-error check")
     args = parser.parse_args(argv)

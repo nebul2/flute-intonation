@@ -347,6 +347,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--take", choices=sorted(TAKES_BY_NAME), help="record one take")
     parser.add_argument("--all", action="store_true", help="record every take in order")
+    parser.add_argument("--custom", metavar="NAME",
+                        help="record a one-off take under this name")
     parser.add_argument("--monitor", action="store_true", help="live meter, no recording")
     parser.add_argument("--list-devices", action="store_true")
     parser.add_argument("--device", default=None,
@@ -375,7 +377,10 @@ def main(argv: list[str] | None = None) -> int:
         monitor(sd, args.device, args.rate, args.blocksize)
         return 0
 
-    if args.take:
+    if args.custom:
+        takes = [Take(args.custom, args.seconds or 30.0,
+                      "Play whatever you meant to record. Ctrl-C when done.")]
+    elif args.take:
         takes = [TAKES_BY_NAME[args.take]]
     elif args.all:
         takes = list(TAKES)
