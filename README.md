@@ -1,29 +1,33 @@
 # Baroque Flute Intonation Trainer
 
-Implements `DESIGN.md`. Core layer complete and tested; audio layer complete and
-tested offline; live microphone path written but **not yet run against a real
-flute** — that is the next task, and it needs a Mac.
+Implements `DESIGN.md`. Generates exercises suited to the baroque flute, listens
+through the microphone, and reports intonation in cents against a *context-aware*
+target: either a historical temperament or pure intervals over a drone.
+
+Validated against real flute audio and exercised live on macOS. `README.md`
+records findings that supersede parts of the frozen v1 spec — where the two
+disagree, this file is the later evidence.
 
 ## Status
-
-| Layer | State | Tests |
+| Layer | State | Notes |
 |---|---|---|
-| `core/` — pitch, tuning, resolver, generator, scoring | complete | 41 passing |
-| `audio/` — detector, segmenter | complete, validated on synthetic tones | 15 passing |
-| `app.py` — session, CLI, simulated player | complete | exercised via `--simulate` |
-| `ui/` — Verovio notation | not started (v2) | — |
+| `core/` — pitch, tuning, resolver, generator, scoring | complete | golden tests, hand-computed |
+| `audio/` — detector, segmenter, drone | complete | validated on real flute audio, not only synthetic tones |
+| `app.py` — guided session, tuner mode, CLI | complete | exercised live against a flute |
+| `ui/` — note naming | naming only | Verovio notation is still v2 |
+| `tools/` — record, analyse_recording | complete | capture and measure real audio |
+
+`python -m pytest flutetrainer/tests -q` — 88 passed, 1 skipped.
 
 ## Setup
-
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install numpy sounddevice pytest
-pip install aubio          # optional, see "Findings" below
 python -m pytest flutetrainer/tests -q
 ```
 
-`aubio` 0.4.9 has no wheel for Python 3.12 and builds from source; it worked
-cleanly in testing but is not required.
+Python 3.14. **Do not install aubio**: it has no wheel for 3.14, it is optional,
+and the one finding that depends on it is flagged as unresolved below.
 
 ## Usage
 
@@ -107,7 +111,7 @@ Validated against synthetic signals with known answers: a clean tone reads
 tone at 0 dB SNR reads 99.6 % confidence-gated, and a deliberate 100 ms gap is
 reported as exactly one 116 ms dropout attributed to the silence gate.
 
-## Findings from implementation
+## Findings
 
 **The detector default changed.** `DESIGN.md` §5 proposed aubio's `yinfft`.
 Measured on synthetic flute-like tones across D4–A6, the bundled numpy YIN holds
@@ -175,36 +179,7 @@ since that temperament has pure major thirds by construction. The two values are
 computed by completely independent paths (Scala cents arithmetic vs. a rational
 ratio), so their agreement is real evidence rather than a tautology.
 
-## Next steps
-
-1. **Live-microphone validation on macOS.** The offline pass over recorded
-   flute audio is done — see "Measured on real flute audio" below. The live
-   session path now drains stale audio at each note boundary, discards
-   CoreAudio's start-up transient, shows the input level while waiting so a
-   silent display is distinguishable from a dead microphone, exposes
-   `--device`, and stops cleanly on Ctrl-C with a summary. Not yet exercised
-   by a player: that is the next thing to do.
-2. **Guard against breath opening a note.** Gentle blowing excites the flute's
-   air column into confident false pitches (measured: 17–35 % of breath frames
-   voiced, producing 0.2–0.3 s spurious regions at D4/D5/D6). Too short to
-   *complete* a note, but long enough to open one inside the segmenter's
-   ±80-cent window and contaminate its statistics, since the attack skip
-   discards only 60 ms. A second, higher "is this a note" level threshold for
-   onset is the proposed fix: real playing sits 25–35 dB above gentle breath.
-3. **An adaptive silence gate.** −50 dBFS is a fixed constant, but the room
-   floor moved 10 dB between two rooms in one evening (−68.8 to −58.6 dBFS),
-   leaving headroom of 16 dB and 5 dB respectively. Deriving the gate from the
-   observed floor would survive that; a constant will not.
-4. **Re-measure both detector backends on recorded flute audio** and revisit
-   the default. Blocked: aubio is not installed and has no wheels for 3.14, so
-   the comparison in "Findings" still rests on synthetic tones alone.
-5. Config file (`~/.flutetrainer/config.toml`) — §7 of the design; currently the
-   constants live as module-level defaults with CLI overrides.
-6. Verovio notation display (§6, v2).
-7. Score import (§10 non-goal for v1) — the `HarmonicContext` extension point in
-   `core/context.py` is where analysis would feed in.
-
-## Drone feedback is a real hazard, measured
+### Drone feedback is a real hazard, measured
 
 The drone (`audio/drone.py`) is now implemented and sounds through the default
 output. Verified offline: this project's own detector reads it at +0.03 cents,
@@ -256,7 +231,7 @@ level (−20 dBFS at this microphone), the session says so rather than silently
 refusing every note. `--drone-level` sets the drone amplitude, `--no-drone`
 silences it, and `--no-calibrate` disables the check entirely.
 
-## A release no longer completes a note (supersedes DESIGN.md §5)
+### A release no longer completes a note (supersedes DESIGN.md §5)
 
 The spec says a note "closes on >= M silent/unstable frames" *and* that it
 advances once "sounded long enough". Those two readings conflict whenever a
@@ -278,7 +253,7 @@ distinction §5 itself draws:
 * gone *off target* — the player is sounding a different note, so the fragment
   does not describe this target and is discarded.
 
-## Measured on real flute audio
+### Measured on real flute audio
 
 First pass over seven takes (baroque flute at A=415, built-in MacBook Pro mic,
 ~3 min of audio). Two predictions from reading the code were wrong, which is
@@ -330,7 +305,7 @@ the misleading numbers are fixed.
 **Cost is 0.08–0.15 ms per frame against an 11.6 ms budget** (under 1.5 %), so
 real-time is not in question.
 
-### Changes made on this evidence
+#### Changes made on this evidence
 
 * The level gate now reads the **analysis window** rather than the 512-sample
   hop, since that is the buffer the pitch is computed from. Recovers 12–26
@@ -345,16 +320,68 @@ real-time is not in question.
 * Thresholds themselves are **unchanged**: 0.85 confidence and −50 dBFS both
   measured correct on this evidence.
 
+## Next steps
+
+1. **Short notes in imported music.** Measured against real tongued onsets:
+   ~40 ms is enough to identify *which* note was played (±80 cents), ~100 ms
+   for a trustworthy intonation reading, ~120–150 ms before accuracy stops
+   improving. The floor is architectural, not acoustic — 46 ms to fill the
+   2048-sample window plus the 60 ms attack skip — so it is the same at D4 as
+   at A6. Plan: classify each imported note at load time as measurable
+   (≥120 ms, scored), passable (40–120 ms, confirms position only) or ignored,
+   treat measurable notes as anchors, advance through short runs on the time
+   grid and re-sync at the next anchor. Mark unmeasured notes visibly rather
+   than dropping them silently.
+2. **The session waits forever for a note.** Fine for guided practice, wrong
+   for imported music: an anchor that never arrives must time out and be marked
+   missed. Needed before item 1 is usable.
+3. **Guard against breath opening a note.** Gentle blowing excites the flute's
+   air column into confident false pitches (17–35 % of breath frames voiced,
+   producing 0.2–0.3 s spurious regions at D4/D5/D6). Too short to *complete* a
+   note, but long enough to open one inside the ±80-cent window and contaminate
+   its statistics, since the attack skip discards only 60 ms. The onset level
+   check added for the drone is the same mechanism; it currently applies only
+   at the drone's pitch and would need widening carefully — a first attempt at
+   applying it everywhere broke quiet playing.
+4. **Parameterise the sample rate in `app.py`.** The detector already takes it
+   as an argument and reads within ±0.8 cents at 48 kHz across D4–A6, but the
+   session hard-codes 44.1 kHz. This is the one portability blocker sitting in
+   the code today, and mobile captures at 48 kHz.
+5. **A general adaptive silence gate.** Partly done: the session now measures
+   the background and derives an onset threshold from it, which handles the
+   drone unison and adapts to the room. The −50 dBFS constant that decides
+   whether a frame is analysed at all is still fixed, and the room floor moved
+   10 dB between two rooms in one evening (−68.8 to −58.6 dBFS), leaving 16 dB
+   and 5 dB of headroom respectively.
+6. **Re-measure both detector backends on recorded flute audio** and revisit
+   the default. Blocked: aubio is not installed and has no wheels for 3.14, so
+   that comparison still rests on synthetic tones alone.
+7. Config file (`~/.flutetrainer/config.toml`) — §7 of the design; the
+   constants currently live as module-level defaults with CLI overrides.
+8. **Mobile.** A web app (PWA) is the shortest route to something testable on a
+   phone: `core/` is pure logic and the `.scl` files, ratio table and golden
+   test data port unchanged, so the golden tests can be re-run in TypeScript to
+   prove the port. `getUserMedia` must disable `autoGainControl`,
+   `noiseSuppression` and `echoCancellation`, or browser AGC will destroy the
+   level-based calibration.
+9. Verovio notation display (§6, v2).
+10. Score import (§10 non-goal for v1) — the `HarmonicContext` extension point
+    in `core/context.py` is where analysis would feed in.
+
 ## Layout
 
 ```
 core/       pure logic: no audio, no I/O, deterministic
-audio/      capture, detection, segmentation
+audio/      detector, segmenter, drone
+ui/         naming.py — note-name styles (display only)
 data/       bundled .scl temperaments
-tools/      make_temperaments.py — regenerates the .scl files from first principles
-tests/      golden tests (core) + synthetic-tone tests (audio)
+tools/      make_temperaments.py  — regenerates the .scl files from first principles
+            record.py             — captures reference takes of real playing
+            analyse_recording.py  — measures the detector against a recording
+tests/      golden tests (core), synthetic-tone and real-audio regression tests
 ```
 
 The dependency direction is strict: nothing in `core/` imports from `audio/` or
-`ui/`. The `.scl` files, the ratio table and the golden test data are the durable
-assets — they carry unchanged into a C++/JUCE or WASM port.
+`ui/`, and note naming is presentation, so a naming choice can never reach a
+target frequency. The `.scl` files, the ratio table and the golden test data are
+the durable assets — they carry unchanged into a C++/JUCE or WASM port.
