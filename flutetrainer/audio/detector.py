@@ -50,6 +50,34 @@ def _rms_db(block: np.ndarray) -> float:
     return -120.0 if rms <= 1e-12 else 20.0 * np.log10(rms)
 
 
+def _refine_tau(cmnd: np.ndarray, tau: int) -> float:
+    """Parabolic refinement of a discrete minimum, bounded to its neighbours.
+
+    A sub-sample correction can only move the estimate *within* the two
+    adjacent samples; a larger displacement is not a refinement of anything.
+    Bounding it matters because the parabola degenerates on aperiodic input:
+    with breath passing over the embouchure and no note speaking, the
+    difference function has no dip anywhere in the search range, ``tau`` lands
+    on the boundary where the curve is still descending, and the three samples
+    are collinear.
+
+    Measured on a real breath recording at 0.569 s: a=2.0629196, b=2.0580569,
+    c=2.0531995, giving a denominator of -1.07e-5 and a "sub-sample" shift of
+    +908 samples. That indexed past the end of the difference function and
+    raised IndexError, so blowing across the flute without sounding a note
+    crashed the live session. The former ``abs(denominator) > 1e-12`` guard is
+    orders of magnitude too weak to catch a case like that.
+    """
+    if not 1 <= tau < cmnd.size - 1:
+        return float(tau)
+    a, b, c = cmnd[tau - 1], cmnd[tau], cmnd[tau + 1]
+    denominator = 2.0 * (2.0 * b - a - c)
+    if abs(denominator) <= 1e-12:
+        return float(tau)
+    shift = (c - a) / denominator
+    return float(tau) + max(-0.5, min(0.5, shift))
+
+
 def _yin(block: np.ndarray, sample_rate: int, threshold: float = 0.15) -> tuple[float, float]:
     """Reference YIN. Returns (hz, confidence); hz is 0.0 when unvoiced."""
     size = block.size
@@ -98,16 +126,15 @@ def _yin(block: np.ndarray, sample_rate: int, threshold: float = 0.15) -> tuple[
         tau = tau_min + int(np.argmin(window))
 
     # Parabolic interpolation around the dip for sub-sample precision.
-    if 1 <= tau < half - 1:
-        a, b, c = cmnd[tau - 1], cmnd[tau], cmnd[tau + 1]
-        denominator = 2.0 * (2.0 * b - a - c)
-        if abs(denominator) > 1e-12:
-            tau = tau + (c - a) / denominator
+    tau = _refine_tau(cmnd, tau)
 
     if tau <= 0:
         return 0.0, 0.0
     hz = sample_rate / tau
-    confidence = float(np.clip(1.0 - cmnd[int(round(tau))], 0.0, 1.0))
+    # Clamped as defence in depth: the bound inside _refine_tau already keeps
+    # this index inside the array, and neither should be relied on alone.
+    index = max(0, min(cmnd.size - 1, int(round(tau))))
+    confidence = float(np.clip(1.0 - cmnd[index], 0.0, 1.0))
     if not (MIN_HZ <= hz <= MAX_HZ):
         return 0.0, 0.0
     return float(hz), confidence
@@ -168,8 +195,14 @@ class PitchDetector:
         self._buffer = np.roll(self._buffer, -self.hop)
         self._buffer[-self.hop :] = block
 
+        # The level that matters is the one over the *analysis window*, not the
+        # hop. Pitch is computed from the whole 2048-sample buffer, so gating on
+        # 11.6 ms of it discards frames whose analysis window is largely full of
+        # good signal. Measured on real flute takes, 0.5-2.4% of frames per take
+        # were rejected on hop level while the window was above the gate. The
+        # reported level stays the hop's, which is what a live meter should show.
         level = _rms_db(block)
-        if level < self.silence_db:
+        if _rms_db(self._buffer) < self.silence_db:
             self._history.clear()
             return Frame(0.0, 0.0, level)
 
@@ -185,6 +218,13 @@ class PitchDetector:
             gate_ok = confidence >= self.confidence_threshold
 
         if hz <= 0.0 or not gate_ok or not (MIN_HZ <= hz <= MAX_HZ):
+            # Clear the median history on *any* unvoiced frame, not only on a
+            # silent one. Note changes are rejected by the confidence gate
+            # rather than the level gate, so keeping the history across one
+            # would blend the outgoing note's pitch into the first frames of
+            # the incoming note -- precisely where a scoop already makes the
+            # estimate fragile.
+            self._history.clear()
             return Frame(0.0, confidence, level)
 
         self._history.append(hz)
