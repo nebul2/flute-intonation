@@ -21,6 +21,21 @@ def cents_deviation(detected_hz: float, target_hz: float) -> float:
     return 1200.0 * math.log2(detected_hz / target_hz)
 
 
+def judge_direction(mean_cents: float, in_tune_cents: float = IN_TUNE_CENTS) -> str:
+    """'sharp', 'flat' or 'in tune', for comparing against a player's own call.
+
+    Exists for the predict-then-see exercise: the player commits to a judgement
+    before seeing the measurement, and the two are scored side by side. The
+    boundary is the display band, so the verdict never disagrees with the
+    colour the number would have shown.
+    """
+    if mean_cents > in_tune_cents:
+        return "sharp"
+    if mean_cents < -in_tune_cents:
+        return "flat"
+    return "in tune"
+
+
 def band(mean_cents: float) -> str:
     magnitude = abs(mean_cents)
     if magnitude <= IN_TUNE_CENTS:

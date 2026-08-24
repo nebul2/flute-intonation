@@ -14,7 +14,7 @@ import pytest
 
 from flutetrainer.core.context import HarmonicContext
 from flutetrainer.core.generator import arpeggio, interval_drill, scale
-from flutetrainer.core.pitch import SpelledPitch, interval_between
+from flutetrainer.core.pitch import SpelledPitch, cents_between, interval_between
 from flutetrainer.core.resolver import Mode, TargetNote, TargetResolver
 from flutetrainer.core.scoring import analyse_note, cents_deviation
 from flutetrainer.core.tuning import (
@@ -362,3 +362,78 @@ def test_attack_frames_are_discarded():
 
 def test_returns_none_when_nothing_was_played():
     assert analyse_note(SpelledPitch.parse("A4"), 415.0, [], 0.0116) is None
+
+
+# ---------------------------------------------------------------------------
+# Practice exercise builders
+# ---------------------------------------------------------------------------
+
+
+def test_interval_in_context_pairs_tempered_with_pure():
+    """Each degree yields the same written pitch twice: no context, then the
+    drone's context. The pair is the exercise -- the resolver's documented
+    pure-mode fallback sends the first to the temperament."""
+    from flutetrainer.core.generator import interval_in_context
+
+    exercise = interval_in_context("D")
+    assert exercise.drone == SpelledPitch.parse("D4")
+    assert len(exercise.notes) == 4
+    for tempered, pure in zip(exercise.notes[::2], exercise.notes[1::2]):
+        assert tempered.pitch == pure.pitch
+        assert tempered.context is None
+        assert pure.context is not None
+        assert pure.context.bass == exercise.drone
+    assert exercise.notes[0].pitch == SpelledPitch.parse("F#4")
+    assert exercise.notes[2].pitch == SpelledPitch.parse("B4")
+
+
+def test_interval_in_context_targets_differ_in_vallotti():
+    """The whole point: same written note, two frequencies. The pure third is
+    exactly 5/4 over the anchored drone; the tempered one is not."""
+    from flutetrainer.core.generator import interval_in_context
+
+    tuning = temperament("vallotti.scl")
+    resolver = TargetResolver(Mode.PURE, tuning)
+    exercise = interval_in_context("D")
+    tempered_fs, pure_fs = exercise.notes[0], exercise.notes[1]
+
+    drone_hz = tuning.target_hz(exercise.drone)
+    assert resolver.resolve(pure_fs) == pytest.approx(drone_hz * 5.0 / 4.0, rel=1e-9)
+    assert resolver.resolve(tempered_fs) == pytest.approx(
+        tuning.target_hz(tempered_fs.pitch), rel=1e-9)
+
+    gap = cents_between(resolver.resolve(tempered_fs), resolver.resolve(pure_fs))
+    assert 5.0 < abs(gap) < 30.0, f"gap was {gap:.2f}c"
+
+
+def test_enharmonic_pair_gives_two_notes_two_targets():
+    """D#5 pure over B3 and Eb5 pure over C4 are different frequencies; a
+    twelve-note tuner cannot even ask the question."""
+    from flutetrainer.core.generator import enharmonic_pair
+
+    tuning = temperament("vallotti.scl")
+    resolver = TargetResolver(Mode.PURE, tuning)
+    d_sharp, e_flat = enharmonic_pair()
+
+    assert d_sharp.notes[0].pitch == SpelledPitch.parse("D#5")
+    assert d_sharp.drone == SpelledPitch.parse("B3")
+    assert e_flat.notes[0].pitch == SpelledPitch.parse("Eb5")
+    assert e_flat.drone == SpelledPitch.parse("C4")
+
+    hz_sharp = resolver.resolve(d_sharp.notes[0])
+    hz_flat = resolver.resolve(e_flat.notes[0])
+    assert hz_sharp == pytest.approx(
+        tuning.target_hz(d_sharp.drone) * 5.0 / 2.0, rel=1e-9)
+    assert hz_flat == pytest.approx(
+        tuning.target_hz(e_flat.drone) * 12.0 / 5.0, rel=1e-9)
+    assert 5.0 < abs(cents_between(hz_sharp, hz_flat)) < 60.0
+
+
+def test_judge_direction_matches_the_display_bands():
+    from flutetrainer.core.scoring import judge_direction
+
+    assert judge_direction(8.0) == "sharp"
+    assert judge_direction(-8.0) == "flat"
+    assert judge_direction(3.0) == "in tune"
+    assert judge_direction(-4.9) == "in tune"
+    assert judge_direction(5.1) == "sharp"

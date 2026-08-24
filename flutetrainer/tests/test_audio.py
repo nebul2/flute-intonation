@@ -519,3 +519,39 @@ def test_onset_check_applies_only_where_pitch_cannot_separate_the_drone():
     # No drone, or no calibration, means no check at all.
     assert onset_threshold_for(drone, None, -30.0) is None
     assert onset_threshold_for(drone, drone, None) is None
+
+
+def test_every_practice_exercise_builds_and_resolves():
+    """Each registry entry must produce notes a PURE-mode resolver can price.
+
+    Guards the registry itself: a builder that raises, returns an empty
+    exercise, or produces an unresolvable note would otherwise only be
+    discovered live, mid-practice.
+    """
+    from flutetrainer.app import PRACTICE, TEMPERAMENT_DIR
+    from flutetrainer.core.pitch import SpelledPitch
+    from flutetrainer.core.resolver import Mode, TargetResolver
+    from flutetrainer.core.tuning import ReferencePitch, TemperamentTuning, load_scala
+
+    tuning = TemperamentTuning(
+        load_scala(TEMPERAMENT_DIR / "vallotti.scl"),
+        SpelledPitch.parse("C4"),
+        ReferencePitch(SpelledPitch.parse("A4"), 415.0),
+    )
+    resolver = TargetResolver(Mode.PURE, tuning)
+
+    for name, (description, build, feedback) in PRACTICE.items():
+        assert description
+        assert feedback in ("live", "after", "predict")
+        built = build("D")
+        exercises = list(built) if isinstance(built, (list, tuple)) else [built]
+        assert exercises, name
+        for exercise in exercises:
+            assert exercise.notes, f"{name}: empty exercise"
+            for note in exercise.notes:
+                assert resolver.resolve(note) > 0.0
+
+    # The centrepiece really mixes the two target kinds.
+    built = PRACTICE["intervals"][1]("D")
+    assert any(n.context is None for n in built.notes)
+    assert any(n.context is not None for n in built.notes)

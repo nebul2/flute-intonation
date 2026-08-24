@@ -179,6 +179,78 @@ def interval_drill(
     )
 
 
+def interval_in_context(
+    tonic: str = "D",
+    degrees: tuple[int, ...] = (2, 5),
+    start_octave: int = 4,
+    beats: float = 4.0,
+    tempo_bpm: float = 60.0,
+    low: SpelledPitch = DEFAULT_LOW,
+    high: SpelledPitch = DEFAULT_HIGH,
+) -> Exercise:
+    """The same written note twice: first tempered, then pure over the drone.
+
+    The pair is the exercise. A context-free note resolves through the
+    temperament even in pure mode (the resolver's documented fallback), so the
+    first of each pair carries no context and the second carries the drone
+    bass. Same fingering, same drone sounding, two targets: the player hears
+    the tempered version beat against the drone and the pure version lock.
+
+    ``degrees`` are diatonic steps above the tonic; the defaults (2, 5) are the
+    third and the sixth, where pure and tempered diverge most audibly -- a pure
+    major third sits roughly 14 cents below its equal-tempered spelling.
+    """
+    signature = KEY_SIGNATURES[tonic]
+    root = _spell(tonic, start_octave, signature)
+    if not in_range(root, low, high):
+        root = _spell(tonic, start_octave + 1, signature)
+    context = HarmonicContext(bass=root)
+
+    notes: list[TargetNote] = []
+    for degree in degrees:
+        pitch = _ascend(root, degree, signature)
+        if not in_range(pitch, low, high):
+            continue
+        notes.append(TargetNote(pitch, beats, None))      # tempered
+        notes.append(TargetNote(pitch, beats, context))   # pure over the drone
+    return Exercise(
+        name=f"interval in context over {root}",
+        notes=tuple(notes),
+        drone=root,
+        tempo_bpm=tempo_bpm,
+        key=tonic,
+    )
+
+
+def enharmonic_pair(
+    beats: float = 4.0,
+    tempo_bpm: float = 60.0,
+    repeats: int = 2,
+) -> tuple[Exercise, Exercise]:
+    """D# and Eb as different notes, each pure over the bass that wants it.
+
+    Quantz built flutes with separate keys for these two, and his tuning
+    treated the octave as twenty-four notes; the spelled-pitch model exists to
+    preserve exactly this distinction. D#5 is a major third (plus octave) over
+    a B bass; Eb5 is a minor third (plus octave) over a C bass. Two exercises
+    rather than one because each needs its own drone.
+    """
+    pairs = (
+        (SpelledPitch.parse("D#5"), SpelledPitch.parse("B3")),
+        (SpelledPitch.parse("Eb5"), SpelledPitch.parse("C4")),
+    )
+    exercises = []
+    for pitch, bass in pairs:
+        context = HarmonicContext(bass=bass)
+        exercises.append(Exercise(
+            name=f"{pitch} over {bass}",
+            notes=tuple(TargetNote(pitch, beats, context) for _ in range(repeats)),
+            drone=bass,
+            tempo_bpm=tempo_bpm,
+        ))
+    return tuple(exercises)
+
+
 def long_tones(
     pitches: tuple[str, ...],
     bass: str | None = None,

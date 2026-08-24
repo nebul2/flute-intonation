@@ -57,6 +57,32 @@ Tuner mode reports the nearest note *as the selected temperament defines it*,
 not equal temperament, so at A=415 in Vallotti a played F♯4 reads against
 348.58 Hz rather than against an equal-tempered value.
 
+### Practice exercises
+
+```bash
+python -m flutetrainer.app --practice              # list them
+python -m flutetrainer.app --practice intervals    # the centrepiece
+```
+
+Four to start, following the pedagogy plan: `calibration` (long tones over the
+drone), `intervals` (the same written note twice — tempered, then pure over the
+drone; in Vallotti at 415 the pure third sits 9.8 cents lower), `enharmonic`
+(D♯5 over B, then E♭5 over C — one fingering, two targets, 39 cents apart, the
+exercise the spelled-pitch model exists for), and `predict` (call sharp, flat
+or in tune before the number is revealed; agreement is scored).
+
+Practice exercises show **no needle while you play** — only progress toward the
+required duration — and reveal the measurement when the note ends, per the
+guidance-hypothesis risk the plan documents. The live needle stays in the tuner
+and in `--exercise` runs. Practice always runs in pure mode: the resolver's
+documented fallback sends context-free notes to the temperament, which is what
+lets one exercise contain both target kinds.
+
+The tuner reacts to `--temperament`, `--root` and `--pitch`; it deliberately
+ignores `--mode`, because a pure target needs a bass and a free tuner has none
+(it says so when asked). A tuner-with-drone that reads pure intervals over a
+chosen tonic is a natural later addition.
+
 ### Recording reference audio
 
 Validating the live path needs *fixed* audio to measure against, not a fresh

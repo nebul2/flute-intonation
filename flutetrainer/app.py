@@ -28,10 +28,12 @@ import numpy as np
 from .audio.detector import DEFAULT_HOP, DEFAULT_SAMPLE_RATE, PitchDetector
 from .audio.drone import Drone
 from .audio.segmenter import NoteSegmenter, State
-from .core.generator import arpeggio, interval_drill, scale
+from .core.generator import (arpeggio, enharmonic_pair, interval_drill,
+                             interval_in_context, scale)
 from .core.pitch import SpelledPitch, cents_between
 from .core.resolver import Exercise, Mode, TargetResolver
-from .core.scoring import CLOSE_CENTS, IN_TUNE_CENTS, SessionSummary, analyse_note
+from .core.scoring import (CLOSE_CENTS, IN_TUNE_CENTS, SessionSummary,
+                           analyse_note, judge_direction)
 from .core.tuning import BAROQUE_415, MODERN_440, ReferencePitch, TemperamentTuning, load_scala
 from .ui.naming import LETTERS, SOLFEGE, STYLES, note_name, pitch_class_name
 
@@ -183,7 +185,8 @@ def run_simulated(exercise: Exercise, resolver: TargetResolver, error_cents: flo
 def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
              style: str = SOLFEGE, drone_enabled: bool = True,
              drone_level: float = 0.15, onset_margin_db: float | None = 10.0,
-             calibrate_seconds: float = 1.5) -> SessionSummary:
+             calibrate_seconds: float = 1.5,
+             feedback: str = "live") -> SessionSummary:
     try:
         import sounddevice as sd
     except Exception as exc:  # pragma: no cover
@@ -193,6 +196,27 @@ def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
     detector = PitchDetector()
     summary = SessionSummary()
     blocks: queue.Queue = queue.Queue()
+
+    # ``feedback`` is the policy the practice research argues over:
+    #   live    -- the cents needle moves while you play (the original mode)
+    #   after   -- nothing but progress while you play; the reading appears
+    #              when the note ends, so you commit by ear first
+    #   predict -- like after, but you also call sharp/flat/in tune before the
+    #              number is revealed, and the agreement is scored
+    judgements: list[bool] = []
+
+    # When an exercise mixes tempered and pure targets for the same written
+    # note, say which half is which; tagging every note of an all-pure
+    # exercise would be noise.
+    mixed_contexts = (
+        any(n.context is not None for n in exercise.notes)
+        and any(n.context is None for n in exercise.notes)
+    )
+
+    def context_tag(note) -> str:
+        if not mixed_contexts:
+            return ""
+        return " pure" if note.context is not None else " temp"
 
     def callback(indata, _frames, _time, status):  # pragma: no cover
         if status:
@@ -314,8 +338,8 @@ def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
                 required_seconds=0.6 * exercise.duration_seconds(note),
                 onset_db=onset_threshold_for(target, drone_hz, onset_db),
             )
-            label = note_name(note.pitch, style)
-            print(f"  {label:<7} {target:8.2f} Hz  ", end="", flush=True)
+            label = note_name(note.pitch, style) + context_tag(note)
+            print(f"  {label:<12} {target:8.2f} Hz  ", end="", flush=True)
             last_drawn = 0.0
             try:
                 while not seg.complete:
@@ -328,14 +352,24 @@ def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
                     seg.push(frame.hz, frame.rms_db)
                     now = time.monotonic()
                     if now - last_drawn > 0.05:
-                        if frame.voiced:
+                        if feedback != "live":
+                            # No needle: progress toward the required duration
+                            # is all the note shows, so the ear does the tuning
+                            # and the measurement waits until the note is over.
+                            filled = int(20 * min(
+                                1.0, seg.elapsed_seconds / seg.required_seconds))
+                            body = (f"[{'#' * filled}{'-' * (20 - filled)}] "
+                                    f"{seg.elapsed_seconds:4.1f}/"
+                                    f"{seg.required_seconds:.1f}s "
+                                    f"{frame.rms_db:6.1f} dB")
+                        elif frame.voiced:
                             cents = 1200.0 * np.log2(frame.hz / target)
                             body = f"{needle(cents)} {cents:+6.1f}c   "
                         else:
                             # Show the level even when nothing is detected, so a
                             # silent display is distinguishable from a dead mic.
                             body = f"listening...{'':>24}{frame.rms_db:6.1f} dB"
-                        print(f"\r  {label:<7} {target:8.2f} Hz  {body}",
+                        print(f"\r  {label:<12} {target:8.2f} Hz  {body}",
                               end="", flush=True)
                         last_drawn = now
             except KeyboardInterrupt:
@@ -343,13 +377,37 @@ def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
 
             result = analyse_note(note.pitch, target, seg.frames_hz, detector.frame_seconds)
             summary.add(result)
+
+            called = None
+            if feedback == "predict" and result is not None and not interrupted:
+                print("\r" + " " * 78, end="")
+                try:
+                    answer = input(f"\r  {label:<12} your call -- "
+                                   "[s]harp, [f]lat, [t] in tune? ").strip().lower()
+                except (KeyboardInterrupt, EOFError):
+                    print()
+                    interrupted = True
+                    answer = ""
+                called = {"s": "sharp", "f": "flat", "t": "in tune",
+                          "i": "in tune"}.get(answer[:1] if answer else "")
+
             if result is None:
-                print("\r" + " " * 78 + f"\r  {label:<7} (not played)")
+                print("\r" + " " * 78 + f"\r  {label:<12} (not played)")
             else:
-                print(f"\r  {label:<7} {target:8.2f} Hz  "
+                print(f"\r  {label:<12} {target:8.2f} Hz  "
                       f"{needle(result.mean_cents)} {result.mean_cents:+6.1f}c  "
                       f"{band_label(result.mean_cents)}   ")
+                if called is not None:
+                    actual = judge_direction(result.mean_cents)
+                    agreed = called == actual
+                    judgements.append(agreed)
+                    print(f"  {'':<12} you said {called} -- "
+                          + ("your ear agreed with the measurement"
+                             if agreed else f"the measurement says {actual}"))
 
+    if judgements:
+        print(f"\njudgement: your ear agreed with the measurement on "
+              f"{sum(judgements)} of {len(judgements)} notes")
     if interrupted:
         print("\nstopped early")
     return summary
@@ -421,6 +479,92 @@ def run_tuner(tuning: TemperamentTuning, style: str, device=None) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Practice exercises
+# ---------------------------------------------------------------------------
+
+# name -> (description, exercise builder, feedback policy). Builders take the
+# tonic and return one Exercise or a sequence of them; every practice session
+# runs in PURE mode, whose documented fallback sends context-free notes to the
+# temperament -- which is exactly what the interval-in-context pairs rely on.
+PRACTICE = {
+    "calibration": (
+        "long tones -- tonic, fifth, octave over the drone; reading after each note",
+        lambda tonic: interval_drill(tonic, (0, 4, 7), repeats=1),
+        "after",
+    ),
+    "intervals": (
+        "the centrepiece: the same note twice, tempered then pure over the drone",
+        interval_in_context,
+        "after",
+    ),
+    "enharmonic": (
+        "D# over B, then Eb over C -- one fingering, two notes, 39 cents apart",
+        lambda tonic: enharmonic_pair(),
+        "after",
+    ),
+    "predict": (
+        "calibration notes, but you call sharp/flat/in-tune before seeing the number",
+        lambda tonic: interval_drill(tonic, (0, 4, 7), repeats=1),
+        "predict",
+    ),
+}
+
+
+def run_practice(args, tuning: TemperamentTuning) -> SessionSummary | None:
+    """Run one practice exercise; returns its summary, or None if aborted."""
+    choice = args.practice
+    if choice == "list":
+        print("\npractice exercises:")
+        for name, (description, _, _) in PRACTICE.items():
+            print(f"  {name:<12} {description}")
+        try:
+            choice = input("\nwhich one? ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print()
+            return None
+    if choice not in PRACTICE:
+        print(f"unknown exercise {choice!r}", file=sys.stderr)
+        return None
+
+    _, build, feedback = PRACTICE[choice]
+    built = build(args.tonic)
+    exercises = list(built) if isinstance(built, (list, tuple)) else [built]
+
+    resolver = TargetResolver(Mode.PURE, tuning)
+    total = SessionSummary()
+    for exercise in exercises:
+        # The background calibration exists solely for the drone-unison guard;
+        # when no target sits inside the acceptance window of the drone, skip
+        # the 1.5 s wait rather than make every segment start with a pause.
+        margin = None
+        if not args.no_calibrate and not args.no_drone and exercise.drone:
+            drone_hz = tuning.target_hz(exercise.drone)
+            if any(abs(cents_between(drone_hz, resolver.resolve(n)))
+                   <= NoteSegmenter.acceptance_cents for n in exercise.notes):
+                margin = args.onset_margin_db
+        summary = run_live(
+            exercise, resolver, args.device, args.naming, not args.no_drone,
+            args.drone_level, margin, feedback=feedback,
+        )
+        total.results.extend(summary.results)
+
+    # For mixed exercises, the reveal: what the two targets were and how far
+    # apart. Printed after playing, so the ear works unaided first.
+    for exercise in exercises:
+        pairs = [
+            (a, b) for a, b in zip(exercise.notes, exercise.notes[1:])
+            if a.pitch == b.pitch and a.context is None and b.context is not None
+        ]
+        for tempered_note, pure_note in pairs:
+            tempered = resolver.temperament.target_hz(tempered_note.pitch)
+            pure = resolver.resolve(pure_note)
+            print(f"\n{note_name(tempered_note.pitch, args.naming)}: "
+                  f"tempered {tempered:.2f} Hz, pure {pure:.2f} Hz -- "
+                  f"the pure interval sits {cents_between(tempered, pure):+.1f}c away")
+    return total
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -454,6 +598,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="note-name style for display (default: solfege)")
     parser.add_argument("--tuner", action="store_true",
                         help="just listen and name what is played; no exercise")
+    parser.add_argument("--practice", nargs="?", const="list",
+                        choices=(*PRACTICE, "list"),
+                        help="run a practice exercise; no name lists them")
     parser.add_argument("--no-drone", action="store_true",
                         help="do not sound the drone")
     parser.add_argument("--drone-level", type=float, default=0.15,
@@ -488,18 +635,30 @@ def main(argv: list[str] | None = None) -> int:
     reference = ReferencePitch(SpelledPitch.parse("A4"), args.pitch)
     tuning = TemperamentTuning(load_scala(path), SpelledPitch.parse(f"{args.root}4"), reference)
     if args.tuner:
+        if args.mode == "pure":
+            print("note: the tuner reads against the temperament alone -- a "
+                  "pure target needs a bass,\nand a free tuner has none. "
+                  "--temperament, --root and --pitch all apply.")
         return run_tuner(tuning, args.naming, args.device)
 
-    resolver = TargetResolver(Mode(args.mode), tuning)
-    exercise = build_exercise(args)
-
-    summary = (
-        run_simulated(exercise, resolver, args.error_cents, args.naming)
-        if args.simulate
-        else run_live(exercise, resolver, args.device, args.naming,
-                      not args.no_drone, args.drone_level,
-                      None if args.no_calibrate else args.onset_margin_db)
-    )
+    if args.practice is not None:
+        summary = run_practice(args, tuning)
+        if summary is None:
+            return 2
+        exercise_name = f"practice: {args.practice}"
+        mode_name = "pure"
+    else:
+        resolver = TargetResolver(Mode(args.mode), tuning)
+        exercise = build_exercise(args)
+        summary = (
+            run_simulated(exercise, resolver, args.error_cents, args.naming)
+            if args.simulate
+            else run_live(exercise, resolver, args.device, args.naming,
+                          not args.no_drone, args.drone_level,
+                          None if args.no_calibrate else args.onset_margin_db)
+        )
+        exercise_name = exercise.name
+        mode_name = args.mode
 
     print(f"\nmean absolute deviation: {summary.mean_absolute_cents:.1f} cents")
     by_class = summary.by_pitch_class()
@@ -512,7 +671,7 @@ def main(argv: list[str] | None = None) -> int:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         record = summary.to_dict()
         record.update({
-            "exercise": exercise.name, "mode": args.mode,
+            "exercise": exercise_name, "mode": mode_name,
             "temperament": args.temperament, "reference_hz": args.pitch,
         })
         out = SESSION_DIR / f"{stamp}.json"
