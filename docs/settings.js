@@ -18,6 +18,7 @@ export const DEFAULTS = Object.freeze({
   droneLevel: 0.15,
   deviceId: null,
   headphones: false,
+  listenLog: false,      // Listen to me: show the note-by-note log
 });
 
 let state = null;

@@ -1,0 +1,128 @@
+/* Statistics over the notes heard in free play. Pure functions; the view
+ * decides how to show them.
+ *
+ * The question behind the volume figures is a real flute question: does this
+ * note go sharp when played louder? Two fits answer it at two scales -- across
+ * occurrences of the note (louder attempts vs quieter ones) and inside a
+ * single held note (frame by frame). Both need a spread of levels to mean
+ * anything, hence the minimums below. */
+
+import { centsBetween } from "./pitch.js";
+
+// A volume-pitch link is reported only across at least this many occurrences
+// spanning at least this many dB; fewer or narrower and the fit is noise.
+export const VOLUME_MIN_NOTES = 4;
+export const VOLUME_MIN_DB_RANGE = 6.0;
+// Below this slope, or this correlation, the honest verdict is "no clear link".
+export const VOLUME_SLOPE_MIN = 0.5;     // cents per dB
+export const VOLUME_R_MIN = 0.5;
+
+const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const pstdev = (xs) => {
+  if (xs.length < 2) return 0.0;
+  const m = mean(xs);
+  return Math.sqrt(mean(xs.map((x) => (x - m) ** 2)));
+};
+
+/* Least-squares line y = slope*x + intercept, with Pearson r. Null when there
+ * are fewer than three points or x does not vary. */
+export function linearFit(xs, ys) {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 3) return null;
+  const mx = mean(xs.slice(0, n)), my = mean(ys.slice(0, n));
+  let sxx = 0, syy = 0, sxy = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx, dy = ys[i] - my;
+    sxx += dx * dx; syy += dy * dy; sxy += dx * dy;
+  }
+  if (sxx <= 1e-12) return null;
+  const slope = sxy / sxx;
+  const r = syy <= 1e-12 ? 0.0 : sxy / Math.sqrt(sxx * syy);
+  return { slope, intercept: my - slope * mx, r, n };
+}
+
+/* Inside one note: cents (against `targetHz`) against level, frame by frame. */
+export function withinNoteVolumeLink(framesHz, levelsDb, targetHz) {
+  if (!framesHz?.length || !levelsDb?.length || !(targetHz > 0)) return null;
+  const cents = framesHz.map((hz) => centsBetween(targetHz, hz));
+  return linearFit(levelsDb, cents);
+}
+
+export function volumeVerdict(fit) {
+  if (!fit) return null;
+  if (Math.abs(fit.slope) < VOLUME_SLOPE_MIN || Math.abs(fit.r) < VOLUME_R_MIN) return "none";
+  return fit.slope > 0 ? "sharper" : "flatter";
+}
+
+/* Per spelled pitch, over the notes heard. Each note: {pitch, primaryCents,
+ * stdev, seconds, meanDb, index, withinFit?, framesHz?}. Rows come back
+ * sorted by pitch. */
+export function aggregate(notes) {
+  const groups = new Map();
+  for (const note of notes) {
+    const key = note.pitch.name;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(note);
+  }
+
+  const rows = [];
+  for (const [key, group] of groups) {
+    const ordered = [...group].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    const cents = ordered.map((n) => n.primaryCents);
+    const levels = ordered.map((n) => n.meanDb).filter((x) => Number.isFinite(x));
+    const dbRange = levels.length ? Math.max(...levels) - Math.min(...levels) : 0;
+
+    let volume = null;
+    if (ordered.length >= VOLUME_MIN_NOTES && dbRange >= VOLUME_MIN_DB_RANGE && levels.length === ordered.length) {
+      volume = linearFit(levels, cents);
+    }
+
+    let withinVolume = null;
+    const fitted = ordered.filter((n) => n.withinFit);
+    if (fitted.length) {
+      const weight = (n) => n.withinFit.n;
+      const total = fitted.reduce((a, n) => a + weight(n), 0);
+      withinVolume = {
+        slope: fitted.reduce((a, n) => a + n.withinFit.slope * weight(n), 0) / total,
+        r: fitted.reduce((a, n) => a + n.withinFit.r * weight(n), 0) / total,
+        n: total,
+      };
+    }
+
+    let trend = null;
+    if (ordered.length >= 4) {
+      const half = ordered.length >> 1;
+      trend = mean(cents.slice(ordered.length - half)) - mean(cents.slice(0, half));
+    }
+
+    rows.push({
+      pitch: ordered[0].pitch, key,
+      n: ordered.length,
+      meanCents: mean(cents),
+      minCents: Math.min(...cents),
+      maxCents: Math.max(...cents),
+      spreadCents: pstdev(cents),
+      stability: mean(ordered.map((n) => n.stdev)),
+      totalSeconds: ordered.reduce((a, n) => a + n.seconds, 0),
+      meanDb: levels.length ? mean(levels) : null,
+      dbRange,
+      volume, withinVolume, trend,
+    });
+  }
+  return rows.sort((a, b) => a.pitch.chromaticIndex - b.pitch.chromaticIndex);
+}
+
+/* Plain numbers for the saved record. */
+export function rowsToRecord(rows) {
+  const r2 = (x) => (x === null || x === undefined ? null : Math.round(x * 100) / 100);
+  return rows.map((row) => ({
+    pitch: row.key, n: row.n,
+    mean_cents: r2(row.meanCents), min_cents: r2(row.minCents), max_cents: r2(row.maxCents),
+    spread_cents: r2(row.spreadCents), stability_cents: r2(row.stability),
+    total_s: r2(row.totalSeconds), mean_db: r2(row.meanDb), db_range: r2(row.dbRange),
+    volume_slope: row.volume ? r2(row.volume.slope) : null,
+    volume_r: row.volume ? r2(row.volume.r) : null,
+    within_volume_slope: row.withinVolume ? r2(row.withinVolume.slope) : null,
+    trend_cents: r2(row.trend),
+  }));
+}

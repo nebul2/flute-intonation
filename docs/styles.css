@@ -176,6 +176,20 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .summary p { max-width: 40rem; }
 .stopper { display: flex; flex-direction: column; gap: 0.3rem; }
 .controls.left { justify-content: flex-start; }
+.controls.top { justify-content: space-between; }
+.toggle { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.85rem; cursor: pointer; }
+.toggle input { accent-color: var(--brass); }
+
+/* ---- statistics table ---------------------------------------------- */
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.stats table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: 0.85rem; }
+.stats th, .stats td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--edge); text-align: right; white-space: nowrap; }
+.stats th { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; border-bottom-color: var(--muted); }
+.stats th:first-child, .stats td.name { text-align: left; }
+.stats td.name { font-weight: 600; }
+.stats td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.stats td.good { color: var(--good); } .stats td.close { color: var(--close); } .stats td.off { color: var(--off); }
+.rows[hidden] { display: none; }
 
 .note-box { color: var(--muted); font-size: 0.82rem; line-height: 1.5; border-left: 2px solid var(--edge); padding-left: 0.8rem; max-width: 40rem; }
 .example { color: var(--ink); }

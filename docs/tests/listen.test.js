@@ -23,6 +23,17 @@ test("a steady note closes on silence with its median and length", () => {
   assert.ok(Math.abs(closed[0].medianHz - 415.0) < 1e-9);
   assert.ok(Math.abs(closed[0].seconds - 40 * FS) < 1e-9);
   assert.equal(closed[0].short, false);
+  assert.ok(Math.abs(closed[0].meanDb - (-20)) < 1e-9, "level travels with pitch");
+  assert.equal(closed[0].levelsDb.length, 40);
+});
+
+test("the confirming frames of a new note bring their levels with them", () => {
+  const tr = new RegionTracker({ frameSeconds: FS });
+  const frames = [...Array(30).fill(voiced(415.0)), ...Array(30).fill({ hz: 466.16, levelDb: -12 })];
+  feed(tr, frames);
+  const last = tr.flush();
+  assert.equal(last.levelsDb.length, 30);
+  assert.ok(Math.abs(last.meanDb - (-12)) < 1e-9);
 });
 
 test("two notes played legato split on the pitch change", () => {

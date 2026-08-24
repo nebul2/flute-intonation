@@ -6,11 +6,12 @@
  * not only against the temperament. Each note gets both readings; the current
  * mode decides which one leads.
  *
- * Live feedback is allowed here (this is free play, not a graded exercise), so
- * the needle moves as in the tuner, and a list of the notes heard grows
- * underneath with each one's deviation, stability and length. Notes under
- * ~120 ms are counted but not measured: below that a reading is not
- * trustworthy, as measured on real tongued onsets. */
+ * Live feedback is allowed here (this is free play, not a graded exercise).
+ * The overview is a per-note table that fills in as you play: occurrences,
+ * average and spread, stability, time held, level, whether the note goes
+ * sharp when louder, and drift across the piece. The note-by-note log is a
+ * remembered option, off by default, so a long piece does not scroll away.
+ * Notes under ~120 ms are counted but not measured. */
 
 import { t, lang } from "../i18n.js";
 import { engine } from "../audio/engine.js";
@@ -19,11 +20,14 @@ import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker } from "../audio/regions.js";
+import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink } from "../core/stats.js";
 import { el, audioControl, needle, levelBar, bandClass, currentTuning, name, tunerCandidates, nearestCandidate } from "../ui/widgets.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
 const TONIC_FRAMES = 40;          // ~0.45 s of the tonic to begin
 const UNSTABLE_CENTS = 8.0;
+
+const fmt = (c, digits = 1) => `${c >= 0 ? "+" : ""}${c.toFixed(digits)}`;
 
 export default {
   title: () => t("listen.title"),
@@ -43,6 +47,8 @@ export default {
     if (this.control) { this.control.dispose(); this.control = null; }
   },
 
+  /* ---- start screen ---------------------------------------------------- */
+
   showStart() {
     this.teardown();
     const root = this.root;
@@ -60,6 +66,8 @@ export default {
       el("div", { class: "row" }, [control.element, el("span", { text: t("practice.tonic") }), tonicSelect, start]),
     );
   },
+
+  /* ---- a session ------------------------------------------------------- */
 
   startSession() {
     this.teardown();
@@ -79,18 +87,32 @@ export default {
     const root = this.root;
     root.replaceChildren();
 
+    const finishButton = () => el("button", { class: "secondary", text: t("listen.stop"), onclick: () => this.finish() });
+    const logToggle = el("label", { class: "toggle" }, [
+      el("input", { type: "checkbox", checked: s.listenLog || null,
+                    onchange: (e) => { settings.set({ listenLog: e.target.checked }); this.ui.rows.hidden = !e.target.checked; } }),
+      el("span", { text: t("listen.log") }),
+    ]);
+
     this.ui = {
       status: el("p", { class: "intro", text: t("listen.tonicPrompt", name(tonicPitch, s).replace(/4$/, "")) }),
+      finishTop: finishButton(), finishBottom: finishButton(),
       note: el("div", { class: "big-note", text: "—" }),
       readout: el("div", { class: "readout" }, [el("span"), el("span")]),
       gauge: needle(), level: levelBar(),
-      rows: el("div", { class: "rows" }),
+      table: el("div", { class: "stats scroll" }),
+      rows: el("div", { class: "rows", hidden: !s.listenLog }),
       summary: el("div", { class: "summary" }),
-      stop: el("button", { class: "secondary", text: t("listen.stop"), onclick: () => this.finish() }),
     };
     const u = this.ui;
     u.panel = el("div", { class: "card panel" }, [u.note, u.readout, u.gauge.element, u.level.element]);
-    root.append(u.status, u.panel, u.summary, u.rows, el("div", { class: "controls" }, [u.stop]));
+    root.append(
+      u.status,
+      el("div", { class: "controls top" }, [u.finishTop, logToggle]),
+      u.panel, u.table, u.summary, u.rows,
+      el("div", { class: "controls" }, [u.finishBottom]),
+    );
+    this.renderTable();
 
     this.offFrame = engine.onFrame((frame) => this.onFrame(frame));
     this.mounted = true;
@@ -132,14 +154,20 @@ export default {
       pureHz = run.pure.targetHz(near.pitch, run.context);
       pureCents = centsBetween(pureHz, region.medianHz);
     } catch (_e) { /* no ratio for this spelled interval */ }
-    const primaryHz = run.settings.mode === "pure" && pureHz ? pureHz : near.hz;
+    const usePure = run.settings.mode === "pure" && pureHz !== null;
+    const primaryHz = usePure ? pureHz : near.hz;
     const deviations = region.framesHz.map((hz) => centsBetween(primaryHz, hz));
     const meanDev = deviations.reduce((a, b) => a + b, 0) / deviations.length;
     const stdev = Math.sqrt(deviations.reduce((a, d) => a + (d - meanDev) ** 2, 0) / deviations.length);
-    return { pitch: near.pitch, temperedHz: near.hz, temperedCents, pureHz, pureCents,
-             primary: run.settings.mode === "pure" && pureHz ? "pure" : "tempered",
-             primaryCents: run.settings.mode === "pure" && pureHz ? pureCents : temperedCents,
-             stdev, seconds: region.seconds, medianHz: region.medianHz };
+    return {
+      pitch: near.pitch, temperedHz: near.hz, temperedCents, pureHz, pureCents,
+      primary: usePure ? "pure" : "tempered",
+      primaryCents: usePure ? pureCents : temperedCents,
+      primaryHz, stdev, seconds: region.seconds, medianHz: region.medianHz,
+      meanDb: region.meanDb, levelsDb: region.levelsDb, framesHz: region.framesHz,
+      withinFit: withinNoteVolumeLink(region.framesHz, region.levelsDb, primaryHz),
+      index: run.notes.length,
+    };
   },
 
   addRegion(region) {
@@ -147,25 +175,64 @@ export default {
     if (region.short) { run.shortCount += 1; return; }
     const note = this.score(region);
     run.notes.push(note);
-    const s = run.settings;
-    const tonicName = name(run.tonicPitch, s).replace(/4$/, "");
-    const fmt = (c) => `${c >= 0 ? "+" : ""}${c.toFixed(1)}¢`;
+    this.ui.rows.prepend(this.logRow(note));
+    this.renderTable();
+  },
+
+  logRow(note) {
+    const s = this.run.settings;
+    const tonicName = name(this.run.tonicPitch, s).replace(/4$/, "");
     const primaryLabel = note.primary === "pure" ? t("listen.pureOver", tonicName) : t("listen.tempered");
     const secondary = note.primary === "pure"
-      ? `${t("listen.tempered")} ${fmt(note.temperedCents)}`
-      : (note.pureCents === null ? "" : `${t("listen.pureOver", tonicName)} ${fmt(note.pureCents)}`);
-    const row = el("div", { class: "result-row" }, [
+      ? `${t("listen.tempered")} ${fmt(note.temperedCents)}¢`
+      : (note.pureCents === null ? "" : `${t("listen.pureOver", tonicName)} ${fmt(note.pureCents)}¢`);
+    return el("div", { class: "result-row" }, [
       el("div", { class: "result-head" }, [
         el("span", { class: "result-name", text: name(note.pitch, s) }),
-        el("span", { class: `mono ${bandClass(note.primaryCents)}`, text: `${fmt(note.primaryCents)} ${primaryLabel}` }),
+        el("span", { class: `mono ${bandClass(note.primaryCents)}`, text: `${fmt(note.primaryCents)}¢ ${primaryLabel}` }),
       ]),
       el("div", { class: "muted", text: [
         secondary,
         `${note.seconds.toFixed(2)} s`,
+        `${note.meanDb.toFixed(0)} dB`,
         note.stdev > UNSTABLE_CENTS ? `~ ${t("listen.unstable")} (±${note.stdev.toFixed(1)}¢)` : null,
       ].filter(Boolean).join(" · ") }),
     ]);
-    this.ui.rows.prepend(row);
+  },
+
+  /* The per-note overview, rebuilt from scratch each time a note lands. */
+  renderTable() {
+    const run = this.run, s = run.settings;
+    const rows = aggregate(run.notes);
+    const head = ["note", "n", "mean", "range", "stability", "time", "level", "volume", "trend"];
+    const table = el("table", {}, [
+      el("thead", {}, [el("tr", {}, head.map((k) => el("th", { text: t(`listen.col.${k}`), title: t(`listen.colTitle.${k}`) })))]),
+      el("tbody", {}, rows.map((row) => {
+        const verdict = volumeVerdict(row.volume);
+        let volumeText = "·", volumeTitle = t("listen.volume.few");
+        if (verdict === "none") { volumeText = "—"; volumeTitle = t("listen.volume.none"); }
+        else if (verdict) {
+          volumeText = `${verdict === "sharper" ? "↑" : "↓"} ${fmt(row.volume.slope)} ¢/dB`;
+          volumeTitle = t(`listen.volume.${verdict}`);
+        } else if (row.withinVolume && Math.abs(row.withinVolume.slope) >= 0.5 && Math.abs(row.withinVolume.r) >= 0.5) {
+          volumeText = `(${row.withinVolume.slope > 0 ? "↑" : "↓"} ${fmt(row.withinVolume.slope)})`;
+          volumeTitle = t("listen.volume.within");
+        }
+        const trendText = row.trend === null ? "—" : `${row.trend > 0 ? "↑" : "↓"} ${fmt(row.trend)}`;
+        return el("tr", {}, [
+          el("td", { class: "name", text: name(row.pitch, s) }),
+          el("td", { class: "num", text: String(row.n) }),
+          el("td", { class: `num ${bandClass(row.meanCents)}`, text: fmt(row.meanCents) }),
+          el("td", { class: "num", text: row.n > 1 ? `${fmt(row.minCents)}…${fmt(row.maxCents)}` : "—" }),
+          el("td", { class: "num", text: `±${row.stability.toFixed(1)}` }),
+          el("td", { class: "num", text: row.totalSeconds.toFixed(1) }),
+          el("td", { class: "num", text: row.meanDb === null ? "—" : row.meanDb.toFixed(0) }),
+          el("td", { class: "num", text: volumeText, title: volumeTitle }),
+          el("td", { class: "num", text: trendText, title: row.trend === null ? "" : t(row.trend > 0 ? "listen.trend.up" : "listen.trend.down") }),
+        ]);
+      })),
+    ]);
+    this.ui.table.replaceChildren(rows.length ? table : el("p", { class: "muted", text: t("listen.tableEmpty") }));
   },
 
   render() {
@@ -178,7 +245,7 @@ export default {
       const near = nearestCandidate(run.candidates, run.lastVoiced.hz);
       u.note.textContent = name(near.pitch, run.settings);
       u.readout.children[0].textContent = `${run.lastVoiced.hz.toFixed(2)} Hz`;
-      u.readout.children[1].textContent = `${near.cents >= 0 ? "+" : ""}${near.cents.toFixed(1)}¢`;
+      u.readout.children[1].textContent = `${fmt(near.cents)}¢`;
       u.readout.children[1].className = bandClass(near.cents);
       u.gauge.set(near.cents);
     } else {
@@ -189,6 +256,8 @@ export default {
     }
     requestAnimationFrame(() => this.render());
   },
+
+  /* ---- the end --------------------------------------------------------- */
 
   async finish() {
     const run = this.run;
@@ -204,42 +273,39 @@ export default {
     u.level.element.hidden = true;
     u.panel.classList.add("finished");
     u.status.textContent = t("practice.done");
-    u.stop.textContent = t("listen.again");
-    u.stop.onclick = () => this.showStart();
+    for (const b of [u.finishTop, u.finishBottom]) { b.textContent = t("listen.again"); b.onclick = () => this.showStart(); }
+    this.renderTable();
 
+    const rows = aggregate(run.notes);
     const parts = [el("h2", { text: t("listen.summary") })];
     if (!run.notes.length) {
       parts.push(el("p", { text: t("listen.noNotes") }));
     } else {
       parts.push(el("p", { class: "mono", text: t("listen.count", run.notes.length) }));
-      const buckets = new Map();
-      for (const n of run.notes) {
-        const key = name(n.pitch, s).replace(/-?\d+$/, "");
-        if (!buckets.has(key)) buckets.set(key, []);
-        buckets.get(key).push(n.primaryCents);
-      }
-      const byNote = [...buckets.entries()].map(([k, v]) => {
-        const m = v.reduce((a, b) => a + b, 0) / v.length;
-        return `${k} ${m >= 0 ? "+" : ""}${m.toFixed(1)} (${v.length})`;
-      }).join("  ");
-      parts.push(el("p", { class: "mono", text: `${t("listen.byNote")} ${byNote}` }));
       const unstable = run.notes.filter((n) => n.stdev > UNSTABLE_CENTS).length;
       if (unstable) parts.push(el("p", { class: "muted", text: `${unstable} ~ ${t("listen.unstable")}` }));
+      for (const row of rows) {
+        const verdict = volumeVerdict(row.volume);
+        if (verdict && verdict !== "none") {
+          parts.push(el("p", { class: "muted", text: `${name(row.pitch, s)} : ${t(`listen.volume.${verdict}`)} (${fmt(row.volume.slope)} ¢/dB, r ${row.volume.r.toFixed(2)})` }));
+        }
+      }
     }
     if (run.shortCount) parts.push(el("p", { class: "muted", text: t("listen.short", run.shortCount) }));
     u.summary.replaceChildren(...parts);
 
     if (run.notes.length) {
+      const r2 = (x) => Math.round(x * 100) / 100;
       const record = {
         v: 1, exercise: "listen", mode: s.mode, temperament: s.temperament, root: s.root,
         reference_hz: s.referenceHz, tonic: run.tonicPitch.name, lang: lang(),
         notes: run.notes.map((n) => ({
-          pitch: n.pitch.name, target_hz: Math.round((n.primary === "pure" ? n.pureHz : n.temperedHz) * 1e4) / 1e4,
-          mean_cents: Math.round(n.primaryCents * 100) / 100, stdev_cents: Math.round(n.stdev * 100) / 100,
-          settle_s: null, frames: Math.round(n.seconds / run.tracker.frameSeconds),
-          tempered_cents: Math.round(n.temperedCents * 100) / 100,
-          pure_cents: n.pureCents === null ? null : Math.round(n.pureCents * 100) / 100,
+          pitch: n.pitch.name, target_hz: Math.round(n.primaryHz * 1e4) / 1e4,
+          mean_cents: r2(n.primaryCents), stdev_cents: r2(n.stdev), settle_s: null,
+          frames: n.framesHz.length, mean_db: r2(n.meanDb),
+          tempered_cents: r2(n.temperedCents), pure_cents: n.pureCents === null ? null : r2(n.pureCents),
         })),
+        by_note: rowsToRecord(rows),
         short_notes: run.shortCount,
       };
       try { await history.add(record); u.summary.append(el("p", { class: "muted", text: t("practice.saved") })); }
