@@ -133,15 +133,30 @@
     color: var(--muted); font-size: 0.8rem; line-height: 1.5;
     border-left: 2px solid var(--edge); padding-left: 0.8rem;
   }
+  .lang {
+    align-self: flex-end;
+    display: flex; align-items: center; gap: 0.35rem;
+    font-family: var(--mono); font-size: 0.75rem; color: var(--muted);
+  }
+  .lang button {
+    background: none; border: 0; padding: 0.2rem 0.3rem;
+    color: var(--muted); font: inherit; cursor: pointer;
+  }
+  .lang button.active { color: var(--brass); font-weight: 700; }
+  .lang button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   footer { color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
   footer a { color: var(--brass); }
 </style>
 </head>
 <body>
 
+<div class="lang" role="group" aria-label="Language">
+  <button type="button" data-lang="en">EN</button><span>·</span><button type="button" data-lang="fr">FR</button>
+</div>
+
 <header>
-  <h1>Traverso — hardware check</h1>
-  <p>Does your microphone and speaker path work? Phase 0 of the intonation trainer.</p>
+  <h1 id="title">Traverso — hardware check</h1>
+  <p id="tagline">Does your microphone and speaker path work? Phase 0 of the intonation trainer.</p>
 </header>
 
 <div class="card">
@@ -172,15 +187,15 @@
   <div id="diag"></div>
 </div>
 
-<div class="note-box">
-  Note names are <strong>equal temperament</strong> for this check only — the
-  real engine (Vallotti, mesotonic, pure intervals over the drone) is the next
-  phase. The gold mark on the level bar is the −50 dBFS gate. With the drone
-  through speakers it will re-enter the microphone: that is expected here, and
+<div class="note-box" id="notebox">
+  Note names are equal temperament for this check only — the real engine
+  (Vallotti, mesotonic, pure intervals over the drone) is the next phase. The
+  gold mark on the level bar is the −50 dBFS gate. With the drone through
+  speakers it will re-enter the microphone: that is expected here, and
   headphones are recommended once real exercises arrive.
 </div>
 
-<footer><span id="version"></span> · <a href="https://github.com/nebul2/flute-intonation">source</a></footer>
+<footer><span id="version"></span> · <a id="srclink" href="https://github.com/nebul2/flute-intonation">source</a></footer>
 
 <script src="yin.js"></script>
 <script src="app.js"></script>
