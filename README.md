@@ -186,7 +186,12 @@ set make *Add to Home Screen* install it as an app.
 Listen to me is free play with feedback: it asks for the tonic first, which
 sets the harmonic context, so every note that follows is read both against the
 temperament and as a pure interval above the tonic; notes are segmented online
-(`docs/audio/regions.js`) and those under 120 ms are counted, not measured.
+(`docs/audio/regions.js`) and those under 120 ms are counted, not measured. A
+per-note table fills in as you play (`docs/core/stats.js`): occurrences, mean
+and min…max deviation, within-note stability, time held, mean level, whether
+the note goes sharp or flat when louder (a fit across occurrences, reported
+only over ≥ 4 notes spanning ≥ 6 dB), and drift across the piece; the
+note-by-note log is an option, off by default.
 With a drone through speakers, three notch filters on the drone's partials sit
 between the microphone and the detector — engaged only where the expected note
 is not that partial — so the player no longer has to out-play the bleed.
