@@ -152,6 +152,25 @@ button.secondary:disabled { border-color: var(--edge); color: var(--muted); curs
 .option-help { color: var(--muted); font-size: 0.85rem; }
 input[type="range"] { width: min(20rem, 100%); accent-color: var(--brass); }
 
+/* ---- practice ------------------------------------------------------- */
+.card.exercise { min-height: 6rem; }
+.progress { position: relative; height: 12px; background: var(--ground); border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; }
+.progress-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: var(--brass); transition: width 80ms linear; }
+.judge { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+.judge[hidden] { display: none; }
+button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
+.rows { display: flex; flex-direction: column; gap: 0.6rem; }
+.result-row { background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius); padding: 0.7rem 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.result-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.8rem; flex-wrap: wrap; }
+.result-name { font-weight: 600; }
+.result-row .good { color: var(--good); } .result-row .close { color: var(--close); } .result-row .off { color: var(--off); }
+.muted { color: var(--muted); font-size: 0.85rem; }
+.muted.good { color: var(--good); }
+.summary { display: flex; flex-direction: column; gap: 0.5rem; }
+.summary p { max-width: 40rem; }
+.stopper { display: flex; flex-direction: column; gap: 0.3rem; }
+.controls.left { justify-content: flex-start; }
+
 .note-box { color: var(--muted); font-size: 0.82rem; line-height: 1.5; border-left: 2px solid var(--edge); padding-left: 0.8rem; max-width: 40rem; }
 .example { color: var(--ink); }
 .mono { font-family: var(--mono); font-size: 0.85rem; }

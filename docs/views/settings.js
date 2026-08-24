@@ -4,6 +4,7 @@
 import { t, setLanguage } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
+import * as history from "../history.js";
 import { el, audioControl } from "../ui/widgets.js";
 
 const REFERENCES = [392, 415, 430, 440, 442];
@@ -86,6 +87,19 @@ export default {
     const control = audioControl();
     this.control = control;
 
+    /* history */
+    const historyNote = el("div", { class: "diag" });
+    history.count().then((n) => { historyNote.textContent = t("settings.historyCount", n); }).catch(() => {});
+    const exportButton = el("button", { class: "secondary", text: t("settings.export"), onclick: async () => {
+      const n = await history.exportFile();
+      historyNote.textContent = t("settings.exported", n);
+    } });
+    const clearButton = el("button", { class: "secondary", text: t("settings.clear"), onclick: async () => {
+      if (!window.confirm(t("settings.clearConfirm"))) return;
+      await history.clear();
+      historyNote.textContent = t("settings.cleared");
+    } });
+
     root.append(
       el("h2", { text: t("settings.reference") }),
       el("div", { class: "row" }, [refs, custom]),
@@ -95,7 +109,8 @@ export default {
       el("h2", { text: t("settings.droneLevel") }), droneLevel,
       headphones,
       el("h2", { text: t("settings.history") }),
-      el("p", { class: "note-box", text: t("settings.historySoon") }),
+      el("div", { class: "controls left" }, [exportButton, clearButton]),
+      historyNote,
     );
   },
 

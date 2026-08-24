@@ -14,7 +14,7 @@ import settingsView from "./views/settings.js";
 import check from "./views/check.js";
 import listen from "./views/listen.js";
 
-export const VERSION = "phase 1.1 · 2026-08-24";
+export const VERSION = "phase 2 · 2026-08-24";
 
 const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen };
 

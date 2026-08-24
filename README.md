@@ -173,8 +173,18 @@ carries every real-audio fix and reads within ±0.9 cents across D4–A6 at both
 44.1 and 48 kHz. The tuner therefore reads against the selected temperament,
 not equal temperament.
 
-Still to port: the segmenter, generator and scoring (the practice exercises),
-session history with export, and the PWA manifest.
+The five practice exercises run in the browser too — calibration, interval in
+context, D♯/E♭, predict-then-see, and the stopper check — on ports of the
+segmenter, generator and scoring (`docs/audio/segmenter.js`, `docs/core/`),
+with the desktop rules intact: no needle while playing, duration the only
+route to a completed note, the drone-unison guard calibrated from 1.5 s of
+measured background, and the stopper report comparing against the previous
+run. Practice history lives on the device (IndexedDB), in the desktop session
+schema, with export to a JSON file from Settings. The PWA manifest and icon
+set make *Add to Home Screen* install it as an app.
+
+Still to build: Listen to me, routines by length, a service worker for
+offline use.
 
 ## Findings
 

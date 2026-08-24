@@ -7,7 +7,7 @@ import { el } from "../ui/widgets.js";
 
 const CARDS = [
   { route: "tuner", icon: iconTuner },
-  { route: "practice", icon: iconPractice, soon: true },
+  { route: "practice", icon: iconPractice },
   { route: "tuning", icon: iconTuning },
   { route: "settings", icon: iconSettings },
   { route: "check", icon: iconCheck },
