@@ -14,7 +14,7 @@ import settingsView from "./views/settings.js";
 import check from "./views/check.js";
 import listen from "./views/listen.js";
 
-export const VERSION = "phase 1 · 2026-08-24";
+export const VERSION = "phase 1.1 · 2026-08-24";
 
 const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen };
 
@@ -23,6 +23,8 @@ function $(id) { return document.getElementById(id); }
 function renderShell(name, view) {
   const isHome = name === "home";
   $("back").hidden = isHome;
+  $("logo").hidden = !isHome;        // the icon marks the landing page; the back
+                                     // arrow takes its grid slot inside sections
   $("title").textContent = isHome ? t("app.name") : view.title();
   document.title = isHome ? t("app.name") : `${view.title()} — ${t("app.name")}`;
   $("strip").textContent = statusText();

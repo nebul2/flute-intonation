@@ -8,7 +8,7 @@
   --muted:  #8B98A3;
   --brass:  #D4A24E;
   --brass-ink: #1A1408;
-  --good:   #6FBF8F;
+  --good:   #7FD8B8;   /* the icon's "in tune" tick */
   --close:  #D4A24E;
   --off:    #D07B4F;
   --mono: "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
@@ -48,7 +48,8 @@ a { color: var(--brass); }
   background: none; border: 1px solid var(--edge); color: var(--ink); cursor: pointer;
   display: grid; place-items: center;
 }
-.back[hidden] { visibility: hidden; display: grid; }
+.logo { width: 40px; height: 40px; border-radius: 9px; display: block; }
+.logo[hidden] { display: none; }
 .lang { display: flex; align-items: center; gap: 0.3rem; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
 .lang button { background: none; border: 0; padding: 0.2rem 0.3rem; color: var(--muted); cursor: pointer; }
 .lang button.active { color: var(--brass); font-weight: 700; }
