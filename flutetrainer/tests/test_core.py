@@ -437,3 +437,49 @@ def test_judge_direction_matches_the_display_bands():
     assert judge_direction(3.0) == "in tune"
     assert judge_direction(-4.9) == "in tune"
     assert judge_direction(5.1) == "sharp"
+
+
+def test_stopper_check_is_the_classical_note_set():
+    """Three D's and two G's, no drone, no contexts -- targets exist only so
+    the detector knows which note is sounding."""
+    from flutetrainer.core.generator import stopper_check
+
+    exercise = stopper_check()
+    assert exercise.drone is None
+    assert [str(n.pitch) for n in exercise.notes] == ["D4", "D5", "D6", "G4", "G5"]
+    assert all(n.context is None for n in exercise.notes)
+
+
+def test_octave_pairs_measure_sounded_width_not_targets():
+    """The width is between sounded frequencies, so it is unchanged if the
+    whole flute sits sharp or flat of the tuner -- the stopper criterion."""
+    from flutetrainer.core.scoring import NoteResult, octave_pairs
+
+    def results(offset: float):
+        return [
+            NoteResult(SpelledPitch.parse("D4"), 277.29, 5.0 + offset, 0.0, None, 1),
+            NoteResult(SpelledPitch.parse("D5"), 554.58, -3.0 + offset, 0.0, None, 1),
+            NoteResult(SpelledPitch.parse("D6"), 1109.16, 1.0 + offset, 0.0, None, 1),
+            NoteResult(SpelledPitch.parse("G4"), 370.00, 0.0 + offset, 0.0, None, 1),
+            NoteResult(SpelledPitch.parse("G5"), 740.00, 6.5 + offset, 0.0, None, 1),
+        ]
+
+    for offset in (0.0, -30.0, 30.0):     # the flute's absolute seat is irrelevant
+        pairs = octave_pairs(results(offset))
+        labels = [f"{lo.pitch}->{up.pitch}" for lo, up, _ in pairs]
+        assert labels == ["D4->D5", "D5->D6", "G4->G5"]
+        widths = [w for _, _, w in pairs]
+        assert widths[0] == pytest.approx(-8.0, abs=0.01)   # narrow
+        assert widths[1] == pytest.approx(4.0, abs=0.01)    # wide
+        assert widths[2] == pytest.approx(6.5, abs=0.01)
+
+
+def test_octave_pairs_respect_spelling():
+    """D#5 is not an octave above D4; enharmonic collapse would fake a pair."""
+    from flutetrainer.core.scoring import NoteResult, octave_pairs
+
+    results = [
+        NoteResult(SpelledPitch.parse("D4"), 277.29, 0.0, 0.0, None, 1),
+        NoteResult(SpelledPitch.parse("D#5"), 587.33, 0.0, 0.0, None, 1),
+    ]
+    assert octave_pairs(results) == []

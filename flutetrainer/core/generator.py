@@ -251,6 +251,28 @@ def enharmonic_pair(
     return tuple(exercises)
 
 
+def stopper_check(beats: float = 4.0, tempo_bpm: float = 60.0) -> Exercise:
+    """The three D's and the two lower G's, set embouchure, no drone.
+
+    The classical test for placing the stopper (le bouchon): play the octaves
+    with the embouchure set -- adapted for the register, but making no pitch
+    correction -- and move the stopper until the octaves come out as close to
+    true as possible. Absolute pitch is deliberately not the criterion; only
+    the internal width of the octaves is. Quantz invented the screw-cap
+    stopper precisely so this could be adjusted when changing corps de
+    rechange.
+
+    No drone and no context: the targets exist only so the detector knows
+    which note is being sounded.
+    """
+    pitches = ("D4", "D5", "D6", "G4", "G5")
+    notes = tuple(
+        TargetNote(SpelledPitch.parse(name), beats, None) for name in pitches
+    )
+    return Exercise(name="stopper check", notes=notes, drone=None,
+                    tempo_bpm=tempo_bpm)
+
+
 def long_tones(
     pitches: tuple[str, ...],
     bass: str | None = None,

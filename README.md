@@ -68,8 +68,17 @@ Four to start, following the pedagogy plan: `calibration` (long tones over the
 drone), `intervals` (the same written note twice — tempered, then pure over the
 drone; in Vallotti at 415 the pure third sits 9.8 cents lower), `enharmonic`
 (D♯5 over B, then E♭5 over C — one fingering, two targets, 39 cents apart, the
-exercise the spelled-pitch model exists for), and `predict` (call sharp, flat
-or in tune before the number is revealed; agreement is scored).
+exercise the spelled-pitch model exists for), `predict` (call sharp, flat
+or in tune before the number is revealed; agreement is scored), and `stopper`
+(place le bouchon: the three D's and the two lower G's with a set embouchure —
+nothing is revealed per note, and the report gives each octave's width in
+cents, the mean octave error to minimise, and whether it tightened or widened
+since the previous saved run). The stopper check deliberately ignores absolute
+pitch — the criterion is the internal truth of the octaves, which is exactly
+what a tuner cannot show — and offers no "move it in/out" advice, because that
+sign depends on the instrument: run, move, run again, and the comparison says
+whether the move helped. The acceptance window widens to ±120 cents there,
+since the flute's own tuning is the thing under test.
 
 Menu and predict prompts commit the moment the input is unambiguous — `c`
 selects calibration, `i` intervals, and in predict a single `s`, `f`, `t` or

@@ -542,7 +542,7 @@ def test_every_practice_exercise_builds_and_resolves():
 
     for name, (description, build, feedback) in PRACTICE.items():
         assert description
-        assert feedback in ("live", "after", "predict")
+        assert feedback in ("live", "after", "predict", "end")
         built = build("D")
         exercises = list(built) if isinstance(built, (list, tuple)) else [built]
         assert exercises, name
@@ -587,3 +587,36 @@ def test_choose_aliases_map_to_one_value(monkeypatch):
                             ("t", "in tune"), ("i", "in tune")):
         monkeypatch.setattr("builtins.input", lambda _prompt="", t=typed: t)
         assert choose("? ", options) == expected
+
+
+def test_last_stopper_error_reads_the_most_recent_stopper_run(monkeypatch, tmp_path):
+    import json
+
+    import flutetrainer.app as app
+
+    monkeypatch.setattr(app, "SESSION_DIR", tmp_path)
+
+    def record(name, mean_by_pitch):
+        payload = {
+            "exercise": name,
+            "notes": [{"pitch": p, "target_hz": t, "mean_cents": m}
+                      for p, t, m in mean_by_pitch],
+        }
+        return json.dumps(payload)
+
+    # An older stopper run with a 10c-wide D octave, then a non-stopper run.
+    (tmp_path / "20260823T1.json").write_text(
+        record("practice: stopper",
+               [("D4", 277.29, 0.0), ("D5", 554.58, 10.0)]), encoding="utf-8")
+    (tmp_path / "20260824T2.json").write_text(
+        record("practice: intervals", [("F#4", 348.58, 1.0)]), encoding="utf-8")
+
+    found = app._last_stopper_error()
+    assert found is not None
+    stamp, error = found
+    assert error == pytest.approx(10.0, abs=0.01)
+
+    # No stopper runs at all -> None.
+    for f in tmp_path.glob("*.json"):
+        f.unlink()
+    assert app._last_stopper_error() is None

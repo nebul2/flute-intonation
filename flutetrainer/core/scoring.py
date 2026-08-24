@@ -90,6 +90,34 @@ def analyse_note(
     return NoteResult(pitch, target_hz, mean, stdev, settle, len(usable))
 
 
+def sounded_hz(result: NoteResult) -> float:
+    """The frequency the player actually produced, reconstructed from the
+    measured deviation and the target it was measured against."""
+    return result.target_hz * 2.0 ** (result.mean_cents / 1200.0)
+
+
+def octave_pairs(
+    results: list[NoteResult],
+) -> list[tuple[NoteResult, NoteResult, float]]:
+    """Adjacent-octave pairs of the same spelled pitch class, with the width
+    error of each pair in cents (0 = a true 2:1 octave; positive = wide).
+
+    This is the stopper check's arithmetic: the width is computed between the
+    *sounded* frequencies, so it is independent of what the targets were and
+    of where the flute sat against the tuner -- which is the whole point of
+    the exercise.
+    """
+    pairs = []
+    for lower in results:
+        for upper in results:
+            if (upper.pitch.letter == lower.pitch.letter
+                    and upper.pitch.alter == lower.pitch.alter
+                    and upper.pitch.octave == lower.pitch.octave + 1):
+                width = 1200.0 * math.log2(sounded_hz(upper) / sounded_hz(lower))
+                pairs.append((lower, upper, width - 1200.0))
+    return pairs
+
+
 @dataclass
 class SessionSummary:
     results: list[NoteResult] = field(default_factory=list)

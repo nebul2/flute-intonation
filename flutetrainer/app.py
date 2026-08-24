@@ -29,11 +29,12 @@ from .audio.detector import DEFAULT_HOP, DEFAULT_SAMPLE_RATE, PitchDetector
 from .audio.drone import Drone
 from .audio.segmenter import NoteSegmenter, State
 from .core.generator import (arpeggio, enharmonic_pair, interval_drill,
-                             interval_in_context, scale)
+                             interval_in_context, scale, stopper_check)
 from .core.pitch import SpelledPitch, cents_between
 from .core.resolver import Exercise, Mode, TargetResolver
-from .core.scoring import (CLOSE_CENTS, IN_TUNE_CENTS, SessionSummary,
-                           analyse_note, judge_direction)
+from .core.scoring import (CLOSE_CENTS, IN_TUNE_CENTS, NoteResult,
+                           SessionSummary, analyse_note, judge_direction,
+                           octave_pairs)
 from .core.tuning import BAROQUE_415, MODERN_440, ReferencePitch, TemperamentTuning, load_scala
 from .ui.naming import LETTERS, SOLFEGE, STYLES, note_name, pitch_class_name
 
@@ -256,7 +257,8 @@ def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
              style: str = SOLFEGE, drone_enabled: bool = True,
              drone_level: float = 0.15, onset_margin_db: float | None = 10.0,
              calibrate_seconds: float = 1.5,
-             feedback: str = "live") -> SessionSummary:
+             feedback: str = "live",
+             acceptance_cents: float | None = None) -> SessionSummary:
     try:
         import sounddevice as sd
     except Exception as exc:  # pragma: no cover
@@ -273,6 +275,9 @@ def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
     #              when the note ends, so you commit by ear first
     #   predict -- like after, but you also call sharp/flat/in tune before the
     #              number is revealed, and the agreement is scored
+    #   end     -- nothing per note at all, only "captured"; used by the
+    #              stopper check, where seeing one note's absolute deviation
+    #              would invite correcting the next, which the protocol forbids
     judgements: list[bool] = []
 
     # When an exercise mixes tempered and pure targets for the same written
@@ -408,6 +413,8 @@ def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
                 required_seconds=0.6 * exercise.duration_seconds(note),
                 onset_db=onset_threshold_for(target, drone_hz, onset_db),
             )
+            if acceptance_cents is not None:
+                seg.acceptance_cents = acceptance_cents
             label = note_name(note.pitch, style) + context_tag(note)
             print(f"  {label:<12} {target:8.2f} Hz  ", end="", flush=True)
             last_drawn = 0.0
@@ -464,6 +471,9 @@ def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
 
             if result is None:
                 print("\r" + " " * 78 + f"\r  {label:<12} (not played)")
+            elif feedback == "end":
+                print("\r" + " " * 78
+                      + f"\r  {label:<12} captured ({result.frame_count} frames)")
             else:
                 print(f"\r  {label:<12} {target:8.2f} Hz  "
                       f"{needle(result.mean_cents)} {result.mean_cents:+6.1f}c  "
@@ -573,12 +583,71 @@ PRACTICE = {
         lambda tonic: enharmonic_pair(),
         "after",
     ),
+    "stopper": (
+        "place le bouchon: the three D's and two G's, set embouchure, octave widths only",
+        lambda tonic: stopper_check(),
+        "end",
+    ),
     "predict": (
         "calibration notes, but you call sharp/flat/in-tune before seeing the number",
         lambda tonic: interval_drill(tonic, (0, 4, 7), repeats=1),
         "predict",
     ),
 }
+
+
+def _last_stopper_error() -> tuple[str, float] | None:
+    """Mean octave error of the most recent saved stopper run, if any.
+
+    Rebuilt from the saved per-note data rather than stored as its own field,
+    so old session files need no schema change and the arithmetic has exactly
+    one home.
+    """
+    try:
+        for path in sorted(SESSION_DIR.glob("*.json"), reverse=True):
+            record = json.loads(path.read_text(encoding="utf-8"))
+            if record.get("exercise") != "practice: stopper":
+                continue
+            results = [
+                NoteResult(SpelledPitch.parse(n["pitch"]), n["target_hz"],
+                           n["mean_cents"], 0.0, None, 0)
+                for n in record.get("notes", [])
+            ]
+            pairs = octave_pairs(results)
+            if pairs:
+                import statistics  # noqa: PLC0415
+                return path.stem, statistics.fmean(abs(w) for _, _, w in pairs)
+    except (OSError, ValueError, KeyError):  # pragma: no cover - corrupt file
+        pass
+    return None
+
+
+def report_stopper(summary: SessionSummary, style: str) -> None:
+    """Octave widths, the single figure to minimise, and the previous run."""
+    pairs = octave_pairs(summary.results)
+    if not pairs:
+        print("\nstopper check: not enough octaves captured to pair up")
+        return
+
+    previous = _last_stopper_error()
+
+    print("\nstopper check -- octave widths (0 = a true octave):")
+    for lower, upper, width in pairs:
+        shape = "wide" if width > 0 else "narrow"
+        print(f"  {note_name(lower.pitch, style):<5} -> "
+              f"{note_name(upper.pitch, style):<5} {width:+6.1f}c  {shape}")
+    import statistics  # noqa: PLC0415
+    error = statistics.fmean(abs(w) for _, _, w in pairs)
+    print(f"  mean octave error: {error:.1f}c -- this is the number to minimise")
+    offset = statistics.fmean(r.mean_cents for r in summary.results)
+    print(f"  (whole flute sat {offset:+.1f}c of nominal -- irrelevant here)")
+
+    if previous is not None:
+        stamp, last_error = previous
+        verdict = ("closer -- keep going in the same direction"
+                   if error < last_error else
+                   "wider -- the last move went the wrong way")
+        print(f"  previous run ({stamp}): {last_error:.1f}c -> {verdict}")
 
 
 def run_practice(args, tuning: TemperamentTuning) -> SessionSummary | None:
@@ -604,6 +673,17 @@ def run_practice(args, tuning: TemperamentTuning) -> SessionSummary | None:
     built = build(args.tonic)
     exercises = list(built) if isinstance(built, (list, tuple)) else [built]
 
+    acceptance = None
+    if choice == "stopper":
+        # The flute's own tuning is the thing under test, so a set-embouchure
+        # note may legitimately sit far from the nominal target; widen the
+        # window so it still registers rather than reading "(not played)".
+        acceptance = 120.0
+        print("\nstopper check: set your embouchure and keep it -- adapt for the")
+        print("octave, but make no pitch correction. Absolute tuning is ignored;")
+        print("only the width of the octaves matters. Move le bouchon between")
+        print("runs and chase the smallest octave error.")
+
     resolver = TargetResolver(Mode.PURE, tuning)
     total = SessionSummary()
     for exercise in exercises:
@@ -619,8 +699,12 @@ def run_practice(args, tuning: TemperamentTuning) -> SessionSummary | None:
         summary = run_live(
             exercise, resolver, args.device, args.naming, not args.no_drone,
             args.drone_level, margin, feedback=feedback,
+            acceptance_cents=acceptance,
         )
         total.results.extend(summary.results)
+
+    if choice == "stopper":
+        report_stopper(total, args.naming)
 
     # For mixed exercises, the reveal: what the two targets were and how far
     # apart. Printed after playing, so the ear works unaided first.
