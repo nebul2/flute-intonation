@@ -152,6 +152,15 @@ Validated against synthetic signals with known answers: a clean tone reads
 tone at 0 dB SNR reads 99.6 % confidence-gated, and a deliberate 100 ms gap is
 reported as exactly one 116 ms dropout attributed to the silence gate.
 
+## Web version (phase 0)
+
+**https://nebul2.github.io/flute-intonation/** — the hardware check: microphone
+in through a JavaScript port of the detector (`docs/yin.js`, every real-audio
+fix intact), drone out through the speakers, equal-temperament note names for
+this phase only. Served by GitHub Pages from `docs/`; `git push` is the whole
+release process. `node docs/yin.test.js` is the port's acceptance gate: ±0.9
+cents across D4–A6 at both 44.1 and 48 kHz.
+
 ## Findings
 
 **The detector default changed.** `DESIGN.md` §5 proposed aubio's `yinfft`.
