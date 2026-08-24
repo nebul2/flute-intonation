@@ -56,6 +56,15 @@ class Drone {
     this.engine.emit();
   }
 
+  /* Smoothly change the level of a playing drone (used to duck it during a
+   * unison note, where its bleed would otherwise mask the player). */
+  setLevel(level) {
+    this.level = level;
+    const ctx = this.engine.context;
+    if (!this.nodes || !ctx) return;
+    this.nodes.master.gain.setTargetAtTime(level, ctx.currentTime, 0.08);
+  }
+
   stop() {
     if (!this.nodes) return;
     const { master, oscillators } = this.nodes;

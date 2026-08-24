@@ -154,6 +154,9 @@ input[type="range"] { width: min(20rem, 100%); accent-color: var(--brass); }
 
 /* ---- practice ------------------------------------------------------- */
 .card.exercise { min-height: 6rem; }
+.panel.finished { border-color: var(--good); }
+.panel.finished .big-note { color: var(--good); }
+.progress[hidden], .level[hidden] { display: none; }
 .progress { position: relative; height: 12px; background: var(--ground); border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; }
 .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: var(--brass); transition: width 80ms linear; }
 .judge { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }

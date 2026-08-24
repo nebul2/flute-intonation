@@ -34,6 +34,12 @@ const EXERCISES = {
 const TONICS = ["D", "G", "A", "C", "F"];
 const ONSET_MARGIN_DB = 10.0;
 const CALIBRATE_MS = 1500;
+// During calibration and unison notes the drone is ducked to this fraction of
+// its level (about -12 dB). At the drone's own pitch the measured background
+// *is* the drone's bleed, so without ducking the player has to out-shout the
+// drone to open the note -- observed live. Every other note keeps the full
+// drone; the unison is where it carries the least tuning information anyway.
+const UNISON_DUCK = 0.25;
 const PLAYING_LEVEL_DB = -20.0;   // typical playing level at the mic; sanity check only
 
 function bandLabel(cents) {
@@ -143,14 +149,15 @@ export default {
       stop: el("button", { class: "secondary", text: t("practice.stop"), onclick: () => this.finish(true) }),
     };
     const u = this.ui;
+    u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.level.element, u.judge]);
     root.append(
       u.heading,
       run.key === "stopper" ? el("p", { class: "note-box", text: t("practice.stopper.protocol") }) : null,
       (run.exercises.some((e) => e.drone) && !run.settings.headphones)
         ? el("p", { class: "note-box", text: t("practice.bleed") }) : null,
       u.status,
-      el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.level.element, u.judge]),
-      u.rows, u.summary,
+      u.panel,
+      u.summary, u.rows,
       el("div", { class: "controls" }, [u.stop]),
     );
 
@@ -181,10 +188,12 @@ export default {
 
     if (exercise.drone && run.settings.droneLevel > 0) {
       run.droneHz = run.tuning.targetHz(exercise.drone);
-      engine.drone.start(run.droneHz, run.settings.droneLevel);
-      // The background measurement exists only for the drone-unison guard.
+      // The background measurement exists only for the drone-unison guard,
+      // and is taken with the drone already ducked, as it will be during
+      // the unison notes it protects.
       const needsGuard = exercise.notes.some((n) =>
         Math.abs(centsBetween(run.droneHz, run.resolver.resolve(n))) <= 80.0);
+      engine.drone.start(run.droneHz, run.settings.droneLevel * (needsGuard ? UNISON_DUCK : 1));
       if (needsGuard) {
         run.phase = "calibrating";
         run.levels = [];
@@ -232,7 +241,13 @@ export default {
     run.phase = "playing";
     this.ui.noteLabel.textContent = name(note.pitch, run.settings) + this.contextTag(note, exercise);
     this.ui.target.textContent = `${run.target.toFixed(2)} Hz`;
-    if (run.phase === "playing" && run.key !== "stopper") this.ui.status.textContent = t("practice.playNow");
+    if (run.droneHz) {
+      const unison = run.seg.onsetDb !== null;
+      engine.drone.setLevel(run.settings.droneLevel * (unison ? UNISON_DUCK : 1));
+      if (run.key !== "stopper") this.ui.status.textContent = unison ? t("practice.playNowUnison") : t("practice.playNow");
+    } else if (run.key !== "stopper") {
+      this.ui.status.textContent = t("practice.playNow");
+    }
   },
 
   onFrame(frame) {
@@ -305,6 +320,7 @@ export default {
   render() {
     if (!this.mounted || !this.run) return;
     const run = this.run;
+    if (run.phase === "finished") return;      // nothing moves once it is over
     const u = this.ui;
     const frame = engine.lastFrame;
     if (frame) u.level.set(frame.levelDb);
@@ -329,7 +345,15 @@ export default {
     run.stopped = stopped;
     if (run.nextTimer) clearTimeout(run.nextTimer);
     engine.drone.stop();
+    // The playing panel becomes a clear "over" state: no progress, no
+    // meter, a tick instead of a note -- the exercise has visibly ended.
     this.ui.judge.hidden = true;
+    this.ui.noteLabel.textContent = stopped ? "■" : "✓";
+    this.ui.target.textContent = "";
+    this.ui.progress.hidden = true;
+    this.ui.progressText.textContent = "";
+    this.ui.level.element.hidden = true;
+    this.ui.panel.classList.add("finished");
     this.ui.status.textContent = stopped ? t("practice.stopped") : t("practice.done");
     this.ui.stop.textContent = t("practice.backToList");
     this.ui.stop.onclick = () => this.showList();
