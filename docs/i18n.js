@@ -16,6 +16,10 @@ export const STRINGS = {
     "nav.redo": "Redo",
     "nav.backToList": "Back to the list",
     "footer.source": "source",
+    "footer.privacy": "Anonymous audience counts (section names only, no cookie, no IP kept) — switch off in Settings. Your playing never leaves this device.",
+    "settings.privacy": "Privacy",
+    "settings.analytics": "Anonymous audience counts",
+    "settings.analyticsHelp": "Sends only the name of the section you open, to GoatCounter, which sets no cookie and keeps no IP address. Nothing about your playing, settings or history is ever sent. Browsers set to Do Not Track are never counted.",
 
     "home.soon": "coming",
     "home.card.tuner.title": "Tuner",
@@ -225,6 +229,10 @@ export const STRINGS = {
     "nav.redo": "Recommencer",
     "nav.backToList": "Retour à la liste",
     "footer.source": "code source",
+    "footer.privacy": "Statistiques d'audience anonymes (nom de la section seulement, sans cookie, aucune IP conservée) — désactivables dans Réglages. Ton jeu ne quitte jamais cet appareil.",
+    "settings.privacy": "Confidentialité",
+    "settings.analytics": "Statistiques d'audience anonymes",
+    "settings.analyticsHelp": "N'envoie que le nom de la section ouverte, à GoatCounter, qui ne pose aucun cookie et ne conserve aucune adresse IP. Rien de ton jeu, de tes réglages ni de ton historique n'est jamais envoyé. Les navigateurs réglés sur « Ne pas me suivre » ne sont jamais comptés.",
 
     "home.soon": "à venir",
     "home.card.tuner.title": "Accordeur",

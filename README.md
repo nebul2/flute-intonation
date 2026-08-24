@@ -203,6 +203,14 @@ With a drone through speakers, three notch filters on the drone's partials sit
 between the microphone and the detector — engaged only where the expected note
 is not that partial — so the player no longer has to out-play the bleed.
 
+Anonymous audience counts go to GoatCounter (`docs/analytics.js`): the name
+of the section opened, once per navigation, and nothing else — no URL, no
+setting, no note, no result. GoatCounter sets no cookie and keeps no IP.
+The script is fetched only when counting is enabled; the Settings toggle
+switches it off entirely, Do Not Track is honoured, localhost is never
+counted, and the footer says so. This keeps it inside the CNIL's
+audience-measurement exemption rather than consent-banner territory.
+
 Still to build: routines by length, a service worker for offline use.
 
 ## Findings

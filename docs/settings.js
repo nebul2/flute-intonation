@@ -19,6 +19,7 @@ export const DEFAULTS = Object.freeze({
   deviceId: null,
   headphones: false,
   listenLog: false,      // Listen to me: show the note-by-note log
+  analytics: true,       // anonymous audience counts (section names only)
 });
 
 let state = null;

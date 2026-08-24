@@ -5,6 +5,7 @@ import { t, setLanguage, detectLanguage, onLanguageChange } from "./i18n.js";
 import * as settings from "./settings.js";
 import { Router, currentRoute, back } from "./router.js";
 import { el, statusText } from "./ui/widgets.js";
+import * as analytics from "./analytics.js";
 
 import home from "./views/home.js";
 import tuner from "./views/tuner.js";
@@ -15,7 +16,7 @@ import check from "./views/check.js";
 import listen from "./views/listen.js";
 import stopper from "./views/stopper.js";
 
-export const VERSION = "phase 2.8 · 2026-08-24";
+export const VERSION = "phase 2.9 · 2026-08-24";
 
 const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper };
 
@@ -32,12 +33,14 @@ function renderShell(name, view) {
   const main = $("view");
   main.replaceChildren();
   main.dataset.view = name;
+  analytics.pageview(name);          // the section name only, never the URL
   return main;
 }
 
 function renderChrome() {
   $("back").setAttribute("aria-label", t("nav.back"));
   $("srclink").textContent = t("footer.source");
+  $("privacy").textContent = t("footer.privacy");
   $("version").textContent = VERSION;
   document.querySelectorAll("[data-lang]").forEach((b) =>
     b.classList.toggle("active", b.dataset.lang === document.documentElement.lang));

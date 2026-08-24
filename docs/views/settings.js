@@ -87,6 +87,16 @@ export default {
     const control = audioControl();
     this.control = control;
 
+    /* anonymous usage counts */
+    const analyticsToggle = el("label", { class: "option" }, [
+      el("input", { type: "checkbox", checked: s.analytics !== false || null,
+                    onchange: (e) => settings.set({ analytics: e.target.checked }) }),
+      el("span", { class: "option-body" }, [
+        el("span", { class: "option-label", text: t("settings.analytics") }),
+        el("span", { class: "option-help", text: t("settings.analyticsHelp") }),
+      ]),
+    ]);
+
     /* history */
     const historyNote = el("div", { class: "diag" });
     history.count().then((n) => { historyNote.textContent = t("settings.historyCount", n); }).catch(() => {});
@@ -111,6 +121,8 @@ export default {
       el("h2", { text: t("settings.history") }),
       el("div", { class: "controls left" }, [exportButton, clearButton]),
       historyNote,
+      el("h2", { text: t("settings.privacy") }),
+      analyticsToggle,
     );
   },
 
