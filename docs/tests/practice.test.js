@@ -237,8 +237,8 @@ test("scale pools are spelled by the key: D minor has Bb, C minor has Eb Ab Bb",
   assert.equal(scaleKeyFor("D", "minor"), "F");
   assert.deepEqual(scalePool("D", "major").map((p) => p.name), ["D4", "E4", "F#4", "G4", "A4", "B4", "C#5", "D5"]);
   assert.deepEqual(scalePool("D", "minor").map((p) => p.name), ["D4", "E4", "F4", "G4", "A4", "Bb4", "C5", "D5"]);
-  assert.deepEqual(scalePool("C", "minor").map((p) => p.name), ["C4", "D4", "Eb4", "F4", "G4", "Ab4", "Bb4", "C5"].filter((n) => n !== "C4"),
-    "C4 sits below the flute's range and is dropped; the rest is spelled with flats");
+  // C4 sits below the flute's range, so the scale starts an octave up, as in Python.
+  assert.deepEqual(scalePool("C", "minor").map((p) => p.name), ["C5", "D5", "Eb5", "F5", "G5", "Ab5", "Bb5", "C6"]);
 });
 
 test("pickDifferent stays in the pool and never repeats the previous note", () => {
