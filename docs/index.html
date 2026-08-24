@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traverso — hardware check</title>
+<style>
+  /* One committed look: a practice room at night. Boxwood-and-brass accent
+     on a blue-grey dark ground; everything painted explicitly. */
+  :root {
+    --ground: #14171A;
+    --panel:  #1C2126;
+    --edge:   #2A3138;
+    --ink:    #E8ECEF;
+    --muted:  #8B98A3;
+    --brass:  #D4A24E;
+    --good:   #6FBF8F;
+    --close:  #D4A24E;
+    --off:    #D07B4F;
+    --mono: "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 3rem;
+    gap: 1.2rem;
+  }
+  header { text-align: center; }
+  h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: 0.01em; }
+  header p { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    padding: 1.4rem;
+    width: min(26rem, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  #note {
+    font-size: 4rem;
+    font-weight: 650;
+    text-align: center;
+    line-height: 1.1;
+    min-height: 4.4rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .readout {
+    display: flex;
+    justify-content: center;
+    gap: 1.2rem;
+    font-family: var(--mono);
+    font-size: 1rem;
+    color: var(--muted);
+    min-height: 1.3rem;
+  }
+  #cents.good { color: var(--good); }
+  #cents.close { color: var(--close); }
+  #cents.off { color: var(--off); }
+
+  .track {
+    position: relative;
+    height: 10px;
+    background: var(--ground);
+    border: 1px solid var(--edge);
+    border-radius: 5px;
+  }
+  .track .mark {
+    position: absolute; top: -4px; bottom: -4px; left: 50%;
+    width: 2px; background: var(--muted); border-radius: 1px;
+  }
+  #needle {
+    position: absolute; top: -6px; bottom: -6px;
+    width: 4px; margin-left: -2px;
+    background: var(--brass); border-radius: 2px;
+    left: 50%; opacity: 0.25;
+    transition: left 60ms linear;
+  }
+  .scale-labels {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
+  }
+
+  .level { display: flex; align-items: center; gap: 0.7rem; }
+  .level .track { flex: 1; height: 8px; }
+  #levelbar {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--muted); border-radius: 4px; width: 0%;
+  }
+  .level .gate {
+    position: absolute; top: -3px; bottom: -3px;
+    left: 30.5%;                       /* -50 dBFS on a -72..0 scale */
+    width: 2px; background: var(--brass); opacity: 0.7;
+  }
+  #leveltext {
+    font-family: var(--mono); font-size: 0.75rem;
+    color: var(--muted); width: 6.5rem; text-align: right;
+  }
+
+  .controls { display: flex; gap: 0.7rem; flex-wrap: wrap; justify-content: center; }
+  button {
+    background: var(--brass); color: #1A1408;
+    border: 0; border-radius: 7px;
+    padding: 0.65rem 1.4rem;
+    font-size: 1rem; font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { background: var(--edge); color: var(--muted); cursor: default; }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  #drone { background: var(--panel); color: var(--brass); border: 1px solid var(--brass); }
+  #drone:disabled { border-color: var(--edge); color: var(--muted); }
+
+  .ref { display: flex; gap: 1rem; justify-content: center;
+         font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
+  .ref label { display: flex; gap: 0.3rem; align-items: center; cursor: pointer; }
+  .ref input { accent-color: var(--brass); }
+
+  #status { text-align: center; color: var(--muted); font-size: 0.85rem; min-height: 1.2rem; }
+  #diag { text-align: center; font-family: var(--mono); font-size: 0.72rem;
+          color: var(--muted); min-height: 1rem; }
+
+  .note-box {
+    width: min(26rem, 100%);
+    color: var(--muted); font-size: 0.8rem; line-height: 1.5;
+    border-left: 2px solid var(--edge); padding-left: 0.8rem;
+  }
+  footer { color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
+  footer a { color: var(--brass); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Traverso — hardware check</h1>
+  <p>Does your microphone and speaker path work? Phase 0 of the intonation trainer.</p>
+</header>
+
+<div class="card">
+  <div id="note">—</div>
+  <div class="readout"><span id="hz">press Start</span><span id="cents"></span></div>
+
+  <div>
+    <div class="track"><div class="mark"></div><div id="needle"></div></div>
+    <div class="scale-labels"><span>−50¢</span><span>0</span><span>+50¢</span></div>
+  </div>
+
+  <div class="level">
+    <div class="track"><div id="levelbar"></div><div class="gate"></div></div>
+    <span id="leveltext">−∞ dBFS</span>
+  </div>
+
+  <div class="controls">
+    <button id="start">Start</button>
+    <button id="drone" disabled>Drone</button>
+  </div>
+
+  <div class="ref">
+    <label><input type="radio" name="ref" value="415" checked> A = 415</label>
+    <label><input type="radio" name="ref" value="440"> A = 440</label>
+  </div>
+
+  <div id="status">press Start and allow the microphone</div>
+  <div id="diag"></div>
+</div>
+
+<div class="note-box">
+  Note names are <strong>equal temperament</strong> for this check only — the
+  real engine (Vallotti, mesotonic, pure intervals over the drone) is the next
+  phase. The gold mark on the level bar is the −50 dBFS gate. With the drone
+  through speakers it will re-enter the microphone: that is expected here, and
+  headphones are recommended once real exercises arrive.
+</div>
+
+<footer><span id="version"></span> · <a href="https://github.com/nebul2/flute-intonation">source</a></footer>
+
+<script src="yin.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
