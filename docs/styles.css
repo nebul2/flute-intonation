@@ -118,6 +118,9 @@ h2 { font-size: 0.95rem; font-weight: 600; color: var(--ink); margin-top: 0.4rem
 .track { position: relative; height: 10px; background: var(--ground); border: 1px solid var(--edge); border-radius: 5px; }
 .track .mark { position: absolute; top: -4px; bottom: -4px; left: 50%; width: 2px; background: var(--muted); border-radius: 1px; }
 .needle { position: absolute; top: -6px; bottom: -6px; width: 4px; margin-left: -2px; background: var(--brass); border-radius: 2px; left: 50%; opacity: 0.25; transition: left 60ms linear; }
+.track.in-tune .mark { background: var(--good); width: 4px; margin-left: -1px; box-shadow: 0 0 8px var(--good); }
+.track.in-tune .needle { background: var(--good); }
+.track.in-tune { border-color: var(--good); }
 .scale-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .needle { transition: none; } .card { transition: none; } }
 

@@ -96,9 +96,16 @@ export function needle() {
   return {
     element,
     set(cents) {
-      if (cents === null) { marker.style.opacity = "0.25"; return; }
+      if (cents === null) {
+        marker.style.opacity = "0.25";
+        track.classList.remove("in-tune");
+        return;
+      }
       marker.style.left = `${50 + Math.max(-50, Math.min(50, cents))}%`;
       marker.style.opacity = "1";
+      // Within the in-tune band the centre bar and the needle go green:
+      // the same band as the number's colour, so the two never disagree.
+      track.classList.toggle("in-tune", bandClass(cents) === "good");
     },
   };
 }
