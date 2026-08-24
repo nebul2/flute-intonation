@@ -183,8 +183,15 @@ run. Practice history lives on the device (IndexedDB), in the desktop session
 schema, with export to a JSON file from Settings. The PWA manifest and icon
 set make *Add to Home Screen* install it as an app.
 
-Still to build: Listen to me, routines by length, a service worker for
-offline use.
+Listen to me is free play with feedback: it asks for the tonic first, which
+sets the harmonic context, so every note that follows is read both against the
+temperament and as a pure interval above the tonic; notes are segmented online
+(`docs/audio/regions.js`) and those under 120 ms are counted, not measured.
+With a drone through speakers, three notch filters on the drone's partials sit
+between the microphone and the detector — engaged only where the expected note
+is not that partial — so the player no longer has to out-play the bleed.
+
+Still to build: routines by length, a service worker for offline use.
 
 ## Findings
 
