@@ -15,6 +15,7 @@ export default {
   mount(root) {
     this.root = root;
     this.tonic = "D";
+    this.quality = "major";
     this.showList();
   },
 
@@ -36,6 +37,9 @@ export default {
     const tonicSelect = el("select", { class: "select", onchange: (e) => { this.tonic = e.target.value; } },
       TONICS.map((k) => el("option", { value: k, selected: k === this.tonic || null,
                                        text: name(SpelledPitch.parse(`${k}4`)).replace(/4$/, "") })));
+    const qualitySelect = el("select", { class: "select", onchange: (e) => { this.quality = e.target.value; } },
+      ["major", "minor"].map((q) => el("option", { value: q, selected: q === this.quality || null,
+                                                    text: t(`practice.quality.${q}`) })));
 
     const buttons = Object.keys(EXERCISES).map((key) => el("button", {
       class: "card exercise", disabled: !engine.listening, onclick: () => this.startRun(key),
@@ -47,7 +51,8 @@ export default {
 
     append(root,
       el("p", { class: "intro", text: t("practice.intro") }),
-      el("div", { class: "row" }, [control.element, el("span", { text: t("practice.tonic") }), tonicSelect]),
+      el("div", { class: "row" }, [control.element, el("span", { text: t("practice.tonic") }), tonicSelect,
+                                    el("span", { text: t("practice.quality") }), qualitySelect]),
       engine.listening ? null : el("p", { class: "note-box", text: t("practice.needMic") }),
       el("div", { class: "cards" }, buttons),
     );
@@ -55,7 +60,8 @@ export default {
 
   startRun(key) {
     this.teardown();
-    this.active = new ExerciseRun({ key, spec: EXERCISES[key], tonic: this.tonic, onBack: () => this.showList() });
+    this.active = new ExerciseRun({ key, spec: EXERCISES[key], tonic: this.tonic, quality: this.quality,
+                                    onBack: () => this.showList() });
     this.active.mount(this.root);
   },
 };

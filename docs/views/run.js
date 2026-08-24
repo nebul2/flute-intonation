@@ -24,7 +24,9 @@ import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { Mode, TargetResolver } from "../core/resolver.js";
-import { intervalDrill, intervalInContext, enharmonicPair, stopperCheck } from "../core/generator.js";
+import { intervalDrill, intervalInContext, enharmonicPair, stopperCheck, scalePool, scaleKeyFor, pickDifferent } from "../core/generator.js";
+import { HarmonicContext } from "../core/tuning.js";
+import { Exercise, TargetNote } from "../core/resolver.js";
 import { SessionSummary, analyseNote, judgeDirection, octavePairs, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
 import { NoteSegmenter, onsetThresholdFor } from "../audio/segmenter.js";
 import { el, append, needle, levelBar, bandClass, currentTuning, name, runNav } from "../ui/widgets.js";
@@ -35,6 +37,28 @@ export const EXERCISES = {
   intervals: { build: (tonic) => intervalInContext(tonic), feedback: "after" },
   enharmonic: { build: () => enharmonicPair(), feedback: "after" },
   predict: { build: (tonic) => intervalDrill(tonic, { intervals: [0, 4, 7] }), feedback: "predict" },
+  /* Endless: random notes of the chosen scale over the tonic drone until the
+   * player stops. The exercise starts with one note; the runner asks
+   * `nextNote` for each further one, so it never runs out. */
+  predictRandom: {
+    build: (tonic, quality = "major") => {
+      const root = SpelledPitch.parse(`${tonic}4`);
+      const pool = scalePool(tonic, quality, { octaves: 1 });
+      const context = new HarmonicContext(root);
+      return new Exercise({
+        name: `random ${quality} scale notes over ${root}`,
+        notes: [new TargetNote(pickDifferent(pool), 4.0, context)],
+        drone: root, tempoBpm: 60.0, key: scaleKeyFor(tonic, quality),
+      });
+    },
+    nextNote: (run) => {
+      const previous = run.notes[run.notes.length - 1];
+      const pool = scalePool(run.tonic, run.quality, { octaves: 1 });
+      return new TargetNote(pickDifferent(pool, previous.pitch), 4.0, previous.context);
+    },
+    feedback: "predict",
+    endless: true,
+  },
 };
 
 /* The stopper check: a tool, not an exercise, so it lives on its own page. */
@@ -59,21 +83,24 @@ export class ExerciseRun {
   /* `key` names the exercise (its strings live under practice.ex.<key>);
    * `spec` is one of the entries above; `onBack` leaves the run; `backLabel`
    * overrides the navigation's "back to the list" wording. */
-  constructor({ key, spec, tonic = "D", onBack, backLabel = null }) {
+  constructor({ key, spec, tonic = "D", quality = "major", onBack, backLabel = null }) {
     this.key = key;
     this.spec = spec;
     this.tonic = tonic;
+    this.quality = quality;
     this.onBack = onBack;
     this.backLabel = backLabel;
   }
 
   mount(root) {
     this.root = root;
-    const built = this.spec.build(this.tonic);
+    const built = this.spec.build(this.tonic, this.quality);
     const s = settings.get();
     const tuning = currentTuning(s);
     this.run = {
       key: this.key, spec: this.spec, settings: s, tuning,
+      tonic: this.tonic, quality: this.quality,
+      notes: [],                       // the current segment's notes (grows when endless)
       exercises: Array.isArray(built) ? built : [built],
       resolver: new TargetResolver(Mode.PURE, tuning),
       exIdx: 0, noteIdx: -1, phase: "start",
@@ -160,6 +187,7 @@ export class ExerciseRun {
     const exercise = run.exercises[run.exIdx];
     if (!exercise) { this.finish(false); return; }
     run.exercise = exercise;
+    run.notes = [...exercise.notes];
     run.noteIdx = -1;
     run.droneHz = null;
     run.onsetDb = null;
@@ -200,14 +228,18 @@ export class ExerciseRun {
     if (!run) return;
     run.noteIdx += 1;
     const exercise = run.exercise;
-    if (run.noteIdx >= exercise.notes.length) {
-      engine.drone.stop();
-      engine.setNotches([]);
-      run.exIdx += 1;
-      this.nextSegment();
-      return;
+    if (run.noteIdx >= run.notes.length) {
+      if (run.spec.endless) {
+        run.notes.push(run.spec.nextNote(run));    // never runs out; Stop ends it
+      } else {
+        engine.drone.stop();
+        engine.setNotches([]);
+        run.exIdx += 1;
+        this.nextSegment();
+        return;
+      }
     }
-    const note = exercise.notes[run.noteIdx];
+    const note = run.notes[run.noteIdx];
     run.note = note;
     run.target = run.resolver.resolve(note);
     if (engine.detector) engine.detector.reset();
@@ -323,6 +355,7 @@ export class ExerciseRun {
     const run = this.run;
     if (!run || run.phase === "finished") return;
     run.phase = "finished";
+    if (run.spec.endless) stopped = false;     // stopping is how an endless run ends
     run.stopped = stopped;
     if (run.nextTimer) clearTimeout(run.nextTimer);
     engine.drone.stop();

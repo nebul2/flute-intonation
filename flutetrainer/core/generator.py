@@ -32,6 +32,8 @@ KEY_SIGNATURES: dict[str, dict[str, int]] = {
     "A": {"F": 1, "C": 1, "G": 1},
     "F": {"B": -1},
     "Bb": {"B": -1, "E": -1},
+    "Eb": {"B": -1, "E": -1, "A": -1},
+    "Ab": {"B": -1, "E": -1, "A": -1, "D": -1},
 }
 
 #: (tonic, key signature name, mode label) for the default palette.

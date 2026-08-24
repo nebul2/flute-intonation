@@ -19,7 +19,38 @@ export const KEY_SIGNATURES = Object.freeze({
   A: { F: 1, C: 1, G: 1 },
   F: { B: -1 },
   Bb: { B: -1, E: -1 },
+  Eb: { B: -1, E: -1, A: -1 },
+  Ab: { B: -1, E: -1, A: -1, D: -1 },
 });
+
+/* The relative major whose signature spells each natural minor scale. */
+export const MINOR_RELATIVE = Object.freeze({ C: "Eb", D: "F", E: "G", F: "Ab", G: "Bb", A: "C", B: "D" });
+
+export function scaleKeyFor(tonic, quality = "major") {
+  if (quality === "minor") {
+    const key = MINOR_RELATIVE[tonic];
+    if (!key || !(key in KEY_SIGNATURES)) throw new Error(`no minor scale spelled for ${tonic}`);
+    return key;
+  }
+  if (!(tonic in KEY_SIGNATURES)) throw new Error(`no major scale spelled for ${tonic}`);
+  return tonic;
+}
+
+/* The distinct pitches of a scale, ascending, within the flute's range: the
+ * pool an endless random exercise draws from. */
+export function scalePool(tonic, quality = "major", { octaves = 1, startOctave = 4,
+                                                       low = DEFAULT_LOW, high = DEFAULT_HIGH } = {}) {
+  const ex = scale(tonic, { key: scaleKeyFor(tonic, quality), octaves, startOctave, descending: false, low, high });
+  return ex.notes.map((n) => n.pitch);
+}
+
+/* A random element of `pool` other than `previous` (by spelling), so the
+ * same note is never asked twice running. `rng` is injectable for tests. */
+export function pickDifferent(pool, previous = null, rng = Math.random) {
+  const choices = previous ? pool.filter((p) => !p.equals(previous)) : pool;
+  if (!choices.length) return pool[0];
+  return choices[Math.min(choices.length - 1, Math.floor(rng() * choices.length))];
+}
 
 const TRIAD_DEGREES = [0, 2, 4];
 

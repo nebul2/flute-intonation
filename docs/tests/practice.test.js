@@ -7,7 +7,9 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { BAROQUE_415, HarmonicContext, TemperamentTuning, parseScala } from "../core/tuning.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
 import { Mode, TargetNote, TargetResolver } from "../core/resolver.js";
-import { scale, arpeggio, intervalDrill, intervalInContext, enharmonicPair, stopperCheck } from "../core/generator.js";
+import * as generator from "../core/generator.js";
+const { scale, arpeggio, intervalDrill, intervalInContext, enharmonicPair, stopperCheck } = generator;
+const await_import_generator = () => generator;
 import { NoteResult, SessionSummary, analyseNote, judgeDirection, octavePairs } from "../core/scoring.js";
 import { NoteSegmenter, State, onsetThresholdFor } from "../audio/segmenter.js";
 
@@ -225,4 +227,30 @@ test("onset check applies only where pitch cannot separate the drone", () => {
   assert.equal(onsetThresholdFor(drone * Math.pow(2, 90 / 1200), drone, -30.0), null);
   assert.equal(onsetThresholdFor(drone, null, -30.0), null);
   assert.equal(onsetThresholdFor(drone, drone, null), null);
+});
+
+/* ---- endless random scale notes -------------------------------------- */
+
+test("scale pools are spelled by the key: D minor has Bb, C minor has Eb Ab Bb", () => {
+  const { scalePool, scaleKeyFor } = await_import_generator();
+  assert.equal(scaleKeyFor("D", "major"), "D");
+  assert.equal(scaleKeyFor("D", "minor"), "F");
+  assert.deepEqual(scalePool("D", "major").map((p) => p.name), ["D4", "E4", "F#4", "G4", "A4", "B4", "C#5", "D5"]);
+  assert.deepEqual(scalePool("D", "minor").map((p) => p.name), ["D4", "E4", "F4", "G4", "A4", "Bb4", "C5", "D5"]);
+  assert.deepEqual(scalePool("C", "minor").map((p) => p.name), ["C4", "D4", "Eb4", "F4", "G4", "Ab4", "Bb4", "C5"].filter((n) => n !== "C4"),
+    "C4 sits below the flute's range and is dropped; the rest is spelled with flats");
+});
+
+test("pickDifferent stays in the pool and never repeats the previous note", () => {
+  const { scalePool, pickDifferent } = await_import_generator();
+  const pool = scalePool("D", "major");
+  let seed = 1;
+  const rng = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x80000000;
+  let previous = null;
+  for (let i = 0; i < 200; i++) {
+    const next = pickDifferent(pool, previous, rng);
+    assert.ok(pool.some((p) => p.equals(next)), "in the pool");
+    if (previous) assert.ok(!next.equals(previous), "no immediate repeat");
+    previous = next;
+  }
 });
