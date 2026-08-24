@@ -30,6 +30,17 @@ export function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+/* Append children, skipping null/undefined. Node.append() would otherwise
+ * render a null child as the text "null" -- seen live under the stopper
+ * protocol note. Every view uses this for conditional children. */
+export function append(parent, ...children) {
+  for (const child of children.flat()) {
+    if (child === null || child === undefined || child === false) continue;
+    parent.append(child);
+  }
+  return parent;
+}
+
 /* ---- the current tuning, from settings ----------------------------- */
 
 export function currentTuning(s = settings.get()) {
@@ -91,11 +102,11 @@ export function audioControl({ showGranted = true } = {}) {
  * while running, then Redo and Back to the list once finished. Rendered
  * twice -- `top` and `bottom` -- from one state, so both ends of a long page
  * always agree. `extras` (e.g. a toggle) appear in the top bar only. */
-export function runNav({ onStop, onRedo, onBack, stopLabel = t("nav.stop"), extras = [] }) {
+export function runNav({ onStop, onRedo, onBack, stopLabel = t("nav.stop"), backLabel = null, extras = [] }) {
   const make = (withExtras) => {
     const stop = el("button", { class: "secondary", text: stopLabel, onclick: () => onStop() });
     const redo = el("button", { class: "primary", text: t("nav.redo"), onclick: () => onRedo(), hidden: true });
-    const back = el("button", { class: "secondary", text: t("nav.backToList"), onclick: () => onBack(), hidden: true });
+    const back = el("button", { class: "secondary", text: backLabel ?? t("nav.backToList"), onclick: () => onBack(), hidden: true });
     const bar = el("div", { class: `controls runnav${withExtras ? " top" : ""}` },
       [el("div", { class: "runnav-buttons" }, [stop, redo, back]), ...(withExtras ? extras : [])]);
     return { bar, stop, redo, back };

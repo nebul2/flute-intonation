@@ -1,28 +1,52 @@
-/* The landing page: six cards, working ones first, "coming" ones last. */
+/* The landing page: cards in three labelled groups -- tools you use on the
+ * instrument, ways to play, and how the app is set up. */
 
 import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import { navigate } from "../router.js";
 import { el } from "../ui/widgets.js";
 
-const CARDS = [
-  { route: "tuner", icon: iconTuner },
-  { route: "practice", icon: iconPractice },
-  { route: "tuning", icon: iconTuning },
-  { route: "settings", icon: iconSettings },
-  { route: "check", icon: iconCheck },
-  { route: "listen", icon: iconListen },
+const SECTIONS = [
+  { key: "tools", cards: [
+    { route: "tuner", icon: iconTuner },
+    { route: "stopper", icon: iconStopper },
+    { route: "check", icon: iconCheck },
+  ] },
+  { key: "play", cards: [
+    { route: "practice", icon: iconPractice },
+    { route: "listen", icon: iconListen },
+  ] },
+  { key: "setup", cards: [
+    { route: "tuning", icon: iconTuning },
+    { route: "settings", icon: iconSettings },
+  ] },
 ];
 
-function svg(paths, extra = "") {
-  return `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}${extra}</svg>`;
+function svg(paths) {
+  return `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 }
 function iconTuner() { return svg('<path d="M12 4v11"/><circle cx="12" cy="18" r="3"/><path d="M5 9l7-5 7 5"/>'); }
+function iconStopper() { return svg('<rect x="3" y="8" width="18" height="8" rx="2"/><rect x="6" y="9.5" width="4" height="5" rx="1" fill="currentColor"/><path d="M14 12h4M16 10v4"/>'); }
 function iconPractice() { return svg('<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>'); }
 function iconTuning() { return svg('<path d="M12 4v16M4 8h16"/><path d="M6 8l-2 6h4l-2-6zM18 8l-2 6h4l-2-6z"/>'); }
 function iconSettings() { return svg('<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>'); }
 function iconCheck() { return svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0012 0M12 17v4M9 21h6"/>'); }
 function iconListen() { return svg('<path d="M7 9a5 5 0 0110 0c0 3-3 4-3 7a2 2 0 01-4 0"/><path d="M4 12h2M18 12h2"/>'); }
+
+function card({ route, icon, soon }) {
+  return el("button", {
+    class: `card${soon ? " soon" : ""}`,
+    onclick: () => navigate(route),
+    "aria-label": t(`home.card.${route}.title`),
+  }, [
+    el("div", { class: "card-icon", html: icon() }),
+    el("div", { class: "card-title" }, [
+      t(`home.card.${route}.title`),
+      soon ? el("span", { class: "chip", text: t("home.soon") }) : null,
+    ]),
+    el("div", { class: "card-desc", text: t(`home.card.${route}.desc`) }),
+  ]);
+}
 
 export default {
   title: () => t("app.name"),
@@ -37,24 +61,13 @@ export default {
     this.off = engine.onState(update);
     update();
 
-    const grid = el("div", { class: "cards" }, CARDS.map(({ route, icon, soon }) =>
-      el("button", {
-        class: `card${soon ? " soon" : ""}`,
-        onclick: () => navigate(route),
-        "aria-label": t(`home.card.${route}.title`),
-      }, [
-        el("div", { class: "card-icon", html: icon() }),
-        el("div", { class: "card-title" }, [
-          t(`home.card.${route}.title`),
-          soon ? el("span", { class: "chip", text: t("home.soon") }) : null,
-        ]),
-        el("div", { class: "card-desc", text: t(`home.card.${route}.desc`) }),
-      ])));
-
     root.append(
       el("p", { class: "tagline", text: t("app.tagline") }),
       el("div", { class: "audio-line" }, [chip]),
-      grid,
+      ...SECTIONS.map(({ key, cards }) => el("section", { class: "home-section" }, [
+        el("h2", { class: "section-label", text: t(`home.section.${key}`) }),
+        el("div", { class: "cards" }, cards.map(card)),
+      ])),
     );
   },
 

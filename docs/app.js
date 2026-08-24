@@ -13,10 +13,11 @@ import tuning from "./views/tuning.js";
 import settingsView from "./views/settings.js";
 import check from "./views/check.js";
 import listen from "./views/listen.js";
+import stopper from "./views/stopper.js";
 
-export const VERSION = "phase 2.5 · 2026-08-24";
+export const VERSION = "phase 2.6 · 2026-08-24";
 
-const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen };
+const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper };
 
 function $(id) { return document.getElementById(id); }
 

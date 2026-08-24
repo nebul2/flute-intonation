@@ -159,9 +159,15 @@ reported as exactly one 116 ms dropout attributed to the silence gate.
 modules, no bundler, no dependencies. French by default in a French browser,
 EN·FR toggle.
 
-Landing page with six cards — Tuner, Practice (coming), Mode & temperament,
-Settings, Hardware check, Listen to me (coming) — over a status strip that
-always shows the tuning the app is about to judge you against. One shared
+Landing page in three groups — Tools (Tuner, Stopper check, Hardware check),
+Play (Practice, Listen to me), Set up (Mode & temperament, Settings) — over
+a status strip that always shows the tuning the app is about to judge you
+against. The stopper check is a tool on its own page, not a practice
+exercise; its report now says which way to move the stopper: octaves wide →
+away from the embouchure hole, narrow → towards it (the cavity behind the
+hole makes the end correction grow with frequency, flattening the upper
+register; too little cavity leaves octaves wide). Every run-style page gets
+its Stop / Redo / Back bars from one shared `runNav()`. One shared
 audio engine (`docs/audio/engine.js`) keeps the microphone across sections.
 
 The core is ported, not re-imagined: `docs/core/` mirrors `flutetrainer/core/`,

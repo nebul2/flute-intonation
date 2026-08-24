@@ -83,6 +83,8 @@ h2 { font-size: 0.95rem; font-weight: 600; color: var(--ink); margin-top: 0.4rem
 .audio-line { display: flex; gap: 0.5rem; align-items: center; }
 
 /* ---- home cards -------------------------------------------------------- */
+.home-section { display: flex; flex-direction: column; gap: 0.5rem; }
+.section-label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 500; margin-top: 0.4rem; }
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));

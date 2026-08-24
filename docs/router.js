@@ -11,6 +11,7 @@ export const ROUTES = Object.freeze({
   settings: "settings",
   check: "check",
   listen: "listen",
+  stopper: "stopper",
 });
 
 export function currentRoute() {
