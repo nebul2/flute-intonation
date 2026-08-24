@@ -14,7 +14,7 @@
  * separated from the drone by pitch alone. */
 
 import { t, lang } from "../i18n.js";
-import { engine } from "../audio/engine.js";
+import { engine, dronePartialsToNotch } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
@@ -124,7 +124,7 @@ export default {
     if (this.control) { this.control.dispose(); this.control = null; }
     if (this.keyHandler) { window.removeEventListener("keydown", this.keyHandler); this.keyHandler = null; }
     if (this.run?.nextTimer) clearTimeout(this.run.nextTimer);
-    if (this.run) engine.drone.stop();
+    if (this.run) { engine.drone.stop(); engine.setNotches([]); }
     this.run = null;
   },
 
@@ -195,6 +195,8 @@ export default {
         Math.abs(centsBetween(run.droneHz, run.resolver.resolve(n))) <= 80.0);
       engine.drone.start(run.droneHz, run.settings.droneLevel * (needsGuard ? UNISON_DUCK : 1));
       if (needsGuard) {
+        // Measure with the notches set as they will be for the unison note.
+        engine.setNotches(dronePartialsToNotch(run.droneHz, run.droneHz));
         run.phase = "calibrating";
         run.levels = [];
         run.calibrateUntil = performance.now() + CALIBRATE_MS;
@@ -223,6 +225,7 @@ export default {
     const exercise = run.exercise;
     if (run.noteIdx >= exercise.notes.length) {
       engine.drone.stop();
+      engine.setNotches([]);
       run.exIdx += 1;
       this.nextSegment();
       return;
@@ -244,6 +247,9 @@ export default {
     if (run.droneHz) {
       const unison = run.seg.onsetDb !== null;
       engine.drone.setLevel(run.settings.droneLevel * (unison ? UNISON_DUCK : 1));
+      // Remove the drone's partials from the mic wherever they are not the
+      // note being played, so the player need not out-play the bleed.
+      engine.setNotches(dronePartialsToNotch(run.droneHz, run.target, run.spec.acceptance ?? 80.0));
       if (run.key !== "stopper") this.ui.status.textContent = unison ? t("practice.playNowUnison") : t("practice.playNow");
     } else if (run.key !== "stopper") {
       this.ui.status.textContent = t("practice.playNow");
@@ -345,6 +351,7 @@ export default {
     run.stopped = stopped;
     if (run.nextTimer) clearTimeout(run.nextTimer);
     engine.drone.stop();
+    engine.setNotches([]);
     // The playing panel becomes a clear "over" state: no progress, no
     // meter, a tick instead of a note -- the exercise has visibly ended.
     this.ui.judge.hidden = true;

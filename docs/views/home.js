@@ -11,7 +11,7 @@ const CARDS = [
   { route: "tuning", icon: iconTuning },
   { route: "settings", icon: iconSettings },
   { route: "check", icon: iconCheck },
-  { route: "listen", icon: iconListen, soon: true },
+  { route: "listen", icon: iconListen },
 ];
 
 function svg(paths, extra = "") {

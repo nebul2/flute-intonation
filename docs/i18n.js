@@ -166,9 +166,21 @@ export const STRINGS = {
     "settings.clearConfirm": "Delete all practice history on this device?",
 
     "listen.title": "Listen to me",
-    "listen.soon": "Play freely — a phrase, a scale, whatever you like. The app will name the " +
-      "notes it heard, mark the unstable ones, and summarise by pitch class: “your F♯ ran " +
-      "12 cents sharp”. Coming after the practice exercises.",
+    "listen.intro": "Play freely — a phrase, a scale, whatever you like. It asks for the tonic first: that sets the context, so each note is read both against the temperament and as a pure interval above the tonic.",
+    "listen.start": "Begin",
+    "listen.tonicPrompt": (tonic) => `Play the tonic — ${tonic} — and hold it to begin.`,
+    "listen.tonicHeard": "Tonic heard. Play freely; press Finish when done.",
+    "listen.playing": "listening — play freely",
+    "listen.stop": "Finish",
+    "listen.again": "Again",
+    "listen.pureOver": (tonic) => `pure over ${tonic}`,
+    "listen.tempered": "tempered",
+    "listen.unstable": "unstable",
+    "listen.summary": "What I heard",
+    "listen.count": (n) => `${n} note(s) measured`,
+    "listen.byNote": "by note (mean, count):",
+    "listen.short": (n) => `${n} note(s) too short to measure (under 120 ms)`,
+    "listen.noNotes": "Nothing long enough to measure.",
   },
 
   fr: {
@@ -330,9 +342,21 @@ export const STRINGS = {
     "settings.clearConfirm": "Effacer tout l'historique des exercices sur cet appareil ?",
 
     "listen.title": "Écoute-moi",
-    "listen.soon": "Joue librement — une phrase, une gamme, ce que tu veux. Le système nommera " +
-      "les notes entendues, signalera celles qui bougent, et résumera par note : « ton fa♯ " +
-      "est 12 cents trop haut ». Arrive après les exercices.",
+    "listen.intro": "Joue librement — une phrase, une gamme, ce que tu veux. Il demande d'abord la tonique : elle fixe le contexte, et chaque note est lue à la fois dans le tempérament et comme intervalle pur au-dessus de la tonique.",
+    "listen.start": "Commencer",
+    "listen.tonicPrompt": (tonic) => `Joue la tonique — ${tonic} — et tiens-la pour commencer.`,
+    "listen.tonicHeard": "Tonique entendue. Joue librement ; appuie sur Terminer quand tu as fini.",
+    "listen.playing": "à l'écoute — joue librement",
+    "listen.stop": "Terminer",
+    "listen.again": "Recommencer",
+    "listen.pureOver": (tonic) => `pur sur ${tonic}`,
+    "listen.tempered": "tempéré",
+    "listen.unstable": "instable",
+    "listen.summary": "Ce que j'ai entendu",
+    "listen.count": (n) => `${n} note(s) mesurée(s)`,
+    "listen.byNote": "par note (moyenne, nombre) :",
+    "listen.short": (n) => `${n} note(s) trop courte(s) pour être mesurée(s) (moins de 120 ms)`,
+    "listen.noNotes": "Rien d'assez long pour être mesuré.",
   },
 };
 

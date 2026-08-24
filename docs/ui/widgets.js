@@ -121,6 +121,31 @@ export function levelBar() {
   };
 }
 
+/* Every named pitch in a range with its frequency in `tuning`, and the one
+ * nearest a heard frequency. Spellings as in the desktop tuner: flats where
+ * the flute's keys prefer them; cosmetic in a 12-note temperament. */
+const SPELLINGS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
+
+export function tunerCandidates(tuning, low = 3, high = 7) {
+  const out = [];
+  for (let octave = low; octave <= high; octave++) {
+    for (const spelling of SPELLINGS) {
+      const pitch = SpelledPitch.parse(`${spelling}${octave}`);
+      out.push({ pitch, hz: tuning.targetHz(pitch) });
+    }
+  }
+  return out;
+}
+
+export function nearestCandidate(candidates, hz) {
+  let best = null;
+  for (const c of candidates) {
+    const cents = 1200 * Math.log2(hz / c.hz);
+    if (!best || Math.abs(cents) < Math.abs(best.cents)) best = { ...c, cents };
+  }
+  return best;
+}
+
 export function bandClass(cents) {
   const m = Math.abs(cents);
   return m <= 5 ? "good" : m <= 15 ? "close" : "off";

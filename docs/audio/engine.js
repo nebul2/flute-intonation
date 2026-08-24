@@ -17,6 +17,21 @@ import { Detector } from "./yin.js";
 
 const STATES = ["idle", "starting", "listening", "refused", "error"];
 
+// Notch width is f/Q: at Q = 25 a notch on D4 (277 Hz) is ~11 Hz (~70 cents)
+// wide, narrower than the 80-cent acceptance window that decides whether a
+// notch may be engaged at all.
+const NOTCH_Q = 25;
+
+/* Which of the drone's three partials to remove from the microphone while
+ * `targetHz` is expected: every partial more than `acceptanceCents` away from
+ * the target. A partial at the target is the player's own note (the unison,
+ * or the octave for 2*f0) and must stay -- ducking handles those. */
+export function dronePartialsToNotch(droneHz, targetHz, acceptanceCents = 80.0) {
+  if (!(droneHz > 0) || !(targetHz > 0)) return [];
+  return [1, 2, 3].map((k) => droneHz * k)
+    .filter((hz) => Math.abs(1200 * Math.log2(hz / targetHz)) > acceptanceCents);
+}
+
 class Drone {
   constructor(engine) {
     this.engine = engine;
@@ -139,6 +154,24 @@ class Engine {
 
       const source = this.context.createMediaStreamSource(this.stream);
       const capture = new AudioWorkletNode(this.context, "capture", { numberOfOutputs: 0 });
+
+      // Three notch filters between the microphone and the detector, parked
+      // as all-pass (flat magnitude) until setNotches() engages them on the
+      // drone's partials. The detector is monophonic and reports whichever
+      // periodicity dominates the mic; with a drone through speakers the
+      // player otherwise has to out-play its bleed. We synthesise the drone,
+      // so we know exactly which frequencies to remove.
+      this.notches = [0, 1, 2].map(() => {
+        const filter = this.context.createBiquadFilter();
+        filter.type = "allpass";
+        filter.frequency.value = 1000;
+        filter.Q.value = NOTCH_Q;
+        return filter;
+      });
+      source.connect(this.notches[0]);
+      this.notches[0].connect(this.notches[1]);
+      this.notches[1].connect(this.notches[2]);
+      this.notches[2].connect(capture);
       capture.port.onmessage = (event) => {
         const frame = this.detector.process(event.data);
         frame.t = performance.now();
@@ -146,7 +179,6 @@ class Engine {
         this.frames += 1;
         this.frameListeners.forEach((cb) => cb(frame));
       };
-      source.connect(capture);
       this.granted = this.stream.getAudioTracks()[0].getSettings();
       this.setState("listening");
     } catch (err) {
@@ -155,8 +187,23 @@ class Engine {
     }
   }
 
+  /* Engage notches at these frequencies (up to three; 0 or missing = off). */
+  setNotches(freqs = []) {
+    if (!this.notches || !this.context) return;
+    this.notches.forEach((filter, i) => {
+      const hz = freqs[i] || 0;
+      if (hz > 0) {
+        filter.frequency.setValueAtTime(hz, this.context.currentTime);
+        filter.type = "notch";
+      } else {
+        filter.type = "allpass";
+      }
+    });
+  }
+
   stop() {
     this.drone.stop();
+    this.notches = null;
     if (this.stream) this.stream.getTracks().forEach((track) => track.stop());
     if (this.context) this.context.close().catch(() => {});
     this.stream = null;
