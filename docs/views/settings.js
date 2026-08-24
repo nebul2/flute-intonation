@@ -91,8 +91,8 @@ export default {
     const historyNote = el("div", { class: "diag" });
     history.count().then((n) => { historyNote.textContent = t("settings.historyCount", n); }).catch(() => {});
     const exportButton = el("button", { class: "secondary", text: t("settings.export"), onclick: async () => {
-      const n = await history.exportFile();
-      historyNote.textContent = t("settings.exported", n);
+      const { count, filename } = await history.exportFile();
+      historyNote.textContent = t("settings.exported", count, filename);
     } });
     const clearButton = el("button", { class: "secondary", text: t("settings.clear"), onclick: async () => {
       if (!window.confirm(t("settings.clearConfirm"))) return;

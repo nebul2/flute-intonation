@@ -83,5 +83,7 @@ export async function exportFile() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return records.length;
+  // The browser decides where the file lands (its download folder, or it
+  // asks); a page cannot learn the path, only the name it requested.
+  return { count: records.length, filename: a.download };
 }
