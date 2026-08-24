@@ -555,3 +555,35 @@ def test_every_practice_exercise_builds_and_resolves():
     built = PRACTICE["intervals"][1]("D")
     assert any(n.context is None for n in built.notes)
     assert any(n.context is not None for n in built.notes)
+
+
+def test_choose_commits_on_an_unambiguous_prefix(monkeypatch):
+    """Piped stdin exercises the fallback, which shares the prefix rule with
+    the raw-keystroke path: one letter is enough once it narrows to one name."""
+    from flutetrainer.app import choose
+
+    options = {"calibration": "calibration", "intervals": "intervals",
+               "enharmonic": "enharmonic", "predict": "predict"}
+
+    for typed, expected in (("c", "calibration"), ("i", "intervals"),
+                            ("e", "enharmonic"), ("p", "predict"),
+                            ("cal", "calibration"), ("intervals", "intervals")):
+        monkeypatch.setattr("builtins.input", lambda _prompt="", t=typed: t)
+        assert choose("? ", options) == expected
+
+    # Nothing typed, or a prefix that matches nothing, is no choice.
+    for typed in ("", "x", "z9"):
+        monkeypatch.setattr("builtins.input", lambda _prompt="", t=typed: t)
+        assert choose("? ", options) is None
+
+
+def test_choose_aliases_map_to_one_value(monkeypatch):
+    """The predict prompt accepts t and i for the same call."""
+    from flutetrainer.app import choose
+
+    options = {"sharp": "sharp", "flat": "flat",
+               "tune": "in tune", "in tune": "in tune"}
+    for typed, expected in (("s", "sharp"), ("f", "flat"),
+                            ("t", "in tune"), ("i", "in tune")):
+        monkeypatch.setattr("builtins.input", lambda _prompt="", t=typed: t)
+        assert choose("? ", options) == expected

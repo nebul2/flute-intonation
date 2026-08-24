@@ -110,6 +110,76 @@ def class_name(key: str, style: str) -> str:
     return pitch_class_name(letter, alter, style)
 
 
+def choose(prompt: str, options: dict[str, str]) -> str | None:
+    """Read a choice, committing the moment the input is unambiguous.
+
+    ``options`` maps typed names to returned values (aliases map several names
+    to one value). With a real terminal, keys are read one at a time in cbreak
+    mode and the choice is made as soon as the typed prefix matches exactly one
+    name -- "c" alone selects "calibration" -- with the rest of the word echoed
+    so the player sees what was chosen. Hands holding a flute get one keystroke.
+
+    Esc or Ctrl-D answers None ("no choice"); Ctrl-C propagates as
+    KeyboardInterrupt so call sites keep their own stop semantics. When stdin
+    is not a terminal (tests, pipes) this falls back to a plain line read with
+    the same prefix rule, so scripted sessions behave identically.
+    """
+    names = list(options)
+
+    def resolve(text: str) -> str | None:
+        matches = [n for n in names if n.startswith(text)] if text else []
+        return options[matches[0]] if len(matches) == 1 else None
+
+    try:
+        import termios  # noqa: PLC0415
+        import tty  # noqa: PLC0415
+        interactive = sys.stdin.isatty()
+    except ImportError:  # pragma: no cover - non-POSIX
+        interactive = False
+
+    if not interactive:
+        try:
+            return resolve(input(prompt).strip().lower())
+        except EOFError:
+            return None
+
+    print(prompt, end="", flush=True)  # pragma: no cover - needs a real tty
+    fd = sys.stdin.fileno()  # pragma: no cover
+    saved = termios.tcgetattr(fd)  # pragma: no cover
+    buffer = ""  # pragma: no cover
+    try:  # pragma: no cover
+        tty.setcbreak(fd)
+        while True:
+            key = sys.stdin.read(1)
+            if key in ("\x1b", "\x04"):          # Esc, Ctrl-D: no choice
+                print()
+                return None
+            if key in ("\r", "\n"):
+                chosen = resolve(buffer)
+                if chosen is not None:
+                    matched = next(n for n in names if n.startswith(buffer))
+                    print(matched[len(buffer):])
+                    return chosen
+                continue
+            if key in ("\x7f", "\b"):
+                if buffer:
+                    buffer = buffer[:-1]
+                    print("\b \b", end="", flush=True)
+                continue
+            candidate = buffer + key.lower()
+            if not any(n.startswith(candidate) for n in names):
+                continue                          # a key that narrows nothing
+            buffer = candidate
+            print(key, end="", flush=True)
+            chosen = resolve(buffer)
+            if chosen is not None:
+                matched = next(n for n in names if n.startswith(buffer))
+                print(matched[len(buffer):])
+                return chosen
+    finally:  # pragma: no cover
+        termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+
+
 def band_label(cents: float) -> str:
     magnitude = abs(cents)
     if magnitude <= IN_TUNE_CENTS:
@@ -382,14 +452,15 @@ def run_live(exercise: Exercise, resolver: TargetResolver, device=None,
             if feedback == "predict" and result is not None and not interrupted:
                 print("\r" + " " * 78, end="")
                 try:
-                    answer = input(f"\r  {label:<12} your call -- "
-                                   "[s]harp, [f]lat, [t] in tune? ").strip().lower()
-                except (KeyboardInterrupt, EOFError):
+                    # "tune" and "in tune" are aliases, so t and i both land
+                    # on the same call with a single keystroke.
+                    called = choose(f"\r  {label:<12} your call -- "
+                                    "[s]harp, [f]lat, [t] in tune? ",
+                                    {"sharp": "sharp", "flat": "flat",
+                                     "tune": "in tune", "in tune": "in tune"})
+                except KeyboardInterrupt:
                     print()
                     interrupted = True
-                    answer = ""
-                called = {"s": "sharp", "f": "flat", "t": "in tune",
-                          "i": "in tune"}.get(answer[:1] if answer else "")
 
             if result is None:
                 print("\r" + " " * 78 + f"\r  {label:<12} (not played)")
@@ -518,9 +589,12 @@ def run_practice(args, tuning: TemperamentTuning) -> SessionSummary | None:
         for name, (description, _, _) in PRACTICE.items():
             print(f"  {name:<12} {description}")
         try:
-            choice = input("\nwhich one? ").strip().lower()
-        except (KeyboardInterrupt, EOFError):
+            choice = choose("\nwhich one? (first letter is enough) ",
+                            {name: name for name in PRACTICE})
+        except KeyboardInterrupt:
             print()
+            return None
+        if choice is None:
             return None
     if choice not in PRACTICE:
         print(f"unknown exercise {choice!r}", file=sys.stderr)

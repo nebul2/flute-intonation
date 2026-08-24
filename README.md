@@ -71,6 +71,12 @@ drone; in Vallotti at 415 the pure third sits 9.8 cents lower), `enharmonic`
 exercise the spelled-pitch model exists for), and `predict` (call sharp, flat
 or in tune before the number is revealed; agreement is scored).
 
+Menu and predict prompts commit the moment the input is unambiguous — `c`
+selects calibration, `i` intervals, and in predict a single `s`, `f`, `t` or
+`i` registers the call without Enter, because hands holding a flute get one
+keystroke. Esc answers "no choice"; piped stdin falls back to a line read with
+the same prefix rule.
+
 Practice exercises show **no needle while you play** — only progress toward the
 required duration — and reveal the measurement when the note ends, per the
 guidance-hypothesis risk the plan documents. The live needle stays in the tuner

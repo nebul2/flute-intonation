@@ -7,7 +7,7 @@ semantics (a release no longer completes a note; duration is the only route
 to DONE).
 
 Environment: Python 3.14 in ./.venv. Run everything from the repo root.
-Tests: `python -m pytest flutetrainer/tests -q` — expect 93 passed, 1 skipped.
+Tests: `python -m pytest flutetrainer/tests -q` — expect 95 passed, 1 skipped.
 No-mic smoke test: `python -m flutetrainer.app --exercise arpeggio --tonic D --mode pure --simulate`
 
 Real flute recordings live in ./recordings (gitignored). Measure the detector
