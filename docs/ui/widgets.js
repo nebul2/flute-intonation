@@ -1,0 +1,127 @@
+/* Small DOM helpers and the widgets several views share: the microphone
+ * start/stop control with its state chip, the cents needle, the level bar,
+ * and "the current tuning" built from settings. Views compose these; none of
+ * them knows about routes. */
+
+import { engine } from "../audio/engine.js";
+import { t } from "../i18n.js";
+import * as settings from "../settings.js";
+import { SpelledPitch } from "../core/pitch.js";
+import { ReferencePitch, TemperamentTuning, parseScala } from "../core/tuning.js";
+import { TEMPERAMENTS } from "../core/temperaments.js";
+import { noteName } from "./naming.js";
+
+/* el("div", {class: "x", onclick: fn}, [children...]) */
+export function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value === null || value === undefined || value === false) continue;
+    if (key === "class") node.className = value;
+    else if (key === "text") node.textContent = value;
+    else if (key === "html") node.innerHTML = value;
+    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+    else if (value === true) node.setAttribute(key, "");
+    else node.setAttribute(key, value);
+  }
+  for (const child of [].concat(children)) {
+    if (child === null || child === undefined) continue;
+    node.append(typeof child === "string" ? document.createTextNode(child) : child);
+  }
+  return node;
+}
+
+/* ---- the current tuning, from settings ----------------------------- */
+
+export function currentTuning(s = settings.get()) {
+  const scale = parseScala(TEMPERAMENTS[s.temperament]?.scl ?? TEMPERAMENTS.vallotti.scl);
+  const reference = new ReferencePitch(SpelledPitch.parse("A4"), Number(s.referenceHz) || 415);
+  return new TemperamentTuning(scale, SpelledPitch.parse(`${s.root}4`), reference);
+}
+
+export function temperamentLabel(name) { return t(`temperament.${name}`); }
+
+export function name(pitch, s = settings.get()) { return noteName(pitch, s.naming); }
+
+/* "A = 415 · Vallotti sur Do · intervalles purs · casque" */
+export function statusText(s = settings.get()) {
+  const parts = [
+    `A = ${s.referenceHz}`,
+    `${temperamentLabel(s.temperament)} · ${noteName(SpelledPitch.parse(`${s.root}4`), s.naming, false)}`,
+    t(`mode.${s.mode}`),
+    s.headphones ? t("status.headphones") : t("status.speakers"),
+  ];
+  return parts.join("  ·  ");
+}
+
+/* ---- microphone control -------------------------------------------- */
+
+export function audioControl({ showGranted = true } = {}) {
+  const button = el("button", { class: "primary" });
+  const chip = el("span", { class: "chip audio" });
+  const granted = el("div", { class: "diag" });
+  const wrap = el("div", { class: "audio-control" }, [button, chip, showGranted ? granted : null]);
+
+  function update() {
+    chip.textContent = engine.state === "error"
+      ? t("audio.error", engine.error?.message ?? "?") : t(`audio.${engine.state}`);
+    chip.dataset.state = engine.state;
+    button.textContent = engine.listening ? t("audio.stop") : t("audio.start");
+    button.disabled = engine.state === "starting";
+    if (engine.listening && engine.granted) {
+      const g = engine.granted;
+      granted.textContent = t("audio.granted", engine.sampleRate,
+        g.autoGainControl !== false, g.noiseSuppression !== false, g.echoCancellation !== false);
+    } else {
+      granted.textContent = "";
+    }
+  }
+
+  button.addEventListener("click", () => {
+    if (engine.listening) engine.stop();
+    else engine.start({ deviceId: settings.get().deviceId });
+  });
+  const off = engine.onState(update);
+  update();
+  return { element: wrap, update, dispose: off };
+}
+
+/* ---- cents needle --------------------------------------------------- */
+
+export function needle() {
+  const marker = el("div", { class: "needle" });
+  const track = el("div", { class: "track" }, [el("div", { class: "mark" }), marker]);
+  const labels = el("div", { class: "scale-labels" },
+    [el("span", { text: "−50¢" }), el("span", { text: "0" }), el("span", { text: "+50¢" })]);
+  const element = el("div", {}, [track, labels]);
+  return {
+    element,
+    set(cents) {
+      if (cents === null) { marker.style.opacity = "0.25"; return; }
+      marker.style.left = `${50 + Math.max(-50, Math.min(50, cents))}%`;
+      marker.style.opacity = "1";
+    },
+  };
+}
+
+/* ---- level bar ------------------------------------------------------ */
+
+export function levelBar() {
+  const bar = el("div", { class: "levelbar" });
+  const text = el("span", { class: "leveltext", text: "−∞ dBFS" });
+  const element = el("div", { class: "level" }, [
+    el("div", { class: "track" }, [bar, el("div", { class: "gate" })]), text,
+  ]);
+  return {
+    element,
+    set(db) {
+      const level = Math.max(-72, Math.min(0, db));
+      bar.style.width = `${((level + 72) / 72) * 100}%`;
+      text.textContent = `${db.toFixed(1)} dBFS`;
+    },
+  };
+}
+
+export function bandClass(cents) {
+  const m = Math.abs(cents);
+  return m <= 5 ? "good" : m <= 15 ? "close" : "off";
+}

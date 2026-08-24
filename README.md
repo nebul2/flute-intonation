@@ -152,14 +152,29 @@ Validated against synthetic signals with known answers: a clean tone reads
 tone at 0 dB SNR reads 99.6 % confidence-gated, and a deliberate 100 ms gap is
 reported as exactly one 116 ms dropout attributed to the silence gate.
 
-## Web version (phase 0)
+## Web version
 
-**https://nebul2.github.io/flute-intonation/** — the hardware check: microphone
-in through a JavaScript port of the detector (`docs/yin.js`, every real-audio
-fix intact), drone out through the speakers, equal-temperament note names for
-this phase only. Served by GitHub Pages from `docs/`; `git push` is the whole
-release process. `node docs/yin.test.js` is the port's acceptance gate: ±0.9
-cents across D4–A6 at both 44.1 and 48 kHz.
+**https://nebul2.github.io/flute-intonation/** — served by GitHub Pages from
+`docs/`; `git push` is the whole release process. Zero build step: plain ES
+modules, no bundler, no dependencies. French by default in a French browser,
+EN·FR toggle.
+
+Landing page with six cards — Tuner, Practice (coming), Mode & temperament,
+Settings, Hardware check, Listen to me (coming) — over a status strip that
+always shows the tuning the app is about to judge you against. One shared
+audio engine (`docs/audio/engine.js`) keeps the microphone across sections.
+
+The core is ported, not re-imagined: `docs/core/` mirrors `flutetrainer/core/`,
+the five `.scl` files are embedded byte-for-byte by
+`tools/make_web_temperaments.py`, and the golden tests from `test_core.py`
+run against the port (`cd docs && npm test`: Vallotti at 415 to ±0.01 Hz, the
+pure 5:4, the meantone cross-validation). The detector port (`docs/audio/yin.js`)
+carries every real-audio fix and reads within ±0.9 cents across D4–A6 at both
+44.1 and 48 kHz. The tuner therefore reads against the selected temperament,
+not equal temperament.
+
+Still to port: the segmenter, generator and scoring (the practice exercises),
+session history with export, and the PWA manifest.
 
 ## Findings
 

@@ -1,0 +1,9 @@
+{
+  "name": "flute-intonation-web",
+  "private": true,
+  "type": "module",
+  "description": "Web front end of the baroque flute intonation trainer. No build step: served as-is by GitHub Pages.",
+  "scripts": {
+    "test": "node --test tests/*.test.js && node audio/yin.test.js"
+  }
+}

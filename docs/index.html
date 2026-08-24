@@ -2,202 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Traverso — hardware check</title>
-<style>
-  /* One committed look: a practice room at night. Boxwood-and-brass accent
-     on a blue-grey dark ground; everything painted explicitly. */
-  :root {
-    --ground: #14171A;
-    --panel:  #1C2126;
-    --edge:   #2A3138;
-    --ink:    #E8ECEF;
-    --muted:  #8B98A3;
-    --brass:  #D4A24E;
-    --good:   #6FBF8F;
-    --close:  #D4A24E;
-    --off:    #D07B4F;
-    --mono: "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
-  }
-  * { margin: 0; box-sizing: border-box; }
-  body {
-    background: var(--ground);
-    color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 2rem 1rem 3rem;
-    gap: 1.2rem;
-  }
-  header { text-align: center; }
-  h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: 0.01em; }
-  header p { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
-
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--edge);
-    border-radius: 10px;
-    padding: 1.4rem;
-    width: min(26rem, 100%);
-    display: flex;
-    flex-direction: column;
-    gap: 1.1rem;
-  }
-
-  #note {
-    font-size: 4rem;
-    font-weight: 650;
-    text-align: center;
-    line-height: 1.1;
-    min-height: 4.4rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .readout {
-    display: flex;
-    justify-content: center;
-    gap: 1.2rem;
-    font-family: var(--mono);
-    font-size: 1rem;
-    color: var(--muted);
-    min-height: 1.3rem;
-  }
-  #cents.good { color: var(--good); }
-  #cents.close { color: var(--close); }
-  #cents.off { color: var(--off); }
-
-  .track {
-    position: relative;
-    height: 10px;
-    background: var(--ground);
-    border: 1px solid var(--edge);
-    border-radius: 5px;
-  }
-  .track .mark {
-    position: absolute; top: -4px; bottom: -4px; left: 50%;
-    width: 2px; background: var(--muted); border-radius: 1px;
-  }
-  #needle {
-    position: absolute; top: -6px; bottom: -6px;
-    width: 4px; margin-left: -2px;
-    background: var(--brass); border-radius: 2px;
-    left: 50%; opacity: 0.25;
-    transition: left 60ms linear;
-  }
-  .scale-labels {
-    display: flex; justify-content: space-between;
-    font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
-  }
-
-  .level { display: flex; align-items: center; gap: 0.7rem; }
-  .level .track { flex: 1; height: 8px; }
-  #levelbar {
-    position: absolute; left: 0; top: 0; bottom: 0;
-    background: var(--muted); border-radius: 4px; width: 0%;
-  }
-  .level .gate {
-    position: absolute; top: -3px; bottom: -3px;
-    left: 30.5%;                       /* -50 dBFS on a -72..0 scale */
-    width: 2px; background: var(--brass); opacity: 0.7;
-  }
-  #leveltext {
-    font-family: var(--mono); font-size: 0.75rem;
-    color: var(--muted); width: 6.5rem; text-align: right;
-  }
-
-  .controls { display: flex; gap: 0.7rem; flex-wrap: wrap; justify-content: center; }
-  button {
-    background: var(--brass); color: #1A1408;
-    border: 0; border-radius: 7px;
-    padding: 0.65rem 1.4rem;
-    font-size: 1rem; font-weight: 600;
-    cursor: pointer;
-  }
-  button:disabled { background: var(--edge); color: var(--muted); cursor: default; }
-  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  #drone { background: var(--panel); color: var(--brass); border: 1px solid var(--brass); }
-  #drone:disabled { border-color: var(--edge); color: var(--muted); }
-
-  .ref { display: flex; gap: 1rem; justify-content: center;
-         font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
-  .ref label { display: flex; gap: 0.3rem; align-items: center; cursor: pointer; }
-  .ref input { accent-color: var(--brass); }
-
-  #status { text-align: center; color: var(--muted); font-size: 0.85rem; min-height: 1.2rem; }
-  #diag { text-align: center; font-family: var(--mono); font-size: 0.72rem;
-          color: var(--muted); min-height: 1rem; }
-
-  .note-box {
-    width: min(26rem, 100%);
-    color: var(--muted); font-size: 0.8rem; line-height: 1.5;
-    border-left: 2px solid var(--edge); padding-left: 0.8rem;
-  }
-  .lang {
-    align-self: flex-end;
-    display: flex; align-items: center; gap: 0.35rem;
-    font-family: var(--mono); font-size: 0.75rem; color: var(--muted);
-  }
-  .lang button {
-    background: none; border: 0; padding: 0.2rem 0.3rem;
-    color: var(--muted); font: inherit; cursor: pointer;
-  }
-  .lang button.active { color: var(--brass); font-weight: 700; }
-  .lang button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  footer { color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
-  footer a { color: var(--brass); }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14171A">
+<title>Traverso</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div class="lang" role="group" aria-label="Language">
-  <button type="button" data-lang="en">EN</button><span>·</span><button type="button" data-lang="fr">FR</button>
-</div>
-
-<header>
-  <h1 id="title">Traverso — hardware check</h1>
-  <p id="tagline">Does your microphone and speaker path work? Phase 0 of the intonation trainer.</p>
+<header class="shell-header">
+  <button id="back" class="back" hidden aria-label="Back">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+  </button>
+  <h1 id="title">Traverso</h1>
+  <div class="lang" role="group" aria-label="Language">
+    <button type="button" data-lang="fr">FR</button><span>·</span><button type="button" data-lang="en">EN</button>
+  </div>
 </header>
 
-<div class="card">
-  <div id="note">—</div>
-  <div class="readout"><span id="hz">press Start</span><span id="cents"></span></div>
+<button id="strip" class="strip" type="button"></button>
 
-  <div>
-    <div class="track"><div class="mark"></div><div id="needle"></div></div>
-    <div class="scale-labels"><span>−50¢</span><span>0</span><span>+50¢</span></div>
-  </div>
+<main id="view" class="view"></main>
 
-  <div class="level">
-    <div class="track"><div id="levelbar"></div><div class="gate"></div></div>
-    <span id="leveltext">−∞ dBFS</span>
-  </div>
+<footer class="shell-footer">
+  <span id="version"></span> · <a id="srclink" href="https://github.com/nebul2/flute-intonation">source</a>
+</footer>
 
-  <div class="controls">
-    <button id="start">Start</button>
-    <button id="drone" disabled>Drone</button>
-  </div>
-
-  <div class="ref">
-    <label><input type="radio" name="ref" value="415" checked> A = 415</label>
-    <label><input type="radio" name="ref" value="440"> A = 440</label>
-  </div>
-
-  <div id="status">press Start and allow the microphone</div>
-  <div id="diag"></div>
-</div>
-
-<div class="note-box" id="notebox">
-  Note names are equal temperament for this check only — the real engine
-  (Vallotti, mesotonic, pure intervals over the drone) is the next phase. The
-  gold mark on the level bar is the −50 dBFS gate. With the drone through
-  speakers it will re-enter the microphone: that is expected here, and
-  headphones are recommended once real exercises arrive.
-</div>
-
-<footer><span id="version"></span> · <a id="srclink" href="https://github.com/nebul2/flute-intonation">source</a></footer>
-
-<script src="yin.js"></script>
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

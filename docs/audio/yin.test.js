@@ -1,11 +1,10 @@
-/* Headless acceptance test for the detector port: node docs/yin.test.js
+/* Headless acceptance test for the detector port: node docs/audio/yin.test.js
  *
  * Mirrors the Python suite's synthetic gate: flute-like tones across D4-A6
  * at 44.1 and 48 kHz must read within 2 cents; noise must stay unvoiced;
  * near-silence must be gated. Run it after any change to yin.js.
  */
-"use strict";
-const YIN = require("./yin.js");
+import { Detector } from "./yin.js";
 
 const centsBetween = (a, b) => 1200 * Math.log2(b / a);
 
@@ -19,7 +18,7 @@ function run(hz, sr, secs = 1.0) {
     sig[i] = 0.3 * (Math.sin(t) + 0.25 * Math.sin(2 * t) + 0.10 * Math.sin(3 * t))
            + 0.002 * rand();
   }
-  const det = new YIN.Detector(sr);
+  const det = new Detector(sr);
   const heard = [];
   for (let i = 0; i + 512 <= n; i += 512) {
     const f = det.process(sig.subarray(i, i + 512));
@@ -49,14 +48,14 @@ for (const sr of [44100, 48000]) {
   let seed = 7;
   const rand = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x40000000 - 1;
   for (let i = 0; i < n; i++) sig[i] = 0.3 * rand();
-  const det = new YIN.Detector(sr);
+  const det = new Detector(sr);
   let voiced = 0;
   for (let i = 0; i + 512 <= n; i += 512) if (det.process(sig.subarray(i, i + 512)).hz > 0) voiced++;
   check(voiced <= 4, `noise: ${voiced}/86 voiced frames`);
 }
 
 { // near-silence is gated on the window
-  const det = new YIN.Detector(44100);
+  const det = new Detector(44100);
   const f = det.process(new Float32Array(512).fill(1e-5));
   check(f.hz === 0 && f.levelDb < -50, `silence gated (level ${f.levelDb.toFixed(1)} dB)`);
 }
