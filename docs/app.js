@@ -16,7 +16,7 @@ import check from "./views/check.js";
 import listen from "./views/listen.js";
 import stopper from "./views/stopper.js";
 
-export const VERSION = "phase 2.9 · 2026-08-24";
+export const VERSION = "phase 3 · 2026-08-24";
 
 const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper };
 
@@ -42,13 +42,29 @@ function renderChrome() {
   $("srclink").textContent = t("footer.source");
   $("privacy").textContent = t("footer.privacy");
   $("version").textContent = VERSION;
+  renderOffline();
   document.querySelectorAll("[data-lang]").forEach((b) =>
     b.classList.toggle("active", b.dataset.lang === document.documentElement.lang));
+}
+
+function renderOffline() {
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  $("offline").hidden = !offline;
+  $("offline").textContent = offline ? t("footer.offline") : "";
 }
 
 window.addEventListener("DOMContentLoaded", () => {
   const s = settings.get();
   setLanguage(s.lang ?? detectLanguage());
+
+  // Offline use: the worker is network-first, so being registered never
+  // serves a stale file while online; it only fills in when the network is
+  // gone. Registration failures (old browsers, file://) are simply ignored.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register(new URL("./sw.js", import.meta.url)).catch(() => {});
+  }
+  window.addEventListener("online", renderOffline);
+  window.addEventListener("offline", renderOffline);
 
   const router = new Router(VIEWS, renderShell);
   renderChrome();

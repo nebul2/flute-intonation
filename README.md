@@ -211,7 +211,15 @@ switches it off entirely, Do Not Track is honoured, localhost is never
 counted, and the footer says so. This keeps it inside the CNIL's
 audience-measurement exemption rather than consent-banner territory.
 
-Still to build: routines by length, a service worker for offline use.
+Offline use comes from a network-first service worker (`docs/sw.js`): while
+online every request goes to the network and refreshes the cache, so a
+visitor always runs the files just pushed; only when the network fails is
+the cached copy served. The whole app is precached on install, and a test
+fails if any served file is missing from the list. Cross-origin requests
+(the audience counter) are never intercepted. A footer chip says when you
+are offline.
+
+Still to build: routines by length.
 
 ## Findings
 
