@@ -177,6 +177,8 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .stopper { display: flex; flex-direction: column; gap: 0.3rem; }
 .controls.left { justify-content: flex-start; }
 .controls.top { justify-content: space-between; }
+.runnav-buttons { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.runnav button[hidden] { display: none; }
 .toggle { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.85rem; cursor: pointer; }
 .toggle input { accent-color: var(--brass); }
 

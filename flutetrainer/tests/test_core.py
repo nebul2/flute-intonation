@@ -446,7 +446,7 @@ def test_stopper_check_is_the_classical_note_set():
 
     exercise = stopper_check()
     assert exercise.drone is None
-    assert [str(n.pitch) for n in exercise.notes] == ["D4", "D5", "D6", "G4", "G5"]
+    assert [str(n.pitch) for n in exercise.notes] == ["D4", "D5", "D6", "G4", "G5", "G6"]
     assert all(n.context is None for n in exercise.notes)
 
 

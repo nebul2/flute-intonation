@@ -75,7 +75,14 @@ test("enharmonic pair: two notes, two targets, 5-60 cents apart", () => {
 test("stopper check is the classical note set", () => {
   const ex = stopperCheck();
   assert.equal(ex.drone, null);
-  assert.deepEqual(ex.notes.map((n) => n.pitch.name), ["D4", "D5", "D6", "G4", "G5"]);
+  assert.deepEqual(ex.notes.map((n) => n.pitch.name), ["D4", "D5", "D6", "G4", "G5", "G6"]);
+});
+
+test("stopper notes pair into four octaves, G5-G6 included", () => {
+  const ex = stopperCheck();
+  const results = ex.notes.map((n, i) => new NoteResult(n.pitch, 440 * Math.pow(2, i / 3), 0, 0, null, 1));
+  const labels = octavePairs(results).map((p) => `${p.lower.pitch}->${p.upper.pitch}`);
+  assert.deepEqual(labels, ["D4->D5", "D5->D6", "G4->G5", "G5->G6"]);
 });
 
 /* ---- resolver -------------------------------------------------------- */

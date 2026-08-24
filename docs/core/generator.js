@@ -131,11 +131,12 @@ export function enharmonicPair({ beats = 4.0, tempoBpm = 60.0, repeats = 2 } = {
   });
 }
 
-/* The three D's and the two lower G's, set embouchure, no drone: the stopper
+/* The three D's and the three G's, set embouchure, no drone: the stopper
  * (bouchon) test. Targets exist only so the detector knows which note is
- * sounding; only the width of the octaves matters. */
+ * sounding; only the width of the octaves matters. Four octave pairs come
+ * out of it: D4-D5, D5-D6, G4-G5, G5-G6. */
 export function stopperCheck({ beats = 4.0, tempoBpm = 60.0 } = {}) {
-  const notes = ["D4", "D5", "D6", "G4", "G5"].map((n) => new TargetNote(SpelledPitch.parse(n), beats, null));
+  const notes = ["D4", "D5", "D6", "G4", "G5", "G6"].map((n) => new TargetNote(SpelledPitch.parse(n), beats, null));
   return new Exercise({ name: "stopper check", notes, drone: null, tempoBpm });
 }
 

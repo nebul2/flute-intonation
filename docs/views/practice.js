@@ -22,7 +22,7 @@ import { Mode, TargetResolver } from "../core/resolver.js";
 import { intervalDrill, intervalInContext, enharmonicPair, stopperCheck } from "../core/generator.js";
 import { SessionSummary, analyseNote, judgeDirection, octavePairs, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
 import { NoteSegmenter, onsetThresholdFor } from "../audio/segmenter.js";
-import { el, audioControl, needle, levelBar, bandClass, currentTuning, name } from "../ui/widgets.js";
+import { el, audioControl, needle, levelBar, bandClass, currentTuning, name, runNav } from "../ui/widgets.js";
 
 const EXERCISES = {
   calibration: { build: (tonic) => intervalDrill(tonic, { intervals: [0, 4, 7] }), feedback: "after" },
@@ -146,7 +146,12 @@ export default {
                        onclick: () => this.judge(call) }))),
       rows: el("div", { class: "rows" }),
       summary: el("div", { class: "summary" }),
-      stop: el("button", { class: "secondary", text: t("practice.stop"), onclick: () => this.finish(true) }),
+      nav: runNav({
+        stopLabel: t("practice.stop"),
+        onStop: () => this.finish(true),
+        onRedo: () => this.startRun(run.key),
+        onBack: () => this.showList(),
+      }),
     };
     const u = this.ui;
     u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.level.element, u.judge]);
@@ -156,9 +161,10 @@ export default {
       (run.exercises.some((e) => e.drone) && !run.settings.headphones)
         ? el("p", { class: "note-box", text: t("practice.bleed") }) : null,
       u.status,
+      u.nav.top,
       u.panel,
       u.summary, u.rows,
-      el("div", { class: "controls" }, [u.stop]),
+      u.nav.bottom,
     );
 
     // s / f / t on a keyboard, for the predict prompt.
@@ -362,8 +368,7 @@ export default {
     this.ui.level.element.hidden = true;
     this.ui.panel.classList.add("finished");
     this.ui.status.textContent = stopped ? t("practice.stopped") : t("practice.done");
-    this.ui.stop.textContent = t("practice.backToList");
-    this.ui.stop.onclick = () => this.showList();
+    this.ui.nav.finish();
 
     const s = run.settings;
     const summary = run.summary;

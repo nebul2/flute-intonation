@@ -70,7 +70,7 @@ drone; in Vallotti at 415 the pure third sits 9.8 cents lower), `enharmonic`
 (D♯5 over B, then E♭5 over C — one fingering, two targets, 39 cents apart, the
 exercise the spelled-pitch model exists for), `predict` (call sharp, flat
 or in tune before the number is revealed; agreement is scored), and `stopper`
-(place le bouchon: the three D's and the two lower G's with a set embouchure —
+(place le bouchon: the three D's and the three G's with a set embouchure —
 nothing is revealed per note, and the report gives each octave's width in
 cents, the mean octave error to minimise, and whether it tightened or widened
 since the previous saved run). The stopper check deliberately ignores absolute

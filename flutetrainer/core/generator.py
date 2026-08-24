@@ -252,7 +252,7 @@ def enharmonic_pair(
 
 
 def stopper_check(beats: float = 4.0, tempo_bpm: float = 60.0) -> Exercise:
-    """The three D's and the two lower G's, set embouchure, no drone.
+    """The three D's and the three G's, set embouchure, no drone.
 
     The classical test for placing the stopper (le bouchon): play the octaves
     with the embouchure set -- adapted for the register, but making no pitch
@@ -265,7 +265,7 @@ def stopper_check(beats: float = 4.0, tempo_bpm: float = 60.0) -> Exercise:
     No drone and no context: the targets exist only so the detector knows
     which note is being sounded.
     """
-    pitches = ("D4", "D5", "D6", "G4", "G5")
+    pitches = ("D4", "D5", "D6", "G4", "G5", "G6")
     notes = tuple(
         TargetNote(SpelledPitch.parse(name), beats, None) for name in pitches
     )

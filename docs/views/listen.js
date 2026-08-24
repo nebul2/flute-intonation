@@ -21,7 +21,7 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker } from "../audio/regions.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink } from "../core/stats.js";
-import { el, audioControl, needle, levelBar, bandClass, currentTuning, name, tunerCandidates, nearestCandidate } from "../ui/widgets.js";
+import { el, audioControl, needle, levelBar, bandClass, currentTuning, name, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
 const TONIC_FRAMES = 40;          // ~0.45 s of the tonic to begin
@@ -87,7 +87,6 @@ export default {
     const root = this.root;
     root.replaceChildren();
 
-    const finishButton = () => el("button", { class: "secondary", text: t("listen.stop"), onclick: () => this.finish() });
     const logToggle = el("label", { class: "toggle" }, [
       el("input", { type: "checkbox", checked: s.listenLog || null,
                     onchange: (e) => { settings.set({ listenLog: e.target.checked }); this.ui.rows.hidden = !e.target.checked; } }),
@@ -96,7 +95,13 @@ export default {
 
     this.ui = {
       status: el("p", { class: "intro", text: t("listen.tonicPrompt", name(tonicPitch, s).replace(/4$/, "")) }),
-      finishTop: finishButton(), finishBottom: finishButton(),
+      nav: runNav({
+        stopLabel: t("listen.stop"),
+        onStop: () => this.finish(),
+        onRedo: () => this.startSession(),
+        onBack: () => this.showStart(),
+        extras: [logToggle],
+      }),
       note: el("div", { class: "big-note", text: "—" }),
       readout: el("div", { class: "readout" }, [el("span"), el("span")]),
       gauge: needle(), level: levelBar(),
@@ -106,12 +111,7 @@ export default {
     };
     const u = this.ui;
     u.panel = el("div", { class: "card panel" }, [u.note, u.readout, u.gauge.element, u.level.element]);
-    root.append(
-      u.status,
-      el("div", { class: "controls top" }, [u.finishTop, logToggle]),
-      u.panel, u.table, u.summary, u.rows,
-      el("div", { class: "controls" }, [u.finishBottom]),
-    );
+    root.append(u.status, u.nav.top, u.panel, u.table, u.summary, u.rows, u.nav.bottom);
     this.renderTable();
 
     this.offFrame = engine.onFrame((frame) => this.onFrame(frame));
@@ -273,7 +273,7 @@ export default {
     u.level.element.hidden = true;
     u.panel.classList.add("finished");
     u.status.textContent = t("practice.done");
-    for (const b of [u.finishTop, u.finishBottom]) { b.textContent = t("listen.again"); b.onclick = () => this.showStart(); }
+    u.nav.finish();
     this.renderTable();
 
     const rows = aggregate(run.notes);

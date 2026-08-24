@@ -584,7 +584,7 @@ PRACTICE = {
         "after",
     ),
     "stopper": (
-        "place le bouchon: the three D's and two G's, set embouchure, octave widths only",
+        "place le bouchon: the three D's and three G's, set embouchure, octave widths only",
         lambda tonic: stopper_check(),
         "end",
     ),

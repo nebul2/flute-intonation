@@ -85,6 +85,35 @@ export function audioControl({ showGranted = true } = {}) {
   return { element: wrap, update, dispose: off };
 }
 
+/* ---- run navigation ------------------------------------------------- */
+
+/* The one navigation bar for every page that runs something: a Stop control
+ * while running, then Redo and Back to the list once finished. Rendered
+ * twice -- `top` and `bottom` -- from one state, so both ends of a long page
+ * always agree. `extras` (e.g. a toggle) appear in the top bar only. */
+export function runNav({ onStop, onRedo, onBack, stopLabel = t("nav.stop"), extras = [] }) {
+  const make = (withExtras) => {
+    const stop = el("button", { class: "secondary", text: stopLabel, onclick: () => onStop() });
+    const redo = el("button", { class: "primary", text: t("nav.redo"), onclick: () => onRedo(), hidden: true });
+    const back = el("button", { class: "secondary", text: t("nav.backToList"), onclick: () => onBack(), hidden: true });
+    const bar = el("div", { class: `controls runnav${withExtras ? " top" : ""}` },
+      [el("div", { class: "runnav-buttons" }, [stop, redo, back]), ...(withExtras ? extras : [])]);
+    return { bar, stop, redo, back };
+  };
+  const top = make(true), bottom = make(false);
+  return {
+    top: top.bar,
+    bottom: bottom.bar,
+    finish() {
+      for (const side of [top, bottom]) {
+        side.stop.hidden = true;
+        side.redo.hidden = false;
+        side.back.hidden = false;
+      }
+    },
+  };
+}
+
 /* ---- cents needle --------------------------------------------------- */
 
 export function needle() {
