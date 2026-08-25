@@ -8,7 +8,7 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { TEMPERAMENTS, TEMPERAMENT_ORDER } from "../core/temperaments.js";
 import { lang } from "../i18n.js";
-import { el, currentTuning, temperamentLabel, name } from "../ui/widgets.js";
+import { el, currentTuning, temperamentLabel, nameClass } from "../ui/widgets.js";
 
 const ROOTS = ["C", "D", "F", "G", "A", "Bb"];
 
@@ -55,7 +55,7 @@ export default {
     const rootSelect = el("select", { class: "select", onchange: (e) => {
       settings.set({ root: e.target.value }); refreshExample();
     } }, ROOTS.map((r) => el("option", {
-      value: r, selected: s.root === r || null, text: name(SpelledPitch.parse(`${r}4`), { ...s, naming: s.naming }).replace(/4$/, ""),
+      value: r, selected: s.root === r || null, text: nameClass(SpelledPitch.parse(`${r}4`), s),
     })));
 
     refreshExample();

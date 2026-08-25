@@ -29,7 +29,8 @@ import { HarmonicContext } from "../core/tuning.js";
 import { Exercise, TargetNote } from "../core/resolver.js";
 import { SessionSummary, analyseNote, judgeDirection, octavePairs, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
 import { NoteSegmenter, onsetThresholdFor } from "../audio/segmenter.js";
-import { el, append, needle, levelBar, bandClass, currentTuning, name, runNav } from "../ui/widgets.js";
+import { highestFirst } from "../core/pitch.js";
+import { el, append, needle, levelBar, bandClass, currentTuning, name, nameClass, runNav } from "../ui/widgets.js";
 
 /* The practice set. */
 export const EXERCISES = {
@@ -381,7 +382,7 @@ export class ExerciseRun {
       parts.push(el("p", { class: "mono", text: t("practice.meanAbs", summary.meanAbsoluteCents.toFixed(1)) }));
       const byClass = summary.byPitchClass();
       parts.push(el("p", { class: "mono", text: `${t("practice.byNote")} ` + Object.entries(byClass).map(([k, v]) =>
-        `${name(SpelledPitch.parse(`${k}4`), s).replace(/4$/, "")} ${v >= 0 ? "+" : ""}${v.toFixed(1)}`).join("  ") }));
+        `${nameClass(SpelledPitch.parse(`${k}4`), s)} ${v >= 0 ? "+" : ""}${v.toFixed(1)}`).join("  ") }));
     }
     if (run.judgements.length) {
       parts.push(el("p", { text: t("practice.judgement", run.judgements.filter(Boolean).length, run.judgements.length) }));
@@ -419,7 +420,7 @@ export class ExerciseRun {
   }
 
   async stopperReport(summary, s) {
-    const pairs = octavePairs(summary.results);
+    const pairs = octavePairs(summary.results).sort((p, q) => highestFirst(p.lower.pitch, q.lower.pitch));
     const box = el("div", { class: "stopper" });
     if (!pairs.length) { box.append(el("p", { text: t("practice.stopper.noPairs") })); return { element: box }; }
     box.append(el("p", { text: t("practice.stopper.title") }));

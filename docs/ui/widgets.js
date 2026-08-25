@@ -9,7 +9,7 @@ import * as settings from "../settings.js";
 import { SpelledPitch } from "../core/pitch.js";
 import { ReferencePitch, TemperamentTuning, parseScala } from "../core/tuning.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
-import { noteName } from "./naming.js";
+import { noteName, REGISTER } from "./naming.js";
 
 /* el("div", {class: "x", onclick: fn}, [children...]) */
 export function el(tag, attrs = {}, children = []) {
@@ -51,13 +51,22 @@ export function currentTuning(s = settings.get()) {
 
 export function temperamentLabel(name) { return t(`temperament.${name}`); }
 
-export function name(pitch, s = settings.get()) { return noteName(pitch, s.naming); }
+export function name(pitch, s = settings.get()) {
+  return noteName(pitch, s.naming, { octaveStyle: s.octaveStyle ?? REGISTER });
+}
+
+/* The note without its octave -- for tonic and root pickers, and for
+ * summaries grouped by pitch class. Replaces stripping digits by regex,
+ * which register names would have defeated. */
+export function nameClass(pitch, s = settings.get()) {
+  return noteName(pitch, s.naming, { octave: false });
+}
 
 /* "A = 415 · Vallotti sur Do · intervalles purs · casque" */
 export function statusText(s = settings.get()) {
   const parts = [
     `A = ${s.referenceHz}`,
-    `${temperamentLabel(s.temperament)} · ${noteName(SpelledPitch.parse(`${s.root}4`), s.naming, false)}`,
+    `${temperamentLabel(s.temperament)} · ${nameClass(SpelledPitch.parse(`${s.root}4`), s)}`,
     t(`mode.${s.mode}`),
     s.headphones ? t("status.headphones") : t("status.speakers"),
   ];

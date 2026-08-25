@@ -167,14 +167,16 @@ export default {
 
     parts.push(el("p", { class: "muted", text: t("compare.corrected") }));
     const s = settings.get();
-    const head = ["note", "a", "b", "diff", "verdict"];
+    const head = ["note", "a", "aSpread", "b", "bSpread", "diff", "verdict"];
     parts.push(el("div", { class: "stats scroll" }, [
       el("table", {}, [
         el("thead", {}, [el("tr", {}, head.map((k) => el("th", { text: t(`compare.col.${k}`) })))]),
         el("tbody", {}, result.rows.map((row) => el("tr", {}, [
           el("td", { class: "name", text: name(row.pitch, s) }),
           el("td", { class: "num", text: `${fmt(row.aCorrected)} (${row.aN})` }),
+          el("td", { class: "num spread", text: row.aN > 1 ? `±${row.aSpread.toFixed(1)}` : "—" }),
           el("td", { class: "num", text: `${fmt(row.bCorrected)} (${row.bN})` }),
+          el("td", { class: "num spread", text: row.bN > 1 ? `±${row.bSpread.toFixed(1)}` : "—" }),
           el("td", { class: `num ${row.verdict === "notable" ? bandClass(row.diff) : ""}`, text: fmt(row.diff) }),
           el("td", { class: `verdict ${row.verdict}`, text: t(`compare.verdict.${row.verdict}`) }),
         ]))),

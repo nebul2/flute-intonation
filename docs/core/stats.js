@@ -7,7 +7,7 @@
  * single held note (frame by frame). Both need a spread of levels to mean
  * anything, hence the minimums below. */
 
-import { centsBetween } from "./pitch.js";
+import { centsBetween, highestFirst } from "./pitch.js";
 
 // A volume-pitch link is reported only across at least this many occurrences
 // spanning at least this many dB; fewer or narrower and the fit is noise.
@@ -109,7 +109,7 @@ export function aggregate(notes) {
       volume, withinVolume, trend,
     });
   }
-  return rows.sort((a, b) => a.pitch.chromaticIndex - b.pitch.chromaticIndex);
+  return rows.sort((a, b) => highestFirst(a.pitch, b.pitch));
 }
 
 /* Plain numbers for the saved record. */

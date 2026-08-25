@@ -110,6 +110,12 @@ export function intervalBetween(lower, upper) {
   return new SpelledInterval(qualityFrom(generic, simpleSemitones), generic, octaves);
 }
 
+/* Display order for lists of notes: high at the top, low at the bottom, the
+ * way they sit on a stave. Ties (enharmonics) keep their insertion order. */
+export function highestFirst(a, b) {
+  return b.chromaticIndex - a.chromaticIndex;
+}
+
 /* Cents from `lowerHz` to `upperHz`. Positive means sharp. */
 export function centsBetween(lowerHz, upperHz) {
   if (!(lowerHz > 0) || !(upperHz > 0)) throw new Error("frequencies must be positive");

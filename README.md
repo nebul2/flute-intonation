@@ -230,6 +230,15 @@ tuning. The overall difference is reported once, separately, and each
 per-note difference is marked as beyond or within the spread so small
 samples are not over-read. Two stopper checks also compare octave widths.
 
+Notes are listed high at the top, low at the bottom everywhere, and octaves
+read by register — Ré grave, Ré médium, Ré aigu — rather than by number.
+The register bands break at **D, not at C**, because that is where the
+one-keyed flute's registers break, so the three D's of the stopper check
+read exactly as low, middle and high; scientific numbering would have put
+C♯5 in the "medium" octave although it is played as a low-register note.
+Numbers remain available in Settings, and notes outside the bands keep
+theirs.
+
 Still to build: routines by length.
 
 ## Findings

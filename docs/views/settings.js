@@ -44,6 +44,15 @@ export default {
         el("span", { class: "option-label", text: t(`settings.naming.${style}`) }),
       ])));
 
+    /* octave style */
+    const octaveStyle = el("div", { class: "options" }, ["register", "number"].map((style) =>
+      el("label", { class: "option" }, [
+        el("input", { type: "radio", name: "octaveStyle", value: style,
+                      checked: (s.octaveStyle ?? "register") === style || null,
+                      onchange: () => settings.set({ octaveStyle: style }) }),
+        el("span", { class: "option-label", text: t(`settings.octaveStyle.${style}`) }),
+      ])));
+
     /* language */
     const language = el("div", { class: "segmented" }, ["fr", "en"].map((code) =>
       el("button", {
@@ -114,6 +123,8 @@ export default {
       el("h2", { text: t("settings.reference") }),
       el("div", { class: "row" }, [refs, custom]),
       el("h2", { text: t("settings.naming") }), naming,
+      el("h2", { text: t("settings.octaveStyle") }), octaveStyle,
+      el("p", { class: "note-box", text: t("settings.octaveStyleHelp") }),
       el("h2", { text: t("settings.language") }), language,
       el("h2", { text: t("settings.mic") }), control.element, mic, micNote,
       el("h2", { text: t("settings.droneLevel") }), droneLevel,

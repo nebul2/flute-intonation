@@ -4,7 +4,7 @@
 import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import { SpelledPitch } from "../core/pitch.js";
-import { el, append, audioControl, labelField, name } from "../ui/widgets.js";
+import { el, append, audioControl, labelField, nameClass } from "../ui/widgets.js";
 import { EXERCISES, ExerciseRun } from "./run.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
@@ -38,7 +38,7 @@ export default {
 
     const tonicSelect = el("select", { class: "select", onchange: (e) => { this.tonic = e.target.value; } },
       TONICS.map((k) => el("option", { value: k, selected: k === this.tonic || null,
-                                       text: name(SpelledPitch.parse(`${k}4`)).replace(/4$/, "") })));
+                                       text: nameClass(SpelledPitch.parse(`${k}4`)) })));
     const qualitySelect = el("select", { class: "select", onchange: (e) => { this.quality = e.target.value; } },
       ["major", "minor"].map((q) => el("option", { value: q, selected: q === this.quality || null,
                                                     text: t(`practice.quality.${q}`) })));

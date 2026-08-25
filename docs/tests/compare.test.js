@@ -104,7 +104,7 @@ test("a real per-note difference survives the correction and is marked notable",
 
 test("rows come back in pitch order, with both counts", () => {
   const result = compare(record(FIVE), record(FIVE));
-  assert.deepEqual(result.rows.map((r) => r.key), ["D4", "E4", "F#4", "G4", "A4"]);
+  assert.deepEqual(result.rows.map((r) => r.key), ["A4", "G4", "F#4", "E4", "D4"]);
   assert.ok(result.rows.every((r) => r.aN === 3 && r.bN === 3));
 });
 

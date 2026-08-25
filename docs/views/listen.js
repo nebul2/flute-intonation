@@ -21,7 +21,7 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker } from "../audio/regions.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink } from "../core/stats.js";
-import { el, audioControl, labelField, needle, levelBar, bandClass, currentTuning, name, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
+import { el, audioControl, labelField, needle, levelBar, bandClass, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
 const TONIC_FRAMES = 40;          // ~0.45 s of the tonic to begin
@@ -57,7 +57,7 @@ export default {
     this.control = control;
     const tonicSelect = el("select", { class: "select", onchange: (e) => { this.tonic = e.target.value; } },
       TONICS.map((k) => el("option", { value: k, selected: k === this.tonic || null,
-                                       text: name(SpelledPitch.parse(`${k}4`)).replace(/4$/, "") })));
+                                       text: nameClass(SpelledPitch.parse(`${k}4`)) })));
     const label = labelField();
     this.label = label;
     const start = el("button", { class: "primary", text: t("listen.start"), disabled: !engine.listening,
@@ -97,7 +97,7 @@ export default {
     ]);
 
     this.ui = {
-      status: el("p", { class: "intro", text: t("listen.tonicPrompt", name(tonicPitch, s).replace(/4$/, "")) }),
+      status: el("p", { class: "intro", text: t("listen.tonicPrompt", nameClass(tonicPitch, s)) }),
       nav: runNav({
         stopLabel: t("listen.stop"),
         onStop: () => this.finish(),
@@ -184,7 +184,7 @@ export default {
 
   logRow(note) {
     const s = this.run.settings;
-    const tonicName = name(this.run.tonicPitch, s).replace(/4$/, "");
+    const tonicName = nameClass(this.run.tonicPitch, s);
     const primaryLabel = note.primary === "pure" ? t("listen.pureOver", tonicName) : t("listen.tempered");
     const secondary = note.primary === "pure"
       ? `${t("listen.tempered")} ${fmt(note.temperedCents)}¢`

@@ -55,8 +55,8 @@ test("aggregate groups by spelled pitch with counts, range, spread, stability, t
     note("Gb4", 3, { index: 3 }),                       // a different spelling is a different row
   ];
   const rows = aggregate(notes);
-  assert.deepEqual(rows.map((r) => r.key), ["F#4", "Gb4", "A4"]);   // sorted by pitch
-  const fs = rows[0];
+  assert.deepEqual(rows.map((r) => r.key), ["A4", "F#4", "Gb4"]);   // high notes first
+  const fs = rows.find((r) => r.key === "F#4");
   assert.equal(fs.n, 2);
   approx(fs.meanCents, 12, 1e-9);
   approx(fs.minCents, 10, 1e-9);
@@ -66,8 +66,9 @@ test("aggregate groups by spelled pitch with counts, range, spread, stability, t
   approx(fs.totalSeconds, 3.0, 1e-9);
   assert.equal(fs.volume, null);          // too few occurrences
   assert.equal(fs.trend, null);           // fewer than four
-  assert.equal(rows[2].n, 1);
-  approx(rows[2].spreadCents, 0, 1e-9);
+  const gb = rows.find((r) => r.key === "Gb4");
+  assert.equal(gb.n, 1);
+  approx(gb.spreadCents, 0, 1e-9);
 });
 
 test("volume fit appears only with enough occurrences over enough dB, and trend needs four", () => {

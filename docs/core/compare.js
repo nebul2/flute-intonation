@@ -12,7 +12,7 @@
  * `notes[]`, which every record type carries, so a practice run and a Listen
  * session compare on the same footing. Pure functions; the view renders. */
 
-import { SpelledPitch } from "./pitch.js";
+import { SpelledPitch, highestFirst } from "./pitch.js";
 import { mean, pstdev } from "./stats.js";
 import { SessionSummary, octavePairs } from "./scoring.js";
 
@@ -103,7 +103,8 @@ function octaveComparison(a, b) {
     return map;
   };
   const wa = widths(a), wb = widths(b);
-  return [...wa.keys()].filter((key) => wb.has(key)).map((key) => ({
+  return [...wa.keys()].filter((key) => wb.has(key)).sort((p, q) =>
+    highestFirst(wa.get(p).lower.pitch, wa.get(q).lower.pitch)).map((key) => ({
     key,
     lower: wa.get(key).lower.pitch,
     upper: wa.get(key).upper.pitch,
@@ -140,8 +141,8 @@ export function compare(a, b) {
       verdict = notable ? "notable" : "noise";
     }
     return { key, pitch: x.pitch, aN: x.n, bN: y.n, aMean: x.mean, bMean: y.mean,
-             aCorrected, bCorrected, diff, verdict };
-  }).sort((p, q) => p.pitch.chromaticIndex - q.pitch.chromaticIndex);
+             aSpread: x.spread, bSpread: y.spread, aCorrected, bCorrected, diff, verdict };
+  }).sort((p, q) => highestFirst(p.pitch, q.pitch));
 
   const result = {
     ok: true,
