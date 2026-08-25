@@ -10,7 +10,7 @@ import { t } from "../i18n.js";
 import * as history from "../history.js";
 import * as settings from "../settings.js";
 import { SpelledPitch } from "../core/pitch.js";
-import { compare } from "../core/compare.js";
+import { compare, MAX_COMPARE } from "../core/compare.js";
 import { el, append, name, bandClass } from "../ui/widgets.js";
 
 const fmt = (c, digits = 1) => `${c >= 0 ? "+" : ""}${c.toFixed(digits)}`;
@@ -58,7 +58,7 @@ export default {
     if (index >= 0) this.selected.splice(index, 1);
     else {
       this.selected.push(id);
-      if (this.selected.length > 2) this.selected.shift();   // a third replaces the oldest
+      if (this.selected.length > MAX_COMPARE) this.selected.shift();   // oldest drops out
     }
     this.render();
   },
@@ -102,7 +102,7 @@ export default {
   render() {
     const root = this.root;
     root.replaceChildren();
-    const ready = this.selected.length === 2;
+    const ready = this.selected.length >= 2;
     const compareButton = el("button", {
       class: "primary", text: t("sessions.compare"), disabled: !ready,
       onclick: () => this.showComparison(),
@@ -123,15 +123,16 @@ export default {
 
   showComparison() {
     const picked = this.records.filter((r) => this.selected.includes(r.id));
-    if (picked.length !== 2) return;
-    // Older first, so the report reads "B sits sharper than A".
-    const [a, b] = [...picked].sort((x, y) => ((x.at ?? "") < (y.at ?? "") ? -1 : 1));
-    const labelA = a.label || `${kindLabel(a)} ${when(a)}`;
-    const labelB = b.label || `${kindLabel(b)} ${when(b)}`;
-    const result = compare(a, b);
+    if (picked.length < 2) return;
+    // Earliest first, so the letters run in the order they were played.
+    const ordered = [...picked].sort((x, y) => ((x.at ?? "") < (y.at ?? "") ? -1 : 1));
+    const letters = ordered.map((_, i) => String.fromCharCode(65 + i));
+    const labels = ordered.map((r, i) => r.label || `${kindLabel(r)} ${when(r)}`);
+    const result = compare(ordered);
 
-    const parts = [el("h2", { text: t("compare.title") }),
-                   el("p", { class: "mono", text: `A — ${labelA}     B — ${labelB}` })];
+    const parts = [el("h2", { text: t("compare.title") })];
+    parts.push(el("p", { class: "mono legend",
+      text: letters.map((letter, i) => `${letter} — ${labels[i]}`).join("     ") }));
 
     if (!result.ok) {
       parts.push(el("p", { class: "note-box", text: t("compare.blocked") }));
@@ -145,18 +146,50 @@ export default {
       return;
     }
 
-    // The pitch difference, reported once and separately from the tuning.
-    const offset = result.offsetDiff;
-    parts.push(el("p", { text: Math.abs(offset) < 1
-      ? t("compare.offsetSame")
-      : t(offset > 0 ? "compare.offsetSharper" : "compare.offsetFlatter",
-          labelB, Math.abs(offset).toFixed(1)) }));
-    parts.push(el("p", { text: t("compare.internal", labelA, result.internalA.toFixed(1),
-                                 labelB, result.internalB.toFixed(1)) }));
-    const gap = result.internalA - result.internalB;
-    parts.push(el("p", { class: "muted", text: Math.abs(gap) < 1
-      ? t("compare.internalEqual")
-      : t("compare.internalBetter", gap > 0 ? labelB : labelA) }));
+    const s = settings.get();
+
+    /* ---- the conclusion, first: which is better tuned, and by how much --- */
+    const best = result.best;
+    parts.push(el("h2", { text: t("compare.scoreTitle") }));
+    parts.push(el("p", { text: best.notable
+      ? t("compare.verdict.best", labels[best.index], best.gap.toFixed(1), labels[best.runnerUp])
+      : t("compare.verdict.tooClose", labels[best.index], labels[best.runnerUp]) }));
+
+    const measures = [
+      ["internal", (x) => x.internal],
+      ["repeatability", (x) => x.repeatability],
+      ["steadiness", (x) => x.steadiness],
+    ];
+    parts.push(el("div", { class: "stats scroll" }, [
+      el("table", {}, [
+        el("thead", {}, [el("tr", {}, [el("th", { text: t("compare.col.measure") }),
+          ...letters.map((letter) => el("th", { text: letter }))])]),
+        el("tbody", {}, measures.map(([key, pick]) => {
+          const values = result.sessions.map(pick);
+          const lowest = Math.min(...values);
+          return el("tr", {}, [
+            el("td", { class: "name", title: t(`compare.score.${key}Help`), text: t(`compare.score.${key}`) }),
+            ...values.map((value) => el("td", {
+              class: `num${value === lowest ? " best" : ""}`, text: value.toFixed(1),
+            })),
+          ]);
+        })),
+      ]),
+    ]));
+    parts.push(el("p", { class: "muted", text: t("compare.lowerIsBetter") }));
+    parts.push(el("p", { class: "note-box", text: t("compare.caveat") }));
+
+    /* ---- pitch, reported once and separately from tuning ---------------- */
+    if (ordered.length === 2) {
+      const offset = result.offsets[1] - result.offsets[0];
+      parts.push(el("p", { text: Math.abs(offset) < 1
+        ? t("compare.offsetSame")
+        : t(offset > 0 ? "compare.offsetSharper" : "compare.offsetFlatter",
+            labels[1], Math.abs(offset).toFixed(1)) }));
+    } else {
+      parts.push(el("p", { class: "mono", text: t("compare.offsets") + " " +
+        result.offsets.map((o, i) => `${letters[i]} ${o >= 0 ? "+" : ""}${o.toFixed(1)}`).join("   ") }));
+    }
 
     for (const warning of result.warnings) {
       const text = warning.kind === "differentKind"
@@ -165,35 +198,48 @@ export default {
       parts.push(el("p", { class: "note-box", text }));
     }
 
+    /* ---- per note ------------------------------------------------------- */
     parts.push(el("p", { class: "muted", text: t("compare.corrected") }));
-    const s = settings.get();
-    const head = ["note", "a", "aSpread", "b", "bSpread", "diff", "verdict"];
+    const twoWay = ordered.length === 2;
+    const head = [el("th", { text: t("compare.col.note") })];
+    for (const letter of letters) {
+      head.push(el("th", { text: t("compare.col.value", letter) }));
+      head.push(el("th", { text: t("compare.col.spread", letter) }));
+    }
+    head.push(el("th", { text: twoWay ? t("compare.col.diff") : t("compare.col.range") }));
+    head.push(el("th", { text: "" }));
+
     parts.push(el("div", { class: "stats scroll" }, [
       el("table", {}, [
-        el("thead", {}, [el("tr", {}, head.map((k) => el("th", { text: t(`compare.col.${k}`) })))]),
-        el("tbody", {}, result.rows.map((row) => el("tr", {}, [
-          el("td", { class: "name", text: name(row.pitch, s) }),
-          el("td", { class: "num", text: `${fmt(row.aCorrected)} (${row.aN})` }),
-          el("td", { class: "num spread", text: row.aN > 1 ? `±${row.aSpread.toFixed(1)}` : "—" }),
-          el("td", { class: "num", text: `${fmt(row.bCorrected)} (${row.bN})` }),
-          el("td", { class: "num spread", text: row.bN > 1 ? `±${row.bSpread.toFixed(1)}` : "—" }),
-          el("td", { class: `num ${row.verdict === "notable" ? bandClass(row.diff) : ""}`, text: fmt(row.diff) }),
-          el("td", { class: `verdict ${row.verdict}`, text: t(`compare.verdict.${row.verdict}`) }),
-        ]))),
+        el("thead", {}, [el("tr", {}, head)]),
+        el("tbody", {}, result.rows.map((row) => {
+          const cells = [el("td", { class: "name", text: name(row.pitch, s) })];
+          for (const value of row.values) {
+            cells.push(el("td", { class: "num", text: `${fmt(value.corrected)} (${value.n})` }));
+            cells.push(el("td", { class: "num spread", text: value.n > 1 ? `±${value.spread.toFixed(1)}` : "—" }));
+          }
+          // With two instruments the signed difference is what you scan for;
+          // with three there is no single direction, so the spread is shown.
+          const headline = twoWay
+            ? fmt(row.values[1].corrected - row.values[0].corrected)
+            : row.range.toFixed(1);
+          cells.push(el("td", { class: `num ${row.verdict === "notable" ? "off" : ""}`, text: headline }));
+          cells.push(el("td", { class: `verdict ${row.verdict}`, text: t(`compare.verdict.${row.verdict}`) }));
+          return el("tr", {}, cells);
+        })),
       ]),
     ]));
 
+    /* ---- octave widths, when every session is a stopper check ----------- */
     if (result.octaves?.length) {
       parts.push(el("h2", { text: t("compare.octaves") }));
       parts.push(el("div", { class: "stats scroll" }, [
         el("table", {}, [
-          el("thead", {}, [el("tr", {}, ["note", "a", "b", "diff"].map((k) =>
-            el("th", { text: t(`compare.col.${k}`) })))]),
+          el("thead", {}, [el("tr", {}, [el("th", { text: t("compare.col.note") }),
+            ...letters.map((letter) => el("th", { text: letter }))])]),
           el("tbody", {}, result.octaves.map((pair) => el("tr", {}, [
             el("td", { class: "name", text: `${name(pair.lower, s)} → ${name(pair.upper, s)}` }),
-            el("td", { class: "num", text: fmt(pair.a) }),
-            el("td", { class: "num", text: fmt(pair.b) }),
-            el("td", { class: "num", text: fmt(pair.b - pair.a) }),
+            ...pair.widths.map((width) => el("td", { class: "num", text: fmt(width) })),
           ]))),
         ]),
       ]));

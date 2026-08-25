@@ -221,8 +221,14 @@ are offline.
 
 Sessions can be named ("flute 1", "flute 2") and are browsable in a
 Sessions view, where ticking two compares them (`docs/core/compare.js`).
-The comparison refuses outright when the tuning settings differ — the
-numbers would not be on the same scale — and warns when it is thin. Its
+Two or three sessions compare at once. The comparison refuses outright when
+the tuning settings differ — the numbers would not be on the same scale — and
+warns when it is thin. It opens with a score: each instrument's mean distance
+from its own pitch centre, in cents, alongside repeatability and steadiness,
+and a verdict naming the better-tuned one *only when a paired test says the
+lead survives the note-to-note scatter*. One note badly out moves the score
+but does not earn a verdict, which is deliberate — a winner declared on noise
+would be worse than no winner, since it would be acted on. Its
 central move is removing each instrument's own pitch centre before
 comparing notes: a flute sitting eight cents sharp throughout would
 otherwise read "+8" on every note, which describes its pitch, not its

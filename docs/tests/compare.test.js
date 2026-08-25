@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { compare, comparable, perNote, MIN_SHARED_NOTES } from "../core/compare.js";
+import { compare, comparable, perNote, MIN_SHARED_NOTES, MAX_COMPARE } from "../core/compare.js";
 
 const approx = (got, want, abs, label = "") =>
   assert.ok(Math.abs(got - want) <= abs, `${label} expected ${want} ± ${abs}, got ${got}`);
@@ -83,12 +83,13 @@ test("a uniformly sharper instrument shows as offset, not as per-note difference
   const b = record(Object.fromEntries(Object.entries(FIVE).map(([k, v]) => [k, v + 8])));
   const result = compare(a, b);
   assert.equal(result.ok, true);
-  approx(result.offsetDiff, 8, 1e-9, "the pitch difference is reported once");
+  approx(result.offsets[1] - result.offsets[0], 8, 1e-9, "the pitch difference is reported once");
   for (const row of result.rows) {
-    approx(row.diff, 0, 1e-9, `${row.key} corrected difference`);
+    approx(row.range, 0, 1e-9, `${row.key} corrected difference`);
     assert.equal(row.verdict, "noise");
   }
-  approx(result.internalA, result.internalB, 1e-9, "equally consistent with themselves");
+  approx(result.sessions[0].internal, result.sessions[1].internal, 1e-9,
+         "equally consistent with themselves");
 });
 
 test("a real per-note difference survives the correction and is marked notable", () => {
@@ -97,15 +98,18 @@ test("a real per-note difference survives the correction and is marked notable",
   const result = compare(a, b);
   const fs = result.rows.find((r) => r.key === "F#4");
   // F# moved 20c; the mean of five notes moved 4c, so 16c survives correction.
-  approx(fs.diff, 16, 1e-9);
+  approx(fs.values[1].corrected - fs.values[0].corrected, 16, 1e-9);
+  approx(fs.range, 16, 1e-9);
   assert.equal(fs.verdict, "notable");
-  assert.ok(result.internalB > result.internalA, "B is less consistent with itself");
+  assert.ok(result.sessions[1].internal > result.sessions[0].internal,
+            "B is less consistent with itself");
+  assert.equal(result.best.index, 0, "A wins on the score");
 });
 
 test("rows come back in pitch order, with both counts", () => {
   const result = compare(record(FIVE), record(FIVE));
   assert.deepEqual(result.rows.map((r) => r.key), ["A4", "G4", "F#4", "E4", "D4"]);
-  assert.ok(result.rows.every((r) => r.aN === 3 && r.bN === 3));
+  assert.ok(result.rows.every((r) => r.values.every((v) => v.n === 3)));
 });
 
 /* ---- honesty about small samples ------------------------------------- */
@@ -148,8 +152,98 @@ test("two stopper checks also compare their octave widths", () => {
   const result = compare(stopper(4), stopper(-6));
   assert.ok(result.octaves, "octave comparison present");
   assert.equal(result.octaves.length, 1);
-  approx(result.octaves[0].a, 4, 0.01);
-  approx(result.octaves[0].b, -6, 0.01);
+  approx(result.octaves[0].widths[0], 4, 0.01);
+  approx(result.octaves[0].widths[1], -6, 0.01);
   assert.equal(compare(record(FIVE), record(FIVE)).octaves, undefined,
     "only for stopper checks");
+});
+
+/* ---- the score and its verdict --------------------------------------- */
+
+test("the score is the internal deviation, and a consistent lead is called", () => {
+  // B's notes sit twice as far from its own centre as A's do, on every note.
+  const a = record(FIVE);
+  const b = record({ "D4": 0.4, "E4": 8.4, "F#4": -11.6, "G4": 4.4, "A4": -1.6 });
+  const result = compare(a, b);
+  approx(result.sessions[0].score, result.sessions[0].internal, 1e-12);
+  assert.ok(result.sessions[0].score < result.sessions[1].score);
+  assert.equal(result.best.index, 0);
+  assert.equal(result.best.runnerUp, 1);
+  assert.ok(result.best.gap > 0, "the runner-up is worse by a positive amount");
+  assert.equal(result.best.notable, true, "worse on every note is a real lead");
+});
+
+test("one badly-out note does not make the whole instrument worse", () => {
+  // B is A with a single note 25 cents out. Its score is worse, but the
+  // note-to-note scatter of the differences swamps the lead, so no verdict
+  // is announced -- the guard that keeps the score from over-claiming.
+  const result = compare(record(FIVE), record({ ...FIVE, "F#4": FIVE["F#4"] + 25 }));
+  assert.ok(result.sessions[1].score > result.sessions[0].score, "the score does move");
+  assert.equal(result.best.notable, false, "but one note is not a verdict");
+});
+
+test("two equally tuned instruments are too close to call", () => {
+  const result = compare(record(FIVE), record(FIVE));
+  approx(result.best.gap, 0, 1e-9);
+  assert.equal(result.best.notable, false);
+});
+
+test("a lead built on too few notes is never called", () => {
+  const two = { "D4": 0, "A4": 20 };
+  const result = compare(record(two), record({ "D4": 0, "A4": 40 }));
+  assert.equal(result.best.notable, false, "two notes cannot support a verdict");
+});
+
+test("repeatability and steadiness are reported per instrument", () => {
+  const steady = record(FIVE, { occurrences: 4, jitter: 0 });
+  const wobbly = record(FIVE, { occurrences: 4, jitter: 10 });
+  const result = compare(steady, wobbly);
+  assert.ok(result.sessions[1].repeatability > result.sessions[0].repeatability,
+            "the jittery run lands the same note less consistently");
+  approx(result.sessions[0].steadiness, 2, 1e-9);   // stdev_cents is 2 in the fixture
+});
+
+/* ---- three instruments ------------------------------------------------ */
+
+test("three sessions compare on the same footing as two", () => {
+  const a = record(FIVE);
+  const b = record(Object.fromEntries(Object.entries(FIVE).map(([k, v]) => [k, v + 8])));
+  const c = record({ ...FIVE, "G4": FIVE["G4"] + 18 });
+  const result = compare([a, b, c]);
+  assert.equal(result.ok, true);
+  assert.equal(result.sessions.length, 3);
+  assert.equal(result.rows[0].values.length, 3);
+
+  // B is only a transposition of A, so after correction it matches A exactly
+  // and the range across the three comes entirely from C.
+  const g = result.rows.find((r) => r.key === "G4");
+  approx(g.values[0].corrected, g.values[1].corrected, 1e-9);
+  approx(g.range, Math.abs(g.values[2].corrected - g.values[0].corrected), 1e-9);
+  assert.equal(g.verdict, "notable");
+
+  // The offsets still describe pitch, not tuning.
+  approx(result.offsets[1] - result.offsets[0], 8, 1e-9);
+  // A and B are equally well tuned; C is the odd one out, so it cannot win.
+  assert.notEqual(result.best.index, 2);
+});
+
+test("more than three at once is refused, and so is one", () => {
+  const many = [record(FIVE), record(FIVE), record(FIVE), record(FIVE)];
+  assert.equal(comparable(many).ok, false);
+  assert.ok(comparable(many).blockers.some((b) => b.field === "count"));
+  assert.equal(comparable([record(FIVE)]).ok, false);
+  assert.equal(MAX_COMPARE, 3);
+});
+
+test("a blocker in any of three refuses the whole comparison", () => {
+  const result = compare([record(FIVE), record(FIVE), record(FIVE, { temperament: "equal" })]);
+  assert.equal(result.ok, false);
+  assert.ok(result.blockers.some((b) => b.field === "temperament"));
+});
+
+test("shared notes are those present in every session", () => {
+  const a = record({ "D4": 0, "E4": 0, "G4": 0 });
+  const b = record({ "D4": 0, "E4": 0 });
+  const c = record({ "D4": 0, "G4": 0 });
+  assert.deepEqual(comparable([a, b, c]).shared, ["D4"]);
 });
