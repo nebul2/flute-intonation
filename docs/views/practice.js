@@ -4,7 +4,7 @@
 import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import { SpelledPitch } from "../core/pitch.js";
-import { el, append, audioControl, name } from "../ui/widgets.js";
+import { el, append, audioControl, labelField, name } from "../ui/widgets.js";
 import { EXERCISES, ExerciseRun } from "./run.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
@@ -33,6 +33,8 @@ export default {
     root.replaceChildren();
     const control = audioControl({ showGranted: false });
     this.control = control;
+    const label = labelField();
+    this.label = label;
 
     const tonicSelect = el("select", { class: "select", onchange: (e) => { this.tonic = e.target.value; } },
       TONICS.map((k) => el("option", { value: k, selected: k === this.tonic || null,
@@ -53,6 +55,7 @@ export default {
       el("p", { class: "intro", text: t("practice.intro") }),
       el("div", { class: "row" }, [control.element, el("span", { text: t("practice.tonic") }), tonicSelect,
                                     el("span", { text: t("practice.quality") }), qualitySelect]),
+      el("div", { class: "row" }, [label.element]),
       engine.listening ? null : el("p", { class: "note-box", text: t("practice.needMic") }),
       el("div", { class: "cards" }, buttons),
     );
@@ -61,6 +64,7 @@ export default {
   startRun(key) {
     this.teardown();
     this.active = new ExerciseRun({ key, spec: EXERCISES[key], tonic: this.tonic, quality: this.quality,
+                                    label: this.label ? this.label.value : "",
                                     onBack: () => this.showList() });
     this.active.mount(this.root);
   },

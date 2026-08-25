@@ -83,11 +83,12 @@ export class ExerciseRun {
   /* `key` names the exercise (its strings live under practice.ex.<key>);
    * `spec` is one of the entries above; `onBack` leaves the run; `backLabel`
    * overrides the navigation's "back to the list" wording. */
-  constructor({ key, spec, tonic = "D", quality = "major", onBack, backLabel = null }) {
+  constructor({ key, spec, tonic = "D", quality = "major", label = "", onBack, backLabel = null }) {
     this.key = key;
     this.spec = spec;
     this.tonic = tonic;
     this.quality = quality;
+    this.label = label;
     this.onBack = onBack;
     this.backLabel = backLabel;
   }
@@ -407,6 +408,7 @@ export class ExerciseRun {
         exercise: `practice: ${run.key}`, mode: "pure",
         temperament: s.temperament, root: s.root, reference_hz: s.referenceHz,
         naming: s.naming, lang: lang(), stopped,
+        ...(this.label ? { label: this.label } : {}),
       };
       if (run.judgements.length) {
         record.judgement = { agreed: run.judgements.filter(Boolean).length, total: run.judgements.length };
@@ -444,7 +446,7 @@ export class ExerciseRun {
       if (prevPairs.length) {
         const last = prevPairs.reduce((a, p) => a + Math.abs(p.width), 0) / prevPairs.length;
         const verdict = error < last ? t("practice.stopper.closer") : t("practice.stopper.wider");
-        box.append(el("p", { text: t("practice.stopper.previous", (previous.at ?? "").slice(0, 16).replace("T", " "), last.toFixed(1), verdict) }));
+        box.append(el("p", { text: t("practice.stopper.previous", (previous.label ? `${previous.label}, ` : "") + (previous.at ?? "").slice(0, 16).replace("T", " "), last.toFixed(1), verdict) }));
       }
     }
     return { element: box };

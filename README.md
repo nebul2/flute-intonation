@@ -219,6 +219,17 @@ fails if any served file is missing from the list. Cross-origin requests
 (the audience counter) are never intercepted. A footer chip says when you
 are offline.
 
+Sessions can be named ("flute 1", "flute 2") and are browsable in a
+Sessions view, where ticking two compares them (`docs/core/compare.js`).
+The comparison refuses outright when the tuning settings differ — the
+numbers would not be on the same scale — and warns when it is thin. Its
+central move is removing each instrument's own pitch centre before
+comparing notes: a flute sitting eight cents sharp throughout would
+otherwise read "+8" on every note, which describes its pitch, not its
+tuning. The overall difference is reported once, separately, and each
+per-note difference is marked as beyond or within the spread so small
+samples are not over-read. Two stopper checks also compare octave widths.
+
 Still to build: routines by length.
 
 ## Findings

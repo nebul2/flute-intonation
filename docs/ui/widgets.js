@@ -96,6 +96,41 @@ export function audioControl({ showGranted = true } = {}) {
   return { element: wrap, update, dispose: off };
 }
 
+/* ---- session label -------------------------------------------------- */
+
+let labelFieldCount = 0;
+
+/* Names the session about to be recorded -- "flute 1", "flute 2". The value
+ * is remembered, and names already used are offered as suggestions, so
+ * labelling a second instrument is one tap after the first time. */
+export function labelField() {
+  const listId = `labels-${++labelFieldCount}`;
+  const list = el("datalist", { id: listId });
+  const input = el("input", {
+    type: "text", class: "text", list: listId, maxlength: "40",
+    placeholder: t("session.labelPlaceholder"),
+    value: settings.get().lastLabel || "",
+    oninput: (e) => settings.set({ lastLabel: e.target.value }),
+  });
+  historyLabels().then((labels) => {
+    for (const label of labels) list.append(el("option", { value: label }));
+  }).catch(() => {});
+  return {
+    element: el("span", { class: "labelfield" },
+      [el("span", { text: t("session.label") }), input, list]),
+    get value() { return input.value.trim(); },
+  };
+}
+
+async function historyLabels() {
+  const history = await import("../history.js");
+  const seen = new Set();
+  for (const record of await history.all()) {
+    if (record.label) seen.add(record.label);
+  }
+  return [...seen];
+}
+
 /* ---- run navigation ------------------------------------------------- */
 
 /* The one navigation bar for every page that runs something: a Stop control

@@ -20,6 +20,7 @@ export const DEFAULTS = Object.freeze({
   headphones: false,
   listenLog: false,      // Listen to me: show the note-by-note log
   analytics: true,       // anonymous audience counts (section names only)
+  lastLabel: "",         // remembered session name, e.g. "flute 1"
 });
 
 let state = null;

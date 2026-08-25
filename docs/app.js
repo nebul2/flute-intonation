@@ -15,10 +15,11 @@ import settingsView from "./views/settings.js";
 import check from "./views/check.js";
 import listen from "./views/listen.js";
 import stopper from "./views/stopper.js";
+import sessions from "./views/sessions.js";
 
-export const VERSION = "phase 3 · 2026-08-24";
+export const VERSION = "phase 3.1 · 2026-08-25";
 
-const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper };
+const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions };
 
 function $(id) { return document.getElementById(id); }
 

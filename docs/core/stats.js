@@ -17,8 +17,8 @@ export const VOLUME_MIN_DB_RANGE = 6.0;
 export const VOLUME_SLOPE_MIN = 0.5;     // cents per dB
 export const VOLUME_R_MIN = 0.5;
 
-const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
-const pstdev = (xs) => {
+export const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+export const pstdev = (xs) => {
   if (xs.length < 2) return 0.0;
   const m = mean(xs);
   return Math.sqrt(mean(xs.map((x) => (x - m) ** 2)));

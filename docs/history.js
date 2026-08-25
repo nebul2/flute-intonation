@@ -60,6 +60,15 @@ export async function latest(predicate) {
   return (await all()).find(predicate) ?? null;
 }
 
+/* Delete one session by its auto-increment id. */
+export async function remove(id) {
+  memory = memory.filter((entry) => entry.id !== id);
+  const db = await open().catch(() => null);
+  if (!db) return;
+  await tx(db, "readwrite", (store) => store.delete(id));
+  db.close();
+}
+
 export async function clear() {
   memory = [];
   const db = await open().catch(() => null);

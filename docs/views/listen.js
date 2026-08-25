@@ -21,7 +21,7 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker } from "../audio/regions.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink } from "../core/stats.js";
-import { el, audioControl, needle, levelBar, bandClass, currentTuning, name, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
+import { el, audioControl, labelField, needle, levelBar, bandClass, currentTuning, name, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
 const TONIC_FRAMES = 40;          // ~0.45 s of the tonic to begin
@@ -58,12 +58,15 @@ export default {
     const tonicSelect = el("select", { class: "select", onchange: (e) => { this.tonic = e.target.value; } },
       TONICS.map((k) => el("option", { value: k, selected: k === this.tonic || null,
                                        text: name(SpelledPitch.parse(`${k}4`)).replace(/4$/, "") })));
+    const label = labelField();
+    this.label = label;
     const start = el("button", { class: "primary", text: t("listen.start"), disabled: !engine.listening,
                                  onclick: () => this.startSession() });
     this.offState = engine.onState(() => { start.disabled = !engine.listening; });
     root.append(
       el("p", { class: "intro", text: t("listen.intro") }),
       el("div", { class: "row" }, [control.element, el("span", { text: t("practice.tonic") }), tonicSelect, start]),
+      el("div", { class: "row" }, [label.element]),
     );
   },
 
@@ -79,7 +82,7 @@ export default {
       pure: new PureIntervalTuning(tuning),
       context: new HarmonicContext(tonicPitch),
       candidates: tunerCandidates(tuning),
-      phase: "tonic", tonicRun: 0,
+      phase: "tonic", tonicRun: 0, label: this.label ? this.label.value : "",
       tracker: new RegionTracker({ frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100 }),
       notes: [], shortCount: 0, lastVoiced: null,
     };
@@ -299,6 +302,7 @@ export default {
       const record = {
         v: 1, exercise: "listen", mode: s.mode, temperament: s.temperament, root: s.root,
         reference_hz: s.referenceHz, tonic: run.tonicPitch.name, lang: lang(),
+        ...(run.label ? { label: run.label } : {}),
         notes: run.notes.map((n) => ({
           pitch: n.pitch.name, target_hz: Math.round(n.primaryHz * 1e4) / 1e4,
           mean_cents: r2(n.primaryCents), stdev_cents: r2(n.stdev), settle_s: null,
