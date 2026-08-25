@@ -97,3 +97,29 @@ test("register naming follows the flute's registers, which break at D", () => {
 test("numbers remain the default of noteName itself, so records read the same", () => {
   assert.equal(noteName(SpelledPitch.parse("D5"), SOLFEGE), "Ré5");
 });
+
+test("the register break is configurable for a flute with a C foot", () => {
+  const P = (s) => SpelledPitch.parse(s);
+  setLanguage("en");
+  const at = (text, brk) => noteName(P(text), SOLFEGE, { octaveStyle: REGISTER, registerBreak: brk });
+
+  // C#5 is the top of the low register when the break is at D...
+  assert.equal(at("C#5", "D"), "Do♯ low");
+  // ...and the start of the middle one when it is at C.
+  assert.equal(at("C#5", "C"), "Do♯ middle");
+  assert.equal(at("C4", "C"), "Do low");
+  assert.equal(at("D4", "C"), "Ré low");
+  assert.equal(at("D5", "C"), "Ré middle");
+  assert.equal(at("B4", "C"), "Si low");
+
+  // With the break at C the register names line up with the octave numbers.
+  for (const [text, word] of [["D4", "low"], ["A4", "low"], ["D5", "middle"],
+                              ["B5", "middle"], ["D6", "high"], ["A6", "high"]]) {
+    assert.equal(at(text, "C"), `${noteName(P(text), SOLFEGE, { octave: false })} ${word}`);
+    assert.equal(String(P(text).octave), { low: "4", middle: "5", high: "6" }[word]);
+  }
+  // C4 has no register when the break is at D: it is below the instrument.
+  assert.equal(at("C4", "D"), "Do4");
+  // An unknown value falls back to the default rather than throwing.
+  assert.equal(at("D4", "nonsense"), at("D4", "D"));
+});

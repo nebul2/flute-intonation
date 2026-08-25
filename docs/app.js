@@ -17,7 +17,7 @@ import listen from "./views/listen.js";
 import stopper from "./views/stopper.js";
 import sessions from "./views/sessions.js";
 
-export const VERSION = "phase 3.2 · 2026-08-25";
+export const VERSION = "phase 3.3 · 2026-08-25";
 
 const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions };
 

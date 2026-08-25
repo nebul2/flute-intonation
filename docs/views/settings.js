@@ -53,6 +53,13 @@ export default {
         el("span", { class: "option-label", text: t(`settings.octaveStyle.${style}`) }),
       ])));
 
+    /* where the registers break */
+    const registerBreak = el("select", { class: "select", onchange: (e) => settings.set({ registerBreak: e.target.value }) },
+      ["D", "C"].map((letter) => el("option", {
+        value: letter, selected: (s.registerBreak ?? "D") === letter || null,
+        text: t(`settings.registerBreak.${letter}`),
+      })));
+
     /* language */
     const language = el("div", { class: "segmented" }, ["fr", "en"].map((code) =>
       el("button", {
@@ -125,6 +132,8 @@ export default {
       el("h2", { text: t("settings.naming") }), naming,
       el("h2", { text: t("settings.octaveStyle") }), octaveStyle,
       el("p", { class: "note-box", text: t("settings.octaveStyleHelp") }),
+      el("div", { class: "row" }, [el("span", { text: t("settings.registerBreak") }), registerBreak]),
+      el("p", { class: "note-box", text: t("settings.registerBreakHelp") }),
       el("h2", { text: t("settings.language") }), language,
       el("h2", { text: t("settings.mic") }), control.element, mic, micNote,
       el("h2", { text: t("settings.droneLevel") }), droneLevel,

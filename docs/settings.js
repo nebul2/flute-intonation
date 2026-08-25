@@ -22,6 +22,7 @@ export const DEFAULTS = Object.freeze({
   analytics: true,       // anonymous audience counts (section names only)
   lastLabel: "",         // remembered session name, e.g. "flute 1"
   octaveStyle: "register",  // "register" (Ré grave) or "number" (Ré4)
+  registerBreak: "D",    // where the registers break: D (one-keyed) or C (C foot)
 });
 
 let state = null;

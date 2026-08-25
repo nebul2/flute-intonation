@@ -9,7 +9,7 @@ import * as settings from "../settings.js";
 import { SpelledPitch } from "../core/pitch.js";
 import { ReferencePitch, TemperamentTuning, parseScala } from "../core/tuning.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
-import { noteName, REGISTER } from "./naming.js";
+import { noteName, REGISTER, DEFAULT_REGISTER_BREAK } from "./naming.js";
 
 /* el("div", {class: "x", onclick: fn}, [children...]) */
 export function el(tag, attrs = {}, children = []) {
@@ -52,7 +52,10 @@ export function currentTuning(s = settings.get()) {
 export function temperamentLabel(name) { return t(`temperament.${name}`); }
 
 export function name(pitch, s = settings.get()) {
-  return noteName(pitch, s.naming, { octaveStyle: s.octaveStyle ?? REGISTER });
+  return noteName(pitch, s.naming, {
+    octaveStyle: s.octaveStyle ?? REGISTER,
+    registerBreak: s.registerBreak ?? DEFAULT_REGISTER_BREAK,
+  });
 }
 
 /* The note without its octave -- for tonic and root pickers, and for

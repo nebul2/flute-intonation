@@ -6,14 +6,15 @@
  * Solfège is fixed do (C is always Do), the Romance convention.
  *
  * Octaves can read as scientific numbers (Ré4, Ré5, Ré6) or as the flute's
- * registers (Ré grave, Ré médium, Ré aigu). The register bands break at **D,
- * not at C**, because that is where the one-keyed flute's registers break:
- * D4-C#5 is the first register, D5-C#6 the second, D6 upward the third. So
- * the three D's of the stopper check read exactly as low, middle and high --
- * how a flutist names them -- whereas scientific numbering would call C#5 a
- * "medium" note although it is played as a low-register one. Each band runs
- * D to C#; below the lowest and above the third there is no register to name,
- * so the number is kept. */
+ * registers (Ré grave, Ré médium, Ré aigu). Where the bands break is a
+ * setting, because it depends on the instrument. The default is **D**: on the
+ * one-keyed flute D4-C#5 is the first register, D5-C#6 the second, D6 upward
+ * the third, so the three D's of the stopper check read exactly as low, middle
+ * and high -- how a flutist names them -- whereas breaking at C would call C#5
+ * a "medium" note although it is played as a low-register one. A flute with a
+ * C foot wants the break at C, which also makes the register names line up
+ * with the octave numbers. Below the lowest band and above the third there is
+ * no register to name, so the number is kept. */
 
 import { t } from "../i18n.js";
 import { SpelledPitch } from "../core/pitch.js";
@@ -29,20 +30,24 @@ export const OCTAVE_STYLES = [REGISTER, NUMBER];
 const SYLLABLES = { C: "Do", D: "Ré", E: "Mi", F: "Fa", G: "Sol", A: "La", B: "Si" };
 const ACCIDENTALS = { "-2": "♭♭", "-1": "♭", "0": "", "1": "♯", "2": "♯♯" };
 
-const D4_INDEX = 50;                    // SpelledPitch.parse("D4").chromaticIndex
 const REGISTER_KEYS = ["octave.low", "octave.middle", "octave.high"];
+/* Where the registers break. D is the one-keyed flute; C suits a C foot. */
+export const REGISTER_BREAKS = ["D", "C"];
+export const DEFAULT_REGISTER_BREAK = "D";
 
-/* The register word for a pitch, or null when it lies outside the flute's
- * three registers and only a number can honestly describe it. */
-export function registerWord(pitch) {
-  const band = Math.floor((pitch.chromaticIndex - D4_INDEX) / 12);
+/* The register word for a pitch, or null when it lies outside the three
+ * bands and only a number can honestly describe it. */
+export function registerWord(pitch, registerBreak = DEFAULT_REGISTER_BREAK) {
+  const letter = REGISTER_BREAKS.includes(registerBreak) ? registerBreak : DEFAULT_REGISTER_BREAK;
+  const base = new SpelledPitch(letter, 0, 4).chromaticIndex;
+  const band = Math.floor((pitch.chromaticIndex - base) / 12);
   return band >= 0 && band < REGISTER_KEYS.length ? t(REGISTER_KEYS[band]) : null;
 }
 
 /* `options` may be `{octave, octaveStyle}` or, for older call sites, the
  * boolean that `octave` used to be. */
 export function noteName(pitch, style = SOLFEGE, options = {}) {
-  const { octave = true, octaveStyle = NUMBER } =
+  const { octave = true, octaveStyle = NUMBER, registerBreak = DEFAULT_REGISTER_BREAK } =
     typeof options === "boolean" ? { octave: options } : options;
 
   let body;
@@ -58,7 +63,7 @@ export function noteName(pitch, style = SOLFEGE, options = {}) {
 
   if (!octave) return body;
   if (octaveStyle === REGISTER) {
-    const word = registerWord(pitch);
+    const word = registerWord(pitch, registerBreak);
     if (word) return `${body} ${word}`;
   }
   return `${body}${pitch.octave}`;
