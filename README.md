@@ -246,6 +246,15 @@ low-register one. A flute with a C foot can set the break to C, which also
 makes the register names line up with the octave numbers. Numbers remain
 available, and notes outside the bands keep theirs.
 
+Background documents ship with the app under `docs/help/`, one Markdown file
+per topic per language, fetched on demand and precached so they read
+offline. `ui/markdown.js` parses a small subset to a block tree — a pure
+function, so the shipped documents are themselves tested: every link
+absolute, no unparsed markers, real sections. `helpSection(topic)` drops a
+native `<details>` disclosure into any page, with a download button that
+hands over the original `.md`. The stopper check uses it for the background
+on why one stopper position cannot true every octave at once.
+
 Still to build: routines by length.
 
 ## Findings

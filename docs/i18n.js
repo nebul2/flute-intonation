@@ -110,6 +110,10 @@ export const STRINGS = {
     "home.section.setup": "Set up",
     "stopper.intro": "A tool for the instrument, not an exercise: it measures how true your octaves are with a fixed embouchure, so you can move the stopper and compare.",
     "stopper.start": "Begin the check",
+    "help.loading": "loading…",
+    "help.download": "Download the document (.md)",
+    "help.failed": (why) => `could not load the document (${why}) — it should be available offline once the app has been opened online at least once`,
+    "help.stopper.label": "Background — why octave width cannot be zeroed everywhere at once",
 
     "status.headphones": "headphones",
     "status.speakers": "speakers?",
@@ -392,6 +396,10 @@ export const STRINGS = {
     "home.section.setup": "Configurer",
     "stopper.intro": "Un outil pour l'instrument, pas un exercice : il mesure la justesse de tes octaves à embouchure fixe, pour déplacer le bouchon et comparer.",
     "stopper.start": "Lancer la vérification",
+    "help.loading": "chargement…",
+    "help.download": "Télécharger le document (.md)",
+    "help.failed": (why) => `impossible de charger le document (${why}) — il devrait être disponible hors ligne dès que l'appli a été ouverte une fois en ligne`,
+    "help.stopper.label": "En savoir plus — pourquoi on ne peut pas corriger toutes les octaves à la fois",
 
     "status.headphones": "casque",
     "status.speakers": "haut-parleurs ?",

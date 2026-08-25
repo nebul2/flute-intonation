@@ -227,3 +227,20 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .stats td.spread { color: var(--muted); }
 .stats td.best { color: var(--good); font-weight: 700; }
 .legend { color: var(--muted); }
+
+/* ---- shipped documents ---------------------------------------------- */
+.help { border: 1px solid var(--edge); border-radius: var(--radius); background: var(--panel); padding: 0.6rem 0.9rem; }
+.help > summary { cursor: pointer; color: var(--brass); font-size: 0.88rem; list-style-position: outside; }
+.help > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.help[open] > summary { margin-bottom: 0.6rem; border-bottom: 1px solid var(--edge); padding-bottom: 0.6rem; }
+.help-body { display: flex; flex-direction: column; gap: 0.8rem; }
+.help-doc { display: flex; flex-direction: column; gap: 0.7rem; max-width: 42rem; font-size: 0.9rem; line-height: 1.6; color: var(--ink-soft, var(--ink)); }
+.help-doc h3 { font-size: 1.05rem; font-weight: 600; margin-top: 0.3rem; }
+.help-doc h4 { font-size: 0.95rem; font-weight: 600; color: var(--brass); margin-top: 0.5rem; }
+.help-doc p { margin: 0; }
+.help-doc ul, .help-doc ol { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.help-doc li::marker { color: var(--muted); }
+.help-doc a { color: var(--brass); overflow-wrap: anywhere; }
+.help-doc blockquote { margin: 0; padding-left: 0.8rem; border-left: 2px solid var(--edge); color: var(--muted); }
+.help-doc code { font-family: var(--mono); font-size: 0.85em; background: var(--ground); padding: 0.1rem 0.3rem; border-radius: 3px; }
+.help-doc hr { border: 0; border-top: 1px solid var(--edge); }

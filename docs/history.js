@@ -3,6 +3,8 @@
  * and `exercise`, so an exported file reads the same as a desktop session.
  * Falls back to memory when IndexedDB is unavailable (private mode, node). */
 
+import { download } from "./download.js";
+
 const DB = "flute-intonation";
 const STORE = "sessions";
 
@@ -79,20 +81,12 @@ export async function clear() {
 
 export async function count() { return (await all()).length; }
 
-/* A JSON file of everything, for moving history between devices. */
+/* A JSON file of everything, for moving history between devices. The
+ * browser decides where it lands; a page can only name it. */
 export async function exportFile() {
   const records = await all();
   const text = JSON.stringify({ v: 1, app: "web", exported_at: new Date().toISOString(), sessions: records }, null, 2);
-  const blob = new Blob([text], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `flute-intonation-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  // The browser decides where the file lands (its download folder, or it
-  // asks); a page cannot learn the path, only the name it requested.
-  return { count: records.length, filename: a.download };
+  const filename = download(`flute-intonation-${new Date().toISOString().slice(0, 10)}.json`,
+                            text, "application/json");
+  return { count: records.length, filename };
 }
