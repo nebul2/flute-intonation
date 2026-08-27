@@ -1,5 +1,8 @@
 # Baroque Flute Intonation Trainer
 
+If you're not into Python, in a hurry, and just want to try out the pitch trainer:
+https://nebul2.github.io/flute-intonation/
+
 Implements `DESIGN.md`. Generates exercises suited to the baroque flute, listens
 through the microphone, and reports intonation in cents against a *context-aware*
 target: either a historical temperament or pure intervals over a drone.
