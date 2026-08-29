@@ -265,7 +265,11 @@ much of the error is one uniform shift is stated separately — that part is
 the headjoint's business — along with what would remain once corrected, and
 the note furthest out. Repeatability is reported only over notes actually
 played twice, since a single occurrence has no spread and averaging in its
-zero would flatter the player. `sessionScore` in `core/stats.js` takes the
+zero would flatter the player. The accuracy figure and the note-to-note one
+are both averages of *distances*, so they do not subtract: removing a
+uniform shift helps a lot when the errors all point the same way and hardly
+at all when they are scattered, and can even leave more, since a mean is not
+a median. The summary says so rather than leaving the reader to wonder. `sessionScore` in `core/stats.js` takes the
 same note shape `perNote` produces, so a live session, a saved one in the
 sessions list, and the two-instrument comparison all score identically.
 

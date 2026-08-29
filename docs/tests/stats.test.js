@@ -158,3 +158,23 @@ test("scorableRows feeds aggregate output straight in, and matches perNote's sha
     assert.ok(key in scorableRows(rows)[0], key);
   }
 });
+
+test("the offset and the note-to-note figure do not subtract", () => {
+  // The arithmetic that surprises: both are averages of *distances*, so a
+  // uniform shift only helps to the extent the errors point the same way.
+  const bothWays = scored([12, -12, 12, -12]);
+  approx(bothWays.offset, 0, 1e-9);
+  approx(bothWays.accuracy, 12, 1e-9);
+  approx(bothWays.relative, 12, 1e-9, "scattered errors: correcting pitch changes nothing");
+
+  const allFlat = scored([-10, -2]);
+  approx(allFlat.accuracy, 6, 1e-9);
+  approx(allFlat.offset, -6, 1e-9);
+  approx(allFlat.relative, 4, 1e-9, "6 cents of offset removes only 2 cents of error");
+  assert.notEqual(allFlat.relative, allFlat.accuracy - Math.abs(allFlat.offset));
+
+  // Correcting can even leave more, because a mean is not a median.
+  const skewed = scored([-20, 5, -3, 1]);
+  assert.ok(skewed.relative > skewed.accuracy,
+    "removing the mean can increase the mean distance");
+});

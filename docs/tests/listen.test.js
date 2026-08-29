@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { RegionTracker } from "../audio/regions.js";
 import { dronePartialsToNotch } from "../audio/engine.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
+import * as attackModule from "../core/scoring.js";
 
 const FS = 512 / 44100;
 const voiced = (hz) => ({ hz, levelDb: -20 });
@@ -124,4 +125,35 @@ test("the tonic is accepted in any octave the flute has it in", () => {
     new NoteSegmenter({ targetHz: hz, frameSeconds: FS, requiredSeconds: TONIC_SECONDS }));
   for (let i = 0; i < 60; i++) for (const g of gates) g.push(554.58, -20);
   assert.deepEqual(gates.map((g) => g.complete), [false, true, false]);
+});
+
+/* ---- the attack is not part of the note ------------------------------- */
+
+test("post-attack trimming drops the scoop and keeps parallel series aligned", () => {
+  const { postAttack, ATTACK_SKIP_SECONDS } = attackModule;
+  const skip = Math.round(ATTACK_SKIP_SECONDS / FS);          // ~5 frames
+  const scoop = Array.from({ length: skip }, (_, i) => 415 * Math.pow(2, (-40 + i * 8) / 1200));
+  const steady = new Array(30).fill(415);
+  const levels = [...new Array(skip).fill(-35), ...new Array(30).fill(-20)];
+
+  const [hz, db] = postAttack([...scoop, ...steady], FS, levels);
+  assert.equal(hz.length, 30, "the attack is gone");
+  assert.equal(db.length, hz.length, "levels stay aligned with pitches");
+  assert.ok(hz.every((f) => f === 415));
+  assert.ok(db.every((l) => l === -20));
+
+  // What it was costing: the scoop dominated the wobble figure.
+  const spread = (xs) => {
+    const m = xs.reduce((a, b) => a + b, 0) / xs.length;
+    return Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / xs.length);
+  };
+  const cents = (f) => 1200 * Math.log2(f / 415);
+  assert.ok(spread([...scoop, ...steady].map(cents)) > 8, "with the attack, a steady note looks unstable");
+  assert.ok(spread(hz.map(cents)) < 0.001, "without it, steady is steady");
+});
+
+test("a note barely longer than the attack still yields frames", () => {
+  const { postAttack } = attackModule;
+  const [hz] = postAttack([415, 416, 417], FS);
+  assert.ok(hz.length >= 1);
 });

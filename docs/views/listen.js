@@ -22,6 +22,7 @@ import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker } from "../audio/regions.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows } from "../core/stats.js";
+import { postAttack } from "../core/scoring.js";
 import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
@@ -163,25 +164,35 @@ export default {
    * interval above the tonic. The current mode decides which leads. */
   score(region) {
     const run = this.run;
-    const near = nearestCandidate(run.candidates, region.medianHz);
+    // Discard the attack before measuring anything: a flute's attack scoops,
+    // so those frames describe the attack, not the note. The exercises have
+    // always done this through analyseNote; free play did not, which inflated
+    // every steadiness figure and biased every mean flat.
+    const [framesHz, levelsDb] =
+      postAttack(region.framesHz, run.tracker.frameSeconds, region.levelsDb);
+    const ordered = [...framesHz].sort((a, b) => a - b);
+    const medianHz = ordered[ordered.length >> 1];
+    const meanDb = levelsDb.reduce((a, b) => a + b, 0) / levelsDb.length;
+
+    const near = nearestCandidate(run.candidates, medianHz);
     const temperedCents = near.cents;
     let pureHz = null, pureCents = null;
     try {
       pureHz = run.pure.targetHz(near.pitch, run.context);
-      pureCents = centsBetween(pureHz, region.medianHz);
+      pureCents = centsBetween(pureHz, medianHz);
     } catch (_e) { /* no ratio for this spelled interval */ }
     const usePure = run.settings.mode === "pure" && pureHz !== null;
     const primaryHz = usePure ? pureHz : near.hz;
-    const deviations = region.framesHz.map((hz) => centsBetween(primaryHz, hz));
+    const deviations = framesHz.map((hz) => centsBetween(primaryHz, hz));
     const meanDev = deviations.reduce((a, b) => a + b, 0) / deviations.length;
     const stdev = Math.sqrt(deviations.reduce((a, d) => a + (d - meanDev) ** 2, 0) / deviations.length);
     return {
       pitch: near.pitch, temperedHz: near.hz, temperedCents, pureHz, pureCents,
       primary: usePure ? "pure" : "tempered",
       primaryCents: usePure ? pureCents : temperedCents,
-      primaryHz, stdev, seconds: region.seconds, medianHz: region.medianHz,
-      meanDb: region.meanDb, levelsDb: region.levelsDb, framesHz: region.framesHz,
-      withinFit: withinNoteVolumeLink(region.framesHz, region.levelsDb, primaryHz),
+      primaryHz, stdev, seconds: region.seconds, medianHz,
+      meanDb, levelsDb, framesHz,
+      withinFit: withinNoteVolumeLink(framesHz, levelsDb, primaryHz),
       index: run.notes.length,
     };
   },
@@ -309,8 +320,8 @@ export default {
       parts.push(el("p", { class: "headline",
         text: t("listen.scoreHeadline", score.accuracy.toFixed(1), bandLabel(score.accuracy)) }));
 
-      const measures = [["accuracy", score.accuracy], ["repeatability", score.repeatability],
-                        ["steadiness", score.steadiness]];
+      const measures = [["accuracy", score.accuracy], ["internal", score.relative],
+                        ["repeatability", score.repeatability], ["steadiness", score.steadiness]];
       parts.push(el("div", { class: "stats scroll" }, [
         el("table", {}, [
           el("tbody", {}, measures.map(([key, value]) => el("tr", {}, [
@@ -325,8 +336,11 @@ export default {
       // headjoint's business, and correcting it costs nothing musical.
       parts.push(el("p", { class: "muted", text: Math.abs(score.offset) < 1
         ? t("listen.score.centred")
-        : t("listen.score.offset", `${score.offset >= 0 ? "+" : ""}${score.offset.toFixed(1)}`,
+        : t("listen.score.offset",
+             `${Math.abs(score.offset).toFixed(1)}`,
+             t(score.offset > 0 ? "listen.score.sharp" : "listen.score.flat"),
              score.relative.toFixed(1)) }));
+      parts.push(el("p", { class: "muted small", text: t("listen.score.notSubtraction") }));
       if (score.worst && Math.abs(score.worst.mean) > 1) {
         parts.push(el("p", { class: "muted", text: t("listen.score.worst",
           name(score.worst.pitch, s), `${score.worst.mean >= 0 ? "+" : ""}${score.worst.mean.toFixed(1)}`) }));

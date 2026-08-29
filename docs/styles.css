@@ -245,3 +245,4 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .help-doc code { font-family: var(--mono); font-size: 0.85em; background: var(--ground); padding: 0.1rem 0.3rem; border-radius: 3px; }
 .help-doc hr { border: 0; border-top: 1px solid var(--edge); }
 .headline { font-size: 1.05rem; color: var(--ink); max-width: 40rem; }
+.muted.small { font-size: 0.78rem; }

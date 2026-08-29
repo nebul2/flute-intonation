@@ -5,6 +5,10 @@ import { SpelledPitch } from "./pitch.js";
 export const IN_TUNE_CENTS = 5.0;
 export const CLOSE_CENTS = 15.0;
 export const SETTLE_CENTS = 10.0;
+/* Flute attacks scoop, so the first moments of a note describe the attack
+ * rather than the note. Every path that reduces frames to statistics discards
+ * them -- the exercises through analyseNote, free play in views/listen.js. */
+export const ATTACK_SKIP_SECONDS = 0.060;
 
 export function centsDeviation(detectedHz, targetHz) {
   if (!(detectedHz > 0) || !(targetHz > 0)) throw new Error("frequencies must be positive");
@@ -40,10 +44,19 @@ export class NoteResult {
 
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
+/* The frames of a note that describe the note rather than its attack, with
+ * any parallel series (levels) trimmed to match. At least one frame always
+ * survives, so a note barely longer than the skip still yields something. */
+export function postAttack(framesHz, frameSeconds, ...parallel) {
+  const skip = frameSeconds > 0
+    ? Math.min(framesHz.length - 1, Math.round(ATTACK_SKIP_SECONDS / frameSeconds)) : 0;
+  return [framesHz.slice(skip), ...parallel.map((series) => series.slice(skip))];
+}
+
 /* Reduce a note's voiced frames to statistics. The first `skipAttackSeconds`
  * are discarded: flute attacks scoop, and including them would bias every
  * note flat. */
-export function analyseNote(pitch, targetHz, framesHz, frameSeconds, skipAttackSeconds = 0.060) {
+export function analyseNote(pitch, targetHz, framesHz, frameSeconds, skipAttackSeconds = ATTACK_SKIP_SECONDS) {
   const skip = frameSeconds > 0 ? Math.round(skipAttackSeconds / frameSeconds) : 0;
   const usable = framesHz.slice(skip).filter((hz) => hz > 0);
   if (!usable.length) return null;
