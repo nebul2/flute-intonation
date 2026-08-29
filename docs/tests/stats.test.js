@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { SpelledPitch } from "../core/pitch.js";
 import {
   linearFit, withinNoteVolumeLink, volumeVerdict, aggregate, rowsToRecord,
-  VOLUME_MIN_NOTES, VOLUME_MIN_DB_RANGE,
+  sessionScore, scorableRows, VOLUME_MIN_NOTES, VOLUME_MIN_DB_RANGE,
 } from "../core/stats.js";
 
 const P = (s) => SpelledPitch.parse(s);
@@ -92,4 +92,69 @@ test("rowsToRecord yields plain rounded numbers", () => {
   assert.equal(rec[0].n, 2);
   approx(rec[0].mean_cents, 0.37, 0.005);
   assert.equal(rec[0].volume_slope, null);
+});
+
+/* ---- the session score ------------------------------------------------ */
+
+const scored = (means, extra = {}) => sessionScore(means.map((mean, i) => ({
+  pitch: P(["D4", "E4", "F#4", "G4", "A4", "B4"][i] ?? "D5"),
+  n: extra.n ?? 3, mean, spread: extra.spread ?? 2, stability: extra.stability ?? 1.5,
+})));
+
+test("a session sitting uniformly sharp is offset, not bad intonation", () => {
+  // Every note 8 cents sharp: 8 cents out against the targets, but perfectly
+  // consistent with itself, and correcting the headjoint would fix it all.
+  const score = scored([8, 8, 8, 8, 8]);
+  approx(score.accuracy, 8, 1e-9);
+  approx(score.offset, 8, 1e-9);
+  approx(score.relative, 0, 1e-9, "nothing left once the offset is removed");
+  assert.equal(score.notes, 5);
+  assert.equal(score.occurrences, 15);
+});
+
+test("scattered notes keep their error after the offset is removed", () => {
+  const score = scored([10, -10, 10, -10]);
+  approx(score.accuracy, 10, 1e-9);
+  approx(score.offset, 0, 1e-9);
+  approx(score.relative, 10, 1e-9, "the scatter is real, not a uniform shift");
+});
+
+test("the worst note is named, by absolute deviation", () => {
+  const score = scored([2, -3, 14, -1, 0]);
+  assert.equal(score.worst.pitch.name, "F#4");
+  approx(score.worst.mean, 14, 1e-9);
+});
+
+test("repeatability ignores notes played only once", () => {
+  // A note heard once has zero spread; averaging it in would flatter the
+  // player into looking more repeatable than the evidence supports.
+  const notes = [
+    { pitch: P("D4"), n: 4, mean: 0, spread: 6, stability: 1 },
+    { pitch: P("A4"), n: 1, mean: 0, spread: 0, stability: 1 },
+  ];
+  const score = sessionScore(notes);
+  approx(score.repeatability, 6, 1e-9);
+  assert.equal(score.repeatedNotes, 1);
+
+  const once = sessionScore([{ pitch: P("D4"), n: 1, mean: 0, spread: 0, stability: 1 }]);
+  assert.equal(once.repeatability, null, "nothing repeated, nothing to report");
+  assert.equal(once.repeatedNotes, 0);
+});
+
+test("steadiness is the within-note wobble, and an empty session has no score", () => {
+  approx(scored([0, 0], { stability: 4 }).steadiness, 4, 1e-9);
+  assert.equal(sessionScore([]), null);
+  assert.equal(sessionScore(null), null);
+});
+
+test("scorableRows feeds aggregate output straight in, and matches perNote's shape", () => {
+  const rows = aggregate([note("F#4", 10), note("F#4", 14, { index: 1 }), note("A4", -2, { index: 2 })]);
+  const score = sessionScore(scorableRows(rows));
+  assert.equal(score.notes, 2);
+  assert.equal(score.occurrences, 3);
+  approx(score.accuracy, (12 + 2) / 2, 1e-9);
+  // The keys sessionScore reads are exactly those perNote produces.
+  for (const key of ["n", "mean", "spread", "stability", "pitch"]) {
+    assert.ok(key in scorableRows(rows)[0], key);
+  }
 });

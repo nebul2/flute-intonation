@@ -258,6 +258,17 @@ native `<details>` disclosure into any page, with a download button that
 hands over the original `.md`. The stopper check uses it for the background
 on why one stopper position cannot true every octave at once.
 
+A Listen to me session ends with a score: accuracy (how far the notes sat
+from their targets, each note counted once however often it was played),
+repeatability across occurrences, and steadiness within a held note. How
+much of the error is one uniform shift is stated separately — that part is
+the headjoint's business — along with what would remain once corrected, and
+the note furthest out. Repeatability is reported only over notes actually
+played twice, since a single occurrence has no spread and averaging in its
+zero would flatter the player. `sessionScore` in `core/stats.js` takes the
+same note shape `perNote` produces, so a live session, a saved one in the
+sessions list, and the two-instrument comparison all score identically.
+
 Still to build: routines by length.
 
 ## Findings

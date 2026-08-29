@@ -112,6 +112,55 @@ export function aggregate(notes) {
   return rows.sort((a, b) => highestFirst(a.pitch, b.pitch));
 }
 
+/* One session's tuning, over notes shaped {pitch?, n, mean, spread,
+ * stability} -- which is what perNote() returns and what aggregate() rows map
+ * to trivially, so a live session and a saved one score identically.
+ *
+ * Notes are weighted equally, not by how often each was played: a piece that
+ * dwells on D must not let a badly-placed F# hide behind it, and the same
+ * unweighted convention is what the two-instrument comparison uses, so the
+ * figure shown at the end of a session is the figure that gets compared
+ * later.
+ *
+ * The accuracy figure answers 'was I in tune' against the actual targets.
+ * The offset is how much of that is one uniform pitch difference -- a
+ * headjoint matter, not an intonation one -- and the relative figure is what
+ * would remain once it was corrected. Reporting all three is the difference
+ * between 'you are 6 cents out' and 'you are 5 cents sharp overall and 3
+ * cents out within that'. */
+export function sessionScore(notes) {
+  if (!notes?.length) return null;
+  const means = notes.map((n) => n.mean);
+  const offset = mean(means);
+
+  // Repeatability needs a note played more than once; averaging in the zero
+  // spread of a single occurrence would flatter the player.
+  const repeated = notes.filter((n) => n.n >= 2);
+
+  let worst = notes[0];
+  for (const note of notes) if (Math.abs(note.mean) > Math.abs(worst.mean)) worst = note;
+
+  return {
+    notes: notes.length,
+    occurrences: notes.reduce((total, n) => total + n.n, 0),
+    accuracy: mean(means.map(Math.abs)),
+    offset,
+    relative: mean(means.map((m) => Math.abs(m - offset))),
+    repeatability: repeated.length ? mean(repeated.map((n) => n.spread)) : null,
+    repeatedNotes: repeated.length,
+    steadiness: mean(notes.map((n) => n.stability ?? 0)),
+    worst,
+  };
+}
+
+/* Aggregate rows in the shape sessionScore wants. */
+export function scorableRows(rows) {
+  return rows.map((row) => ({
+    pitch: row.pitch, n: row.n, mean: row.meanCents,
+    spread: row.spreadCents, stability: row.stability,
+  }));
+}
+
 /* Plain numbers for the saved record. */
 export function rowsToRecord(rows) {
   const r2 = (x) => (x === null || x === undefined ? null : Math.round(x * 100) / 100);

@@ -10,7 +10,8 @@ import { t } from "../i18n.js";
 import * as history from "../history.js";
 import * as settings from "../settings.js";
 import { SpelledPitch } from "../core/pitch.js";
-import { compare, MAX_COMPARE } from "../core/compare.js";
+import { compare, perNote, MAX_COMPARE } from "../core/compare.js";
+import { sessionScore } from "../core/stats.js";
 import { el, append, name, bandClass } from "../ui/widgets.js";
 
 const fmt = (c, digits = 1) => `${c >= 0 ? "+" : ""}${c.toFixed(digits)}`;
@@ -25,6 +26,11 @@ function kindLabel(record) {
     return label === key ? match[1] : label;
   }
   return exercise || t("sessions.unnamed");
+}
+
+function scoreLabel(record) {
+  const score = sessionScore([...perNote(record).values()]);
+  return score ? t("sessions.score", score.accuracy.toFixed(1)) : null;
 }
 
 function tuningLabel(record) {
@@ -77,6 +83,9 @@ export default {
       record.label ? null : null,
       record.tonic ? `${t("practice.tonic")} ${name(SpelledPitch.parse(record.tonic), settings.get())}` : null,
       t("sessions.notes", (record.notes ?? []).length),
+      // Recomputed rather than read from the record, so sessions saved before
+      // scoring existed show one too.
+      scoreLabel(record),
       tuningLabel(record),
     ].filter(Boolean).join(" · ");
 

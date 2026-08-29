@@ -240,6 +240,13 @@ export function nearestCandidate(candidates, hz) {
   return best;
 }
 
+/* The band a deviation falls in, as a word: the same thresholds that colour
+ * every number in the app, so a figure and its label can never disagree. */
+export function bandLabel(cents) {
+  const magnitude = Math.abs(cents);
+  return magnitude <= 5 ? t("band.inTune") : magnitude <= 15 ? t("band.close") : t("band.far");
+}
+
 export function bandClass(cents) {
   const m = Math.abs(cents);
   return m <= 5 ? "good" : m <= 15 ? "close" : "off";

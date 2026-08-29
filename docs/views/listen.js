@@ -21,8 +21,8 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker } from "../audio/regions.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
-import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink } from "../core/stats.js";
-import { el, audioControl, labelField, needle, levelBar, bandClass, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
+import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows } from "../core/stats.js";
+import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
 /* How long the tonic must be held to begin. Collected by the same state
@@ -305,6 +305,32 @@ export default {
     if (!run.notes.length) {
       parts.push(el("p", { text: t("listen.noNotes") }));
     } else {
+      const score = sessionScore(scorableRows(rows));
+      parts.push(el("p", { class: "headline",
+        text: t("listen.scoreHeadline", score.accuracy.toFixed(1), bandLabel(score.accuracy)) }));
+
+      const measures = [["accuracy", score.accuracy], ["repeatability", score.repeatability],
+                        ["steadiness", score.steadiness]];
+      parts.push(el("div", { class: "stats scroll" }, [
+        el("table", {}, [
+          el("tbody", {}, measures.map(([key, value]) => el("tr", {}, [
+            el("td", { class: "name", title: t(`listen.score.${key}Help`), text: t(`listen.score.${key}`) }),
+            el("td", { class: "num", text: value === null ? "—" : value.toFixed(1) }),
+            el("td", { class: "muted", text: value === null ? t("listen.score.needsRepeats") : "¢" }),
+          ]))),
+        ]),
+      ]));
+
+      // Say how much of the error is one uniform shift: that part is the
+      // headjoint's business, and correcting it costs nothing musical.
+      parts.push(el("p", { class: "muted", text: Math.abs(score.offset) < 1
+        ? t("listen.score.centred")
+        : t("listen.score.offset", `${score.offset >= 0 ? "+" : ""}${score.offset.toFixed(1)}`,
+             score.relative.toFixed(1)) }));
+      if (score.worst && Math.abs(score.worst.mean) > 1) {
+        parts.push(el("p", { class: "muted", text: t("listen.score.worst",
+          name(score.worst.pitch, s), `${score.worst.mean >= 0 ? "+" : ""}${score.worst.mean.toFixed(1)}`) }));
+      }
       parts.push(el("p", { class: "mono", text: t("listen.count", run.notes.length) }));
       const unstable = run.notes.filter((n) => n.stdev > UNSTABLE_CENTS).length;
       if (unstable) parts.push(el("p", { class: "muted", text: `${unstable} ~ ${t("listen.unstable")}` }));
@@ -331,6 +357,12 @@ export default {
           tempered_cents: r2(n.temperedCents), pure_cents: n.pureCents === null ? null : r2(n.pureCents),
         })),
         by_note: rowsToRecord(rows),
+        score: (() => {
+          const sc = sessionScore(scorableRows(rows));
+          return sc && { accuracy: r2(sc.accuracy), offset: r2(sc.offset), relative: r2(sc.relative),
+                         repeatability: sc.repeatability === null ? null : r2(sc.repeatability),
+                         steadiness: r2(sc.steadiness), notes: sc.notes, occurrences: sc.occurrences };
+        })(),
         short_notes: run.shortCount,
       };
       try { await history.add(record); u.summary.append(el("p", { class: "muted", text: t("practice.saved") })); }

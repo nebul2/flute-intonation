@@ -244,3 +244,4 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .help-doc blockquote { margin: 0; padding-left: 0.8rem; border-left: 2px solid var(--edge); color: var(--muted); }
 .help-doc code { font-family: var(--mono); font-size: 0.85em; background: var(--ground); padding: 0.1rem 0.3rem; border-radius: 3px; }
 .help-doc hr { border: 0; border-top: 1px solid var(--edge); }
+.headline { font-size: 1.05rem; color: var(--ink); max-width: 40rem; }
