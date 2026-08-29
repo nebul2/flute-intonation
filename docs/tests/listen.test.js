@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { RegionTracker } from "../audio/regions.js";
+import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
 import { dronePartialsToNotch } from "../audio/engine.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
 import * as attackModule from "../core/scoring.js";
@@ -156,4 +156,58 @@ test("a note barely longer than the attack still yields frames", () => {
   const { postAttack } = attackModule;
   const [hz] = postAttack([415, 416, 417], FS);
   assert.ok(hz.length >= 1);
+});
+
+/* ---- a slur is not a note --------------------------------------------- */
+
+const E5 = 622.25, F5 = 659.26, FS5 = 698.46;      // a whole tone and its midpoint
+const cents = (a, b) => 1200 * Math.log2(b / a);
+
+test("a slur from E to F# yields no phantom F in between", () => {
+  // The Hotteterre case: a G major prelude with no F naturals reported a
+  // steady stream of them, because F is exactly the midpoint of E-F# and the
+  // whole slur was being absorbed into one region.
+  const tr = new RegionTracker({ frameSeconds: FS });
+  const frames = [];
+  for (let i = 0; i < 25; i++) frames.push(voiced(E5));
+  for (let i = 1; i <= 20; i++) frames.push(voiced(E5 * Math.pow(FS5 / E5, i / 20)));  // the slur
+  for (let i = 0; i < 25; i++) frames.push(voiced(FS5));
+  frames.push(...new Array(6).fill(silent()));
+
+  const closed = feed(tr, frames).concat(tr.flush() ?? []);
+  const kept = closed.filter((r) => !r.short && Math.abs(driftCents(r.framesHz)) < GLIDE_CENTS);
+  const named = kept.map((r) => r.medianHz);
+
+  assert.ok(named.some((hz) => Math.abs(cents(E5, hz)) < 25), "the E is heard");
+  assert.ok(named.some((hz) => Math.abs(cents(FS5, hz)) < 25), "the F# is heard");
+  for (const hz of named) {
+    assert.ok(Math.abs(cents(F5, hz)) > 30,
+      `no phantom F: got ${hz.toFixed(1)} Hz, ${cents(F5, hz).toFixed(1)}c from F`);
+  }
+});
+
+test("driftCents tells a glide from a steady note, vibrato included", () => {
+  const steady = new Array(30).fill(415);
+  assert.ok(Math.abs(driftCents(steady)) < 1);
+
+  // Vibrato oscillates rather than travels, so it must not read as drift.
+  const vibrato = Array.from({ length: 40 }, (_, i) => 415 * Math.pow(2, 25 * Math.sin(i / 2) / 1200));
+  assert.ok(Math.abs(driftCents(vibrato)) < GLIDE_CENTS, `vibrato drift ${driftCents(vibrato).toFixed(1)}c`);
+
+  const glide = Array.from({ length: 30 }, (_, i) => E5 * Math.pow(FS5 / E5, i / 29));
+  assert.ok(Math.abs(driftCents(glide)) >= GLIDE_CENTS, "a whole-tone slur is caught");
+  assert.ok(driftCents(glide) > 0, "and its direction is reported");
+
+  assert.equal(driftCents([415, 415]), 0, "too few frames to judge");
+  assert.equal(driftCents(null), 0);
+});
+
+test("a trailing reference could not have split the slur; the anchor can", () => {
+  // Why the fix works: over a slur the previous five frames are always close
+  // to the current one, so a trailing median never reaches the threshold.
+  const glide = Array.from({ length: 30 }, (_, i) => E5 * Math.pow(FS5 / E5, i / 29));
+  const trailingGaps = glide.slice(5).map((hz, i) => Math.abs(cents(glide[i], hz)));
+  assert.ok(Math.max(...trailingGaps) < 70, "a trailing reference never diverges enough");
+  const anchorGaps = glide.map((hz) => Math.abs(cents(glide[0], hz)));
+  assert.ok(Math.max(...anchorGaps) > 70, "an anchor does");
 });

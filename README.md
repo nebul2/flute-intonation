@@ -197,6 +197,12 @@ Listen to me is free play with feedback: it asks for the tonic first, which
 sets the harmonic context, so every note that follows is read both against the
 temperament and as a pure interval above the tonic; notes are segmented online
 (`docs/audio/regions.js`) and those under 120 ms are counted, not measured. A
+region is judged against an *anchor* — the median of its first frames — not
+a trailing median: a trailing reference slides along with a slur, so two
+slurred notes were absorbed into one region whose median landed between
+them, and a G major prelude with no F naturals reported a steady stream of
+them, F being exactly the midpoint of E–F♯. Regions whose pitch is still
+travelling after the attack trim are counted as slurs and not measured. A
 per-note table fills in as you play (`docs/core/stats.js`): occurrences, mean
 and min…max deviation, within-note stability, time held, mean level, whether
 the note goes sharp or flat when louder (a fit across occurrences, reported
