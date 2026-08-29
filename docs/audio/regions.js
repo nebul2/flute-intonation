@@ -86,9 +86,15 @@ export const TRILL_RETURN_CENTS = 60;        // how nearly it must come back
  * trailing regions this much longer than the run's median are left out. */
 export const TRILL_TAIL_RATIO = 2.5;
 /* How far the substituted note may sit from the written one when a trill
- * changes fingering mid-way. The substitution is a neighbouring note -- C for
- * C#, F for F# -- so a semitone with margin. Wider than this and the two
- * chains are separate events that merely touch. */
+ * changes fingering mid-way, should the change be abrupt enough to break the
+ * alternation. Measured on three trills on B and three on E, the substitution
+ * is gentler than the written notes suggest: the upper pole drifts up by 16
+ * to 60 cents over the course of the trill rather than jumping a semitone,
+ * and settles about 155 cents above the main note -- between the written
+ * auxiliary and its neighbour, not squarely on either. Largest single step
+ * observed, 47 cents, sits inside TRILL_RETURN_CENTS, so on that evidence the
+ * alternation usually survives intact and this join is insurance against a
+ * player who switches in one move. */
 export const TRILL_SUBSTITUTION_CENTS = 150;
 
 /* Index ranges [start, end) of regions that alternate. Regions need only

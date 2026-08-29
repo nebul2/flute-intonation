@@ -220,6 +220,14 @@ C♯–B–C♯–B, and one on E turns its F into F♯ — but only when both s
 alternate, one pole is held in common, and the odd poles are a semitone
 apart. Joining on a shared pitch alone swallowed a fifth of the recorded
 prelude's notes.
+
+Recording those substituted trills showed the change to be gentler than the
+written notes suggest: across three trills on B and three on E the upper pole
+drifts up by 16–60 cents over the trill rather than jumping a semitone, and
+settles around 155 cents above the main note — between the written auxiliary
+and its neighbour, on neither. The largest single step was 47 cents, inside
+the tolerance for returning to the same pole, so the alternation survives
+intact and the join is insurance rather than the main mechanism.
 Both rules were reasoned out from simulation, so `docs/tests/wavpipe.js`
 runs the shipped detector and region tracker over a recorded WAV and
 classifies every region exactly as the app does — real audio has
