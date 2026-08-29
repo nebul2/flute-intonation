@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 
 import { STRINGS, t, setLanguage } from "../i18n.js";
 import { ROUTES } from "../router.js";
+import { EXERCISES } from "../views/run.js";
 import { SpelledPitch, highestFirst } from "../core/pitch.js";
 import { noteName, pitchClassName, SOLFEGE, LETTERS, REGISTER } from "../ui/naming.js";
 import * as settings from "../settings.js";
@@ -25,6 +26,24 @@ test("every route has card strings and a title", () => {
     assert.ok(STRINGS.en[`home.card.${name}.desc`], `home.card.${name}.desc`);
     assert.ok(STRINGS.fr[`home.card.${name}.title`], `fr home.card.${name}.title`);
   }
+});
+
+test("the exercise list and its strings agree, in both directions", () => {
+  // The stopper check was moved out of Practice into Tools and its strings
+  // stayed behind, so the front page went on advertising it as an exercise.
+  // This catches both halves of that: an exercise with no strings, and
+  // strings for an exercise that no longer exists.
+  const keys = Object.keys(EXERCISES);
+  for (const key of keys) {
+    for (const lang of ["en", "fr"]) {
+      assert.ok(STRINGS[lang][`practice.ex.${key}.title`], `${lang} practice.ex.${key}.title`);
+      assert.ok(STRINGS[lang][`practice.ex.${key}.desc`], `${lang} practice.ex.${key}.desc`);
+    }
+  }
+  const orphans = Object.keys(STRINGS.en)
+    .filter((k) => k.startsWith("practice.ex."))
+    .filter((k) => !keys.includes(k.split(".")[2]));
+  assert.deepEqual(orphans, [], "strings for exercises that are not in EXERCISES");
 });
 
 test("t() switches language and falls back to the key", () => {

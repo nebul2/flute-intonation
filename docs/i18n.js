@@ -26,7 +26,7 @@ export const STRINGS = {
     "home.card.tuner.title": "Tuner",
     "home.card.tuner.desc": "Play; it names the note in the chosen temperament.",
     "home.card.practice.title": "Practice",
-    "home.card.practice.desc": "Guided exercises: calibration, intervals, enharmonics, stopper…",
+    "home.card.practice.desc": "Guided exercises: calibration, intervals, enharmonics, predict-then-see.",
     "home.card.tuning.title": "Mode & temperament",
     "home.card.tuning.desc": "Vallotti, meantone, pure intervals — with simple help.",
     "home.card.settings.title": "Settings",
@@ -185,13 +185,8 @@ export const STRINGS = {
     "settings.history": "Practice history",
     "settings.export": "Export as file",
     "settings.clear": "Clear history",
-    "settings.historySoon": "History arrives with the practice exercises.",
 
     "practice.title": "Practice",
-    "practice.soon": "The guided exercises from the desktop version are being ported: " +
-      "calibration over the drone, the same note tempered then pure, D♯ versus E♭, " +
-      "predict-then-see, and the stopper (bouchon) check. No needle while you play; the " +
-      "reading appears when the note ends.",
     "practice.intro": "Guided exercises. No needle while you play — only progress; the reading appears when the note ends.",
     "practice.needMic": "Start the microphone to enable the exercises.",
     "practice.tonic": "tonic",
@@ -208,8 +203,6 @@ export const STRINGS = {
     "practice.quality": "scale",
     "practice.quality.major": "major",
     "practice.quality.minor": "minor",
-    "practice.ex.stopper.title": "Stopper check",
-    "practice.ex.stopper.desc": "Three D's and three G's, set embouchure. Only the width of the octaves matters.",
     "practice.stop": "Stop the exercise",
     "practice.calibrating": "Measuring the background with the drone sounding — stay quiet, don't play yet.",
     "practice.stayQuiet": (s) => `stay quiet… ${s} s`,
@@ -343,7 +336,7 @@ export const STRINGS = {
     "home.card.tuner.title": "Accordeur",
     "home.card.tuner.desc": "Joue ; il nomme la note dans le tempérament choisi.",
     "home.card.practice.title": "Exercices",
-    "home.card.practice.desc": "Séances guidées : calibration, intervalles, enharmoniques, bouchon…",
+    "home.card.practice.desc": "Séances guidées : calibration, intervalles, enharmoniques, devine-puis-vois.",
     "home.card.tuning.title": "Mode & tempérament",
     "home.card.tuning.desc": "Vallotti, mésotonique, intervalles purs — avec une aide simple.",
     "home.card.settings.title": "Réglages",
@@ -503,13 +496,8 @@ export const STRINGS = {
     "settings.history": "Historique des exercices",
     "settings.export": "Exporter en fichier",
     "settings.clear": "Effacer l'historique",
-    "settings.historySoon": "L'historique arrive avec les exercices.",
 
     "practice.title": "Exercices",
-    "practice.soon": "Les exercices guidés de la version de bureau sont en cours de portage : " +
-      "calibration sur le bourdon, la même note tempérée puis pure, ré♯ contre mi♭, " +
-      "« devine puis vois », et le réglage du bouchon. Pas d'aiguille pendant que tu joues ; " +
-      "la mesure s'affiche quand la note se termine.",
     "practice.intro": "Exercices guidés. Pas d'aiguille pendant que tu joues — seulement la progression ; la mesure s'affiche quand la note se termine.",
     "practice.needMic": "Démarre le micro pour activer les exercices.",
     "practice.tonic": "tonique",
@@ -526,8 +514,6 @@ export const STRINGS = {
     "practice.quality": "gamme",
     "practice.quality.major": "majeure",
     "practice.quality.minor": "mineure",
-    "practice.ex.stopper.title": "Vérif bouchon",
-    "practice.ex.stopper.desc": "Trois ré et trois sol, embouchure fixe. Seule la largeur des octaves compte.",
     "practice.stop": "Arrêter l'exercice",
     "practice.calibrating": "Mesure du bruit de fond avec le bourdon — reste silencieux, ne joue pas encore.",
     "practice.stayQuiet": (s) => `silence… ${s} s`,
