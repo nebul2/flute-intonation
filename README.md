@@ -269,7 +269,13 @@ zero would flatter the player. The accuracy figure and the note-to-note one
 are both averages of *distances*, so they do not subtract: removing a
 uniform shift helps a lot when the errors all point the same way and hardly
 at all when they are scattered, and can even leave more, since a mean is not
-a median. The summary says so rather than leaving the reader to wonder. `sessionScore` in `core/stats.js` takes the
+a median. The summary says so rather than leaving the reader to wonder. It also names
+the notes actually out of tune — past 15 cents, the boundary the app already
+calls "off" — furthest first and in both directions, distinguishing a note
+that is reliably in the wrong place from one that lands somewhere different
+each time, since those want different practice. The threshold is an absolute
+musical standard rather than a share of the session, so a good session names
+nothing instead of inventing its three least-good notes. `sessionScore` in `core/stats.js` takes the
 same note shape `perNote` produces, so a live session, a saved one in the
 sessions list, and the two-instrument comparison all score identically.
 

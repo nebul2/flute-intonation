@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { SpelledPitch } from "../core/pitch.js";
 import {
   linearFit, withinNoteVolumeLink, volumeVerdict, aggregate, rowsToRecord,
-  sessionScore, scorableRows, VOLUME_MIN_NOTES, VOLUME_MIN_DB_RANGE,
+  sessionScore, scorableRows, standouts, STANDOUT_CENTS, MAX_STANDOUTS,
+  VOLUME_MIN_NOTES, VOLUME_MIN_DB_RANGE,
 } from "../core/stats.js";
 
 const P = (s) => SpelledPitch.parse(s);
@@ -177,4 +178,58 @@ test("the offset and the note-to-note figure do not subtract", () => {
   const skewed = scored([-20, 5, -3, 1]);
   assert.ok(skewed.relative > skewed.accuracy,
     "removing the mean can increase the mean distance");
+});
+
+/* ---- the notes that stand out ----------------------------------------- */
+
+const asNotes = (pairs) => pairs.map(([name, mean, n = 3, spread = 2]) =>
+  ({ pitch: P(name), n, mean, spread, stability: 1.5 }));
+
+test("a tidy session names nobody", () => {
+  const { list, more } = standouts(asNotes([["D4", 3], ["E4", -4], ["F#4", 6]]));
+  assert.deepEqual(list, []);
+  assert.equal(more, 0);
+  assert.deepEqual(standouts([]).list, []);
+});
+
+test("several out-of-tune notes are named, furthest first, both directions", () => {
+  const { list } = standouts(asNotes([
+    ["D4", 2], ["E4", -18], ["F#4", 22], ["G4", -4], ["A4", 16], ["B4", 1],
+  ]));
+  assert.deepEqual(list.map((s) => s.pitch.name), ["F#4", "E4", "A4"]);
+  assert.deepEqual(list.map((s) => s.direction), ["sharp", "flat", "sharp"]);
+  approx(list[0].mean, 22, 1e-9);
+  assert.ok(list.every((s) => Math.abs(s.mean) >= STANDOUT_CENTS));
+});
+
+test("the list is capped and says how many more there were", () => {
+  const many = asNotes([["C4", 40], ["D4", 39], ["E4", 38], ["F4", 37],
+                        ["G4", 36], ["A4", 35], ["B4", 34]]);
+  const { list, more } = standouts(many);
+  assert.equal(list.length, MAX_STANDOUTS);
+  assert.equal(more, 2);
+  assert.equal(standouts(many, { limit: 2 }).more, 5);
+});
+
+test("a note reliably wrong reads differently from one that lands anywhere", () => {
+  const { list } = standouts(asNotes([
+    ["F#4", 20, 4, 2],     // consistently sharp
+    ["C#5", -19, 4, 14],   // out, and never twice in the same place
+    ["A4", 17, 1, 0],      // heard once: no evidence either way
+  ]));
+  const byName = Object.fromEntries(list.map((s) => [s.pitch.name, s]));
+  assert.equal(byName["F#4"].unreliable, false);
+  assert.equal(byName["F#4"].once, false);
+  assert.equal(byName["C#5"].unreliable, true);
+  assert.equal(byName["A4"].once, true);
+  assert.equal(byName["A4"].unreliable, false, "one occurrence is not evidence of scatter");
+});
+
+test("standouts and the by-note table quote the same number", () => {
+  // Raw deviation from target, not corrected for the session's offset: the
+  // table shows raw, and two figures for one note would invite doubt.
+  const notes = asNotes([["D4", 20], ["E4", 20], ["F#4", 20]]);
+  const { list } = standouts(notes);
+  assert.equal(list.length, 3);
+  for (const s of list) approx(s.mean, 20, 1e-9);
 });

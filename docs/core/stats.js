@@ -153,6 +153,40 @@ export function sessionScore(notes) {
   };
 }
 
+/* Beyond this many cents a note is not merely imprecise, it is out of tune:
+ * the same boundary the app calls 'off' everywhere else, so a note named here
+ * is a note the by-note table has already coloured. An absolute musical
+ * standard rather than a share of the session, so a good session names
+ * nothing instead of inventing its three least-good notes. */
+export const STANDOUT_CENTS = 15.0;
+/* Spread across a note's own occurrences beyond which it is not reliably
+ * anywhere -- worth saying, because it wants different practice from a note
+ * that is reliably in the wrong place. */
+export const UNRELIABLE_SPREAD_CENTS = 10.0;
+export const MAX_STANDOUTS = 5;
+
+/* The notes actually out of tune, furthest first, both directions. Deviations
+ * are the raw ones -- distance from the target, which is what the by-note
+ * table shows and what the player hears -- so the two never disagree. */
+export function standouts(notes, { threshold = STANDOUT_CENTS, limit = MAX_STANDOUTS } = {}) {
+  if (!notes?.length) return { list: [], more: 0 };
+  const flagged = notes
+    .filter((note) => Math.abs(note.mean) >= threshold)
+    .sort((a, b) => Math.abs(b.mean) - Math.abs(a.mean));
+  return {
+    list: flagged.slice(0, limit).map((note) => ({
+      pitch: note.pitch,
+      n: note.n,
+      mean: note.mean,
+      spread: note.spread,
+      direction: note.mean > 0 ? 'sharp' : 'flat',
+      once: note.n < 2,
+      unreliable: note.n >= 2 && note.spread >= UNRELIABLE_SPREAD_CENTS,
+    })),
+    more: Math.max(0, flagged.length - limit),
+  };
+}
+
 /* Aggregate rows in the shape sessionScore wants. */
 export function scorableRows(rows) {
   return rows.map((row) => ({

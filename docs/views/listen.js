@@ -21,7 +21,7 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker } from "../audio/regions.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
-import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows } from "../core/stats.js";
+import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows, standouts } from "../core/stats.js";
 import { postAttack } from "../core/scoring.js";
 import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
 
@@ -341,7 +341,30 @@ export default {
              t(score.offset > 0 ? "listen.score.sharp" : "listen.score.flat"),
              score.relative.toFixed(1)) }));
       parts.push(el("p", { class: "muted small", text: t("listen.score.notSubtraction") }));
-      if (score.worst && Math.abs(score.worst.mean) > 1) {
+      // Name the notes that are actually out of tune. When none clears that
+      // bar, the single furthest out is still worth knowing, but it is not
+      // presented as a fault.
+      const flagged = standouts(scorableRows(rows));
+      if (flagged.list.length) {
+        parts.push(el("p", { text: t("listen.standouts.title", flagged.list.length) }));
+        parts.push(el("div", { class: "stats scroll" }, [
+          el("table", {}, [
+            el("tbody", {}, flagged.list.map((note) => el("tr", {}, [
+              el("td", { class: "name", text: name(note.pitch, s) }),
+              el("td", { class: "num off", text: `${note.mean >= 0 ? "+" : ""}${note.mean.toFixed(1)}¢` }),
+              el("td", { class: "muted", text: t(`listen.standouts.${note.direction}`) }),
+              el("td", { class: "muted", text: note.once
+                ? t("listen.standouts.once")
+                : note.unreliable
+                  ? t("listen.standouts.unreliable", note.n, note.spread.toFixed(1))
+                  : t("listen.standouts.consistent", note.n) }),
+            ]))),
+          ]),
+        ]));
+        if (flagged.more) {
+          parts.push(el("p", { class: "muted small", text: t("listen.standouts.more", flagged.more) }));
+        }
+      } else if (score.worst && Math.abs(score.worst.mean) > 1) {
         parts.push(el("p", { class: "muted", text: t("listen.score.worst",
           name(score.worst.pitch, s), `${score.worst.mean >= 0 ? "+" : ""}${score.worst.mean.toFixed(1)}`) }));
       }
@@ -371,6 +394,10 @@ export default {
           tempered_cents: r2(n.temperedCents), pure_cents: n.pureCents === null ? null : r2(n.pureCents),
         })),
         by_note: rowsToRecord(rows),
+        standouts: standouts(scorableRows(rows)).list.map((n) => ({
+          pitch: n.pitch.name, mean_cents: r2(n.mean), n: n.n,
+          spread_cents: r2(n.spread), unreliable: n.unreliable,
+        })),
         score: (() => {
           const sc = sessionScore(scorableRows(rows));
           return sc && { accuracy: r2(sc.accuracy), offset: r2(sc.offset), relative: r2(sc.relative),
