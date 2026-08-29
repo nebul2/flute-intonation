@@ -208,7 +208,13 @@ second test cannot be the drift one — a trill oscillates rather than travels,
 so its drift is zero — and matters because a trill whose upper note is
 shorter than the confirmation a new note needs has those frames discarded
 one by one and would otherwise be reported as an immaculate sustained note
-on the lower pitch. The give-away is how many frames a region threw away. A
+on the lower pitch. The give-away is how many frames a region threw away.
+Both rules were reasoned out from simulation, so `docs/tests/wavpipe.js`
+runs the shipped detector and region tracker over a recorded WAV and
+classifies every region exactly as the app does — real audio has
+repeatedly found what synthetic tones missed. It agrees region for region
+with the Python analyser on the same file, and the long-tone recording
+confirms the false-positive side: clean sustained notes blip not at all. A
 per-note table fills in as you play (`docs/core/stats.js`): occurrences, mean
 and min…max deviation, within-note stability, time held, mean level, whether
 the note goes sharp or flat when louder (a fit across occurrences, reported

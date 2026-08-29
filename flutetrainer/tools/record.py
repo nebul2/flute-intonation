@@ -114,6 +114,20 @@ TAKES: tuple[Take, ...] = (
         "  note -- this is the gate against your real dynamic range.",
     ),
     Take(
+        "trills", 60.0,
+        "Trills, isolated, with silence between. Play each the baroque way:\n"
+        "  start slow and accelerate to as fast as it will go. Four or five of\n"
+        "  them, on different notes and at different pitches. An accelerating\n"
+        "  trill sweeps the whole range of alternation speeds in one gesture,\n"
+        "  which is exactly what the segmenter needs to be tested against.",
+    ),
+    Take(
+        "piece", 90.0,
+        "A short piece with trills in place -- a prelude, or a few phrases.\n"
+        "  Play it as you would perform it, ornaments and all. This is the\n"
+        "  realistic case: trills next to slurs, next to plain notes.",
+    ),
+    Take(
         "arpeggio", 45.0,
         "The D major arpeggio the app generates -- D4 F#4 A4 D5 A4 F#4 D4 --\n"
         "  at roughly 60 bpm, played the way you'd actually practise it.",
