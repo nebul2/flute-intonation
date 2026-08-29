@@ -19,7 +19,7 @@ import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
-import { RegionTracker, driftCents, isOscillating, GLIDE_CENTS } from "../audio/regions.js";
+import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows, standouts, offsetAction } from "../core/stats.js";
 import { postAttack } from "../core/scoring.js";
@@ -91,7 +91,7 @@ export default {
       candidates: tunerCandidates(tuning),
       phase: "tonic", tonicSegs: [], label: this.label ? this.label.value : "",
       tracker: new RegionTracker({ frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100 }),
-      notes: [], shortCount: 0, glideCount: 0, trillCount: 0, lastVoiced: null,
+      notes: [], regions: [], shortCount: 0, glideCount: 0, trillCount: 0, lastVoiced: null,
     };
     const run = this.run;
     const root = this.root;
@@ -198,17 +198,58 @@ export default {
   },
 
   addRegion(region) {
+    const entry = { region, baseKind: "note", note: null, row: null };
+    if (region.short) {
+      entry.baseKind = "short";
+    } else if (isOscillating(region)) {
+      // A pitch that leaves and returns within one region: a trill too fast
+      // for its alternations to become regions of their own.
+      entry.baseKind = "trill";
+    } else {
+      const note = this.score(region);
+      // A pitch still on its way somewhere is not a note. Measured after the
+      // attack trim, so a scooped start is not mistaken for a slur.
+      if (Math.abs(driftCents(note.framesHz)) >= GLIDE_CENTS) entry.baseKind = "slur";
+      else entry.note = note;
+    }
+    this.run.regions.push(entry);
+    this.reconcile();
+  },
+
+  /* Which regions were notes, decided over the whole session so far.
+   *
+   * A trill only becomes visible as a *run* of regions alternating between two
+   * pitches, so a region cannot be judged when it closes: the alternations
+   * that prove it are still to come. Everything is therefore kept, the runs
+   * are recomputed as each region arrives, and any note already shown that
+   * turns out to belong to an ornament is taken back out. Runs only grow, so
+   * nothing is ever restored. */
+  reconcile() {
     const run = this.run;
-    if (region.short) { run.shortCount += 1; return; }
-    // A pitch that keeps leaving and returning is a trill, and a trilled note
-    // has no single tuning to report.
-    if (isOscillating(region)) { run.trillCount += 1; return; }
-    const note = this.score(region);
-    // A pitch still on its way somewhere is not a note. Measured after the
-    // attack trim, so a scooped start is not mistaken for a slur.
-    if (Math.abs(driftCents(note.framesHz)) >= GLIDE_CENTS) { run.glideCount += 1; return; }
-    run.notes.push(note);
-    this.ui.rows.prepend(this.logRow(note));
+    const runs = alternationRuns(run.regions.map((entry) => entry.region));
+    const ornament = new Set();
+    for (const { start, end } of runs) for (let i = start; i < end; i++) ornament.add(i);
+
+    run.notes = [];
+    let short = 0, slurs = 0, oscillating = 0;
+    run.regions.forEach((entry, i) => {
+      if (ornament.has(i)) {
+        if (entry.row) { entry.row.remove(); entry.row = null; }
+        return;
+      }
+      if (entry.baseKind === "short") { short += 1; return; }
+      if (entry.baseKind === "slur") { slurs += 1; return; }
+      if (entry.baseKind === "trill") { oscillating += 1; return; }
+      entry.note.index = run.notes.length;
+      run.notes.push(entry.note);
+      if (!entry.row) {
+        entry.row = this.logRow(entry.note);
+        this.ui.rows.prepend(entry.row);
+      }
+    });
+    run.shortCount = short;
+    run.glideCount = slurs;
+    run.trillCount = runs.length + oscillating;
     this.renderTable();
   },
 

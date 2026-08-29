@@ -203,12 +203,17 @@ slurred notes were absorbed into one region whose median landed between
 them, and a G major prelude with no F naturals reported a steady stream of
 them, F being exactly the midpoint of E–F♯. Regions whose pitch is still
 travelling after the attack trim are counted as slurs and not measured, and
-regions whose pitch keeps leaving and returning are counted as trills. That
-second test cannot be the drift one — a trill oscillates rather than travels,
-so its drift is zero — and matters because a trill whose upper note is
-shorter than the confirmation a new note needs has those frames discarded
-one by one and would otherwise be reported as an immaculate sustained note
-on the lower pitch. The give-away is how many frames a region threw away.
+ornaments are recognised as *runs* of regions alternating between two
+pitches. That rule was rewritten by evidence: reasoned out from simulation
+it looked for a region whose pitch left and returned within itself, and
+against five recorded trills that never once fired — every alternation of a
+real trill, even at its fastest, lasts long enough to become a region of its
+own, so the slow half was reported as ordinary notes and the fast half as a
+shower of too-short ones. Measured across those trills the alternations ran
+from 0.49 s down to 0.05 s. Recognising the run instead finds all five, and
+ten in a recorded prelude, while leaving 85 of its 116 notes to be measured;
+long tones and tongued repetitions yield none. A trill's held closing note
+is left out of the run, being a real note.
 Both rules were reasoned out from simulation, so `docs/tests/wavpipe.js`
 runs the shipped detector and region tracker over a recorded WAV and
 classifies every region exactly as the app does — real audio has

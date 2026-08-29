@@ -64,6 +64,73 @@ export function driftCents(framesHz) {
   return centsBetween(median(framesHz.slice(0, third)), median(framesHz.slice(-third)));
 }
 
+/* A trill is not one region behaving oddly -- it is a *run* of regions
+ * alternating between two pitches. Real recordings settled this: in five
+ * accelerating trills the blip mechanism never fired once, because every
+ * alternation lasted long enough to be confirmed as its own region. The
+ * measured alternations ran 0.49 s down to 0.05 s as each trill sped up, so
+ * the slow half was being reported as a series of ordinary notes and the
+ * fast half as a shower of too-short ones.
+ *
+ * The signature that does hold is the alternation itself: contiguous short
+ * regions stepping between two pitches and returning. Checked against a
+ * recorded prelude, this catches the ornaments and leaves the scales and
+ * plain notes alone. */
+export const TRILL_MIN_RUN = 4;              // alternations before it is an ornament
+export const TRILL_MAX_GAP_SECONDS = 0.08;   // silence between them ends the run
+export const TRILL_MAX_NOTE_SECONDS = 0.6;   // slower than this is melody
+export const TRILL_STEP_MIN_CENTS = 40;      // less is one note wobbling
+export const TRILL_STEP_MAX_CENTS = 350;     // more is a leap, not an ornament
+export const TRILL_RETURN_CENTS = 60;        // how nearly it must come back
+/* A trill's closing note is longer than its alternations and is a real note:
+ * trailing regions this much longer than the run's median are left out. */
+export const TRILL_TAIL_RATIO = 2.5;
+
+/* Index ranges [start, end) of regions that alternate. Regions need only
+* {atSeconds, seconds, medianHz}. */
+export function alternationRuns(regions, {
+  minRun = TRILL_MIN_RUN, maxGap = TRILL_MAX_GAP_SECONDS,
+  maxNote = TRILL_MAX_NOTE_SECONDS, stepMin = TRILL_STEP_MIN_CENTS,
+  stepMax = TRILL_STEP_MAX_CENTS, returnCents = TRILL_RETURN_CENTS,
+  tailRatio = TRILL_TAIL_RATIO,
+} = {}) {
+  const runs = [];
+  let chain = [];
+
+  const close = () => {
+    let members = chain;
+    // Drop a closing note far longer than the alternations: that is the
+    // resolution, and it is worth measuring.
+    while (members.length > minRun) {
+      const durations = members.map((i) => regions[i].seconds).sort((a, b) => a - b);
+      const median = durations[durations.length >> 1];
+      const last = regions[members[members.length - 1]].seconds;
+      if (last <= median * tailRatio) break;
+      members = members.slice(0, -1);
+    }
+    if (members.length >= minRun) runs.push({ start: members[0], end: members[members.length - 1] + 1 });
+    chain = [];
+  };
+
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
+    if (!(region.seconds <= maxNote) || !(region.medianHz > 0)) { close(); continue; }
+    if (!chain.length) { chain = [i]; continue; }
+
+    const previous = regions[chain[chain.length - 1]];
+    const gap = region.atSeconds - (previous.atSeconds + previous.seconds);
+    const step = Math.abs(centsBetween(previous.medianHz, region.medianHz));
+    const twoBack = chain.length >= 2 ? regions[chain[chain.length - 2]] : null;
+    const returns = !twoBack
+      || Math.abs(centsBetween(twoBack.medianHz, region.medianHz)) <= returnCents;
+
+    if (gap <= maxGap && step >= stepMin && step <= stepMax && returns) chain.push(i);
+    else { close(); chain = [i]; }
+  }
+  close();
+  return runs;
+}
+
 export class RegionTracker {
   constructor({ frameSeconds, splitCents = 70.0, confirmFrames = 3, gapFrames = 6, minSeconds = 0.12 }) {
     this.frameSeconds = frameSeconds;
@@ -136,6 +203,7 @@ export class RegionTracker {
       levelsDb: region.framesDb,
       startIndex: region.startIndex,
       seconds,
+      atSeconds: region.startIndex * this.frameSeconds,
       medianHz: sorted[sorted.length >> 1],
       blips: region.blips ?? 0,
       meanDb,

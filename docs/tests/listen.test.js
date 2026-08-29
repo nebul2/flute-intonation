@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { RegionTracker, driftCents, isOscillating, GLIDE_CENTS } from "../audio/regions.js";
+import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
 import { dronePartialsToNotch } from "../audio/engine.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
 import * as attackModule from "../core/scoring.js";
@@ -262,4 +262,52 @@ test("vibrato is not a trill: it stays inside the split window", () => {
   const region = tr.flush();
   assert.equal(isOscillating(region), false, `blips ${region.blips}`);
   assert.ok(Math.abs(driftCents(region.framesHz)) < GLIDE_CENTS);
+});
+
+/* ---- trills are runs of regions, not one odd region -------------------- */
+
+const region = (atSeconds, seconds, medianHz) => ({ atSeconds, seconds, medianHz });
+
+test("an accelerating alternation is found, as recorded trills actually look", () => {
+  // The shape measured from a real trill: alternations shortening from half a
+  // second to a twentieth, each its own region, no blips anywhere.
+  const durations = [0.49, 0.26, 0.20, 0.16, 0.14, 0.10, 0.12, 0.08, 0.12, 0.08];
+  const regions = [];
+  let at = 1.0;
+  durations.forEach((d, i) => { regions.push(region(at, d, i % 2 ? 424 : 474)); at += d; });
+  const runs = alternationRuns(regions);
+  assert.equal(runs.length, 1);
+  assert.deepEqual([runs[0].start, runs[0].end], [0, regions.length]);
+});
+
+test("a scale is not an alternation, however fast", () => {
+  // Consecutive and quick, but it never comes back to where it was.
+  const scale = [415, 466, 523, 587, 622, 698, 784].map((hz, i) => region(i * 0.15, 0.15, hz));
+  assert.deepEqual(alternationRuns(scale), []);
+});
+
+test("a slow two-note figure is music, not an ornament", () => {
+  const figure = [415, 466, 415, 466, 415, 466].map((hz, i) => region(i * 0.8, 0.8, hz));
+  assert.deepEqual(alternationRuns(figure), [], "too slow to be a trill");
+});
+
+test("silence between the notes ends the run", () => {
+  const spaced = [415, 466, 415, 466, 415, 466]
+    .map((hz, i) => region(i * 0.5, 0.2, hz));            // 0.3 s of gap each time
+  assert.deepEqual(alternationRuns(spaced), []);
+});
+
+test("a trill's closing note is left out of the run, to be measured", () => {
+  const regions = [];
+  let at = 0;
+  for (let i = 0; i < 8; i++) { regions.push(region(at, 0.1, i % 2 ? 424 : 474)); at += 0.1; }
+  regions.push(region(at, 0.55, 474));                    // the resolution, held
+  const runs = alternationRuns(regions);
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].end, 8, "the held note stays outside the ornament");
+});
+
+test("too few alternations are left alone", () => {
+  const regions = [415, 466, 415].map((hz, i) => region(i * 0.12, 0.12, hz));
+  assert.deepEqual(alternationRuns(regions), []);
 });

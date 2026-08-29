@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Detector } from "../audio/yin.js";
-import { RegionTracker, driftCents, isOscillating, GLIDE_CENTS } from "../audio/regions.js";
+import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
 import { postAttack } from "../core/scoring.js";
 
 /* Minimal RIFF reader: 16-, 24- and 32-bit integer PCM and 32-bit float,
@@ -79,11 +79,18 @@ export function analyse(file, { hop = 512 } = {}) {
   }
   take(tracker.flush());
 
-  const classified = regions.map((region) => {
+  // Ornaments are runs, not single regions, so they are marked over the
+  // whole file exactly as views/listen.js marks them over a session.
+  const ornament = new Set();
+  const runs = alternationRuns(regions);
+  for (const { start, end } of runs) for (let i = start; i < end; i++) ornament.add(i);
+
+  const classified = regions.map((region, index) => {
     const [framesHz] = postAttack(region.framesHz, frameSeconds);
     const drift = driftCents(framesHz);
     let kind = "note";
-    if (region.short) kind = "short";
+    if (ornament.has(index)) kind = "trill";
+    else if (region.short) kind = "short";
     else if (isOscillating(region)) kind = "trill";
     else if (Math.abs(drift) >= GLIDE_CENTS) kind = "slur";
     return {
@@ -100,7 +107,7 @@ export function analyse(file, { hop = 512 } = {}) {
 
   const counts = classified.reduce((tally, r) => ({ ...tally, [r.kind]: (tally[r.kind] ?? 0) + 1 }), {});
   return { file: path.basename(file), sampleRate, seconds: samples.length / sampleRate,
-           regions: classified, counts };
+           regions: classified, counts, trillRuns: runs.length };
 }
 
 /* CLI */

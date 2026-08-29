@@ -3,11 +3,11 @@
  * Everything else in this suite is synthetic, and this project's standing
  * lesson is that synthetic tones repeatedly failed to reveal what real audio
  * found in minutes -- the detector crash on breath noise, the phantom F
- * between E and F#. The trill and slur rules were reasoned out from
- * simulation, so they especially want real material.
+ * between E and F#, and the trill rule below, which was reasoned out from
+ * simulation and turned out never to fire on a real trill.
  *
- * Recordings are gitignored and nobody else has them, so every check here
- * skips when its file is absent rather than failing. Capture them with
+ * Recordings are gitignored and nobody else has them, so every check skips
+ * when its file is absent rather than failing. Capture them with
  * `python -m flutetrainer.tools.record --take trills`. */
 
 import { test } from "node:test";
@@ -22,49 +22,48 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const recording = (name) => path.join(root, "recordings", name);
 const have = (name) => fs.existsSync(recording(name));
 
-/* Sustained notes: the false-positive side. Neither ornament rule may fire on
- * plain playing, or every clean note would be thrown away as a trill. */
+/* Plain playing: the false-positive side. No ornament rule may fire here, or
+ * ordinary notes would be thrown away. */
 test("long tones are measured, and are neither trills nor slurs", { skip: !have("longtones.wav") }, () => {
   const report = analyse(recording("longtones.wav"));
   assert.ok(report.counts.note >= 12, `notes measured: ${report.counts.note}`);
-  assert.equal(report.counts.trill ?? 0, 0, "a held note is not a trill");
-  assert.equal(report.counts.slur ?? 0, 0, "a held note is not a slur");
-  const measured = report.regions.filter((r) => r.kind === "note");
-  assert.ok(measured.every((r) => r.blipShare < 0.2), "clean notes barely blip");
+  assert.equal(report.trillRuns, 0, "a held note does not alternate");
+  assert.equal(report.counts.slur ?? 0, 0);
+  assert.ok(report.regions.every((r) => r.blipShare < 0.2), "clean notes barely blip");
 });
 
 test("tongued repetitions are measured, not mistaken for ornaments",
      { skip: !have("attacks.wav") }, () => {
   const report = analyse(recording("attacks.wav"));
   assert.ok(report.counts.note >= 8, `notes measured: ${report.counts.note}`);
-  assert.equal(report.counts.trill ?? 0, 0);
+  assert.equal(report.trillRuns, 0,
+    "the same note tongued again is not an alternation: the pitch never changes");
 });
 
-/* Trills: the true-positive side. A baroque trill accelerates from slow to as
- * fast as it will go, so one gesture sweeps every alternation speed -- the
- * regime that splits into fragments and the regime that would otherwise be
- * reported as an immaculate sustained note. */
-test("recorded trills are recognised as ornaments, not measured as notes",
-     { skip: !have("trills.wav") }, () => {
+/* Trills: the true-positive side, and the reason the rule had to change. A
+ * baroque trill accelerates from slow to as fast as it will go, so one
+ * gesture sweeps every alternation speed. Measured across five of them, the
+ * alternations ran from 0.49 s down to 0.05 s -- every one long enough to
+ * become a region of its own, which is why the blip rule never fired. */
+test("recorded trills are recognised as ornaments", { skip: !have("trills.wav") }, () => {
   const report = analyse(recording("trills.wav"));
-  const ornaments = (report.counts.trill ?? 0) + (report.counts.short ?? 0);
-  assert.ok(report.counts.trill >= 1,
-    `at least one trill recognised (trills ${report.counts.trill ?? 0}, short ${report.counts.short ?? 0})`);
-  assert.ok(ornaments >= report.counts.note ?? 0,
-    "a recording of trills should not be mostly plain notes");
-  for (const region of report.regions.filter((r) => r.kind === "trill")) {
-    assert.ok(region.blipShare >= 0.2, "flagged on blip share, as designed");
-  }
+  assert.ok(report.trillRuns >= 4, `runs found: ${report.trillRuns}`);
+  assert.ok(report.counts.trill > report.counts.note,
+    `a recording of trills is mostly trill: ${JSON.stringify(report.counts)}`);
+  // Almost nothing should be left over as unexplained fragments: before the
+  // runs were recognised this file produced 112 too-short regions.
+  assert.ok((report.counts.short ?? 0) <= 10,
+    `few unexplained fragments: ${report.counts.short ?? 0}`);
 });
 
-test("a piece with ornaments still yields notes to measure",
+test("a piece keeps its notes while its ornaments are set aside",
      { skip: !have("piece.wav") }, () => {
   const report = analyse(recording("piece.wav"));
-  assert.ok(report.counts.note >= 5,
-    `real music must still be measurable: ${JSON.stringify(report.counts)}`);
-  // Slurs and trills are expected here; what would be wrong is everything
-  // being swallowed by one of them.
-  const total = report.regions.length;
-  assert.ok((report.counts.trill ?? 0) < total * 0.8, "not everything is a trill");
-  assert.ok((report.counts.slur ?? 0) < total * 0.8, "not everything is a slur");
+  assert.ok(report.trillRuns >= 5, `ornaments found: ${report.trillRuns}`);
+  assert.ok(report.counts.note >= 50,
+    `the music itself survives: ${JSON.stringify(report.counts)}`);
+  // The scales and plain notes must outnumber what is set aside, or the rule
+  // is eating the piece rather than its ornaments.
+  assert.ok(report.counts.note > (report.counts.short ?? 0) + (report.counts.slur ?? 0),
+    "measured notes outnumber the leftovers");
 });
