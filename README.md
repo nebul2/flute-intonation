@@ -202,7 +202,13 @@ a trailing median: a trailing reference slides along with a slur, so two
 slurred notes were absorbed into one region whose median landed between
 them, and a G major prelude with no F naturals reported a steady stream of
 them, F being exactly the midpoint of E–F♯. Regions whose pitch is still
-travelling after the attack trim are counted as slurs and not measured. A
+travelling after the attack trim are counted as slurs and not measured, and
+regions whose pitch keeps leaving and returning are counted as trills. That
+second test cannot be the drift one — a trill oscillates rather than travels,
+so its drift is zero — and matters because a trill whose upper note is
+shorter than the confirmation a new note needs has those frames discarded
+one by one and would otherwise be reported as an immaculate sustained note
+on the lower pitch. The give-away is how many frames a region threw away. A
 per-note table fills in as you play (`docs/core/stats.js`): occurrences, mean
 and min…max deviation, within-note stability, time held, mean level, whether
 the note goes sharp or flat when louder (a fit across occurrences, reported

@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
+import { RegionTracker, driftCents, isOscillating, GLIDE_CENTS } from "../audio/regions.js";
 import { dronePartialsToNotch } from "../audio/engine.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
 import * as attackModule from "../core/scoring.js";
@@ -210,4 +210,56 @@ test("a trailing reference could not have split the slur; the anchor can", () =>
   assert.ok(Math.max(...trailingGaps) < 70, "a trailing reference never diverges enough");
   const anchorGaps = glide.map((hz) => Math.abs(cents(glide[0], hz)));
   assert.ok(Math.max(...anchorGaps) > 70, "an anchor does");
+});
+
+/* ---- a trill is not a note either -------------------------------------- */
+
+function trill(upFrames, cycles = 8, lower = E5, upper = FS5) {
+  const tr = new RegionTracker({ frameSeconds: FS });
+  const closed = [];
+  for (let c = 0; c < cycles; c++) {
+    for (let i = 0; i < 5; i++) { const r = tr.push(voiced(lower)); if (r) closed.push(r); }
+    for (let i = 0; i < upFrames; i++) { const r = tr.push(voiced(upper)); if (r) closed.push(r); }
+  }
+  for (let i = 0; i < 6; i++) { const r = tr.push(silent()); if (r) closed.push(r); }
+  const last = tr.flush();
+  if (last) closed.push(last);
+  return closed;
+}
+
+test("a fast trill is recognised, not reported as a flawless sustained note", () => {
+  // Its upper note is shorter than the confirmation a new note needs, so the
+  // upper frames are dropped one at a time and the region looks immaculate:
+  // zero drift, tiny spread, dead on the lower pitch. Only the blip count
+  // gives it away.
+  const kept = trill(2).filter((r) => !r.short);
+  assert.equal(kept.length, 1, "it survives as one long region");
+  const region = kept[0];
+  assert.ok(Math.abs(cents(E5, region.medianHz)) < 5, "sitting exactly on the lower note");
+  assert.ok(Math.abs(driftCents(region.framesHz)) < GLIDE_CENTS, "drift cannot catch it");
+  assert.ok(region.blips >= 3, `blips counted (${region.blips})`);
+  assert.equal(isOscillating(region), true);
+});
+
+test("a slow trill breaks into fragments too short to measure", () => {
+  const regions = trill(5);
+  assert.ok(regions.length > 4, "it splits");
+  assert.equal(regions.filter((r) => !r.short).length, 0, "nothing long enough to report");
+});
+
+test("a sustained note with the odd octave error is not called a trill", () => {
+  const tr = new RegionTracker({ frameSeconds: FS });
+  for (let i = 0; i < 120; i++) tr.push(voiced(i === 40 || i === 90 ? E5 * 2 : E5));
+  const region = tr.flush();
+  assert.ok(region.blips <= 2, `few blips (${region.blips})`);
+  assert.equal(isOscillating(region), false);
+  assert.ok(Math.abs(cents(E5, region.medianHz)) < 1);
+});
+
+test("vibrato is not a trill: it stays inside the split window", () => {
+  const tr = new RegionTracker({ frameSeconds: FS });
+  for (let i = 0; i < 80; i++) tr.push(voiced(E5 * Math.pow(2, 30 * Math.sin(i / 2) / 1200)));
+  const region = tr.flush();
+  assert.equal(isOscillating(region), false, `blips ${region.blips}`);
+  assert.ok(Math.abs(driftCents(region.framesHz)) < GLIDE_CENTS);
 });

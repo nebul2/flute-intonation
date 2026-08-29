@@ -19,7 +19,7 @@ import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
-import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
+import { RegionTracker, driftCents, isOscillating, GLIDE_CENTS } from "../audio/regions.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows, standouts } from "../core/stats.js";
 import { postAttack } from "../core/scoring.js";
@@ -91,7 +91,7 @@ export default {
       candidates: tunerCandidates(tuning),
       phase: "tonic", tonicSegs: [], label: this.label ? this.label.value : "",
       tracker: new RegionTracker({ frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100 }),
-      notes: [], shortCount: 0, glideCount: 0, lastVoiced: null,
+      notes: [], shortCount: 0, glideCount: 0, trillCount: 0, lastVoiced: null,
     };
     const run = this.run;
     const root = this.root;
@@ -200,6 +200,9 @@ export default {
   addRegion(region) {
     const run = this.run;
     if (region.short) { run.shortCount += 1; return; }
+    // A pitch that keeps leaving and returning is a trill, and a trilled note
+    // has no single tuning to report.
+    if (isOscillating(region)) { run.trillCount += 1; return; }
     const note = this.score(region);
     // A pitch still on its way somewhere is not a note. Measured after the
     // attack trim, so a scooped start is not mistaken for a slur.
@@ -383,6 +386,7 @@ export default {
     }
     if (run.shortCount) parts.push(el("p", { class: "muted", text: t("listen.short", run.shortCount) }));
     if (run.glideCount) parts.push(el("p", { class: "muted", text: t("listen.glides", run.glideCount) }));
+    if (run.trillCount) parts.push(el("p", { class: "muted", text: t("listen.trills", run.trillCount) }));
     u.summary.replaceChildren(...parts);
 
     if (run.notes.length) {
@@ -410,6 +414,7 @@ export default {
         })(),
         short_notes: run.shortCount,
         glides: run.glideCount,
+        trills: run.trillCount,
       };
       try { await history.add(record); u.summary.append(el("p", { class: "muted", text: t("practice.saved") })); }
       catch (_e) { /* storage unavailable */ }

@@ -19,7 +19,15 @@
  * whose median lands between them: playing E to F# in a G major prelude
  * produced a steady stream of F naturals, F being exactly the midpoint of
  * that whole tone. An anchor cannot be dragged, so a glide diverges from it
- * and splits. */
+ * and splits.
+ *
+ * A region also counts the frames it threw away as blips. One or two are an
+ * octave error or a dropout; a steady stream of them means the pitch kept
+ * leaving and returning, which is a trill. That matters because a fast trill
+ * -- one whose upper note lasts fewer frames than it takes to confirm a new
+ * note -- otherwise has its upper notes discarded one by one and is reported
+ * as an immaculate sustained note on the lower one. The drift test cannot
+ * catch it: a trill oscillates rather than travels, so its drift is zero. */
 
 import { centsBetween } from "../core/pitch.js";
 
@@ -32,6 +40,20 @@ const ANCHOR_FRAMES = 8;
  * vibrato oscillates rather than drifts, so this catches slurs without
  * catching playing. */
 export const GLIDE_CENTS = 60.0;
+
+/* Share of a region's frames that may be blips before it is an oscillation
+ * rather than a note, and the fewest blips worth judging on. A fast trill
+ * spends a quarter of its frames on the upper note; a sustained note blips
+ * about one frame in a hundred. */
+export const TRILL_BLIP_RATIO = 0.2;
+export const TRILL_MIN_BLIPS = 3;
+
+/* Did the pitch keep leaving and returning? A trill or a shake, not a note. */
+export function isOscillating(region, { ratio = TRILL_BLIP_RATIO, minBlips = TRILL_MIN_BLIPS } = {}) {
+  const blips = region?.blips ?? 0;
+  if (blips < minBlips) return false;
+  return blips / (blips + region.framesHz.length) >= ratio;
+}
 
 /* Cents from the start of a run of frames to its end, by thirds, so a single
  * stray frame at either end cannot masquerade as drift. */
@@ -63,7 +85,7 @@ export class RegionTracker {
     if (hz > 0) {
       this.gap = 0;
       if (!this.current) {
-        this.current = { framesHz: [hz], framesDb: [db], startIndex: i };
+        this.current = { framesHz: [hz], framesDb: [db], startIndex: i, blips: 0 };
         return null;
       }
       const anchor = [...this.current.framesHz.slice(0, ANCHOR_FRAMES)].sort((a, b) => a - b);
@@ -76,13 +98,17 @@ export class RegionTracker {
             framesHz: this.pending.map((p) => p.hz),
             framesDb: this.pending.map((p) => p.db),
             startIndex: i - this.pending.length + 1,
+            blips: 0,
           };
           this.pending = [];
           return closed;
         }
         return null;
       }
-      this.pending = [];                 // a blip, not a note change
+      // A blip, not a note change: the frames are dropped, but counted, so
+      // a note that keeps blipping can be recognised as a trill later.
+      this.current.blips += this.pending.length;
+      this.pending = [];
       this.current.framesHz.push(hz);
       this.current.framesDb.push(db);
       return null;
@@ -111,6 +137,7 @@ export class RegionTracker {
       startIndex: region.startIndex,
       seconds,
       medianHz: sorted[sorted.length >> 1],
+      blips: region.blips ?? 0,
       meanDb,
       short: seconds < this.minSeconds,
     };
