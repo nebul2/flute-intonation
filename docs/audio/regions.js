@@ -85,6 +85,11 @@ export const TRILL_RETURN_CENTS = 60;        // how nearly it must come back
 /* A trill's closing note is longer than its alternations and is a real note:
  * trailing regions this much longer than the run's median are left out. */
 export const TRILL_TAIL_RATIO = 2.5;
+/* How far the substituted note may sit from the written one when a trill
+ * changes fingering mid-way. The substitution is a neighbouring note -- C for
+ * C#, F for F# -- so a semitone with margin. Wider than this and the two
+ * chains are separate events that merely touch. */
+export const TRILL_SUBSTITUTION_CENTS = 150;
 
 /* Index ranges [start, end) of regions that alternate. Regions need only
 * {atSeconds, seconds, medianHz}. */
@@ -92,29 +97,26 @@ export function alternationRuns(regions, {
   minRun = TRILL_MIN_RUN, maxGap = TRILL_MAX_GAP_SECONDS,
   maxNote = TRILL_MAX_NOTE_SECONDS, stepMin = TRILL_STEP_MIN_CENTS,
   stepMax = TRILL_STEP_MAX_CENTS, returnCents = TRILL_RETURN_CENTS,
-  tailRatio = TRILL_TAIL_RATIO,
+  tailRatio = TRILL_TAIL_RATIO, substitutionCents = TRILL_SUBSTITUTION_CENTS,
 } = {}) {
-  const runs = [];
-  let chain = [];
+  const median = (xs) => { const o = [...xs].sort((a, b) => a - b); return o[o.length >> 1]; };
 
-  const close = () => {
-    let members = chain;
-    // Drop a closing note far longer than the alternations: that is the
-    // resolution, and it is worth measuring.
-    while (members.length > minRun) {
-      const durations = members.map((i) => regions[i].seconds).sort((a, b) => a - b);
-      const median = durations[durations.length >> 1];
-      const last = regions[members[members.length - 1]].seconds;
-      if (last <= median * tailRatio) break;
-      members = members.slice(0, -1);
-    }
-    if (members.length >= minRun) runs.push({ start: members[0], end: members[members.length - 1] + 1 });
-    chain = [];
+  /* The one or two pitches a chain alternates between. */
+  const poles = (members) => {
+    const pitches = members.map((i) => regions[i].medianHz);
+    const near = pitches.filter((hz) => Math.abs(centsBetween(pitches[0], hz)) <= returnCents);
+    const far = pitches.filter((hz) => Math.abs(centsBetween(pitches[0], hz)) > returnCents);
+    return far.length ? [median(near), median(far)] : [median(near)];
   };
+
+  /* ---- 1. chains of strict alternation ------------------------------- */
+  const chains = [];
+  let chain = [];
+  const closeChain = () => { if (chain.length >= 2) chains.push(chain); chain = []; };
 
   for (let i = 0; i < regions.length; i++) {
     const region = regions[i];
-    if (!(region.seconds <= maxNote) || !(region.medianHz > 0)) { close(); continue; }
+    if (!(region.seconds <= maxNote) || !(region.medianHz > 0)) { closeChain(); continue; }
     if (!chain.length) { chain = [i]; continue; }
 
     const previous = regions[chain[chain.length - 1]];
@@ -125,9 +127,61 @@ export function alternationRuns(regions, {
       || Math.abs(centsBetween(twoBack.medianHz, region.medianHz)) <= returnCents;
 
     if (gap <= maxGap && step >= stepMin && step <= stepMax && returns) chain.push(i);
-    else { close(); chain = [i]; }
+    else { closeChain(); chain = [i]; }
   }
-  close();
+  closeChain();
+
+  /* ---- 2. join chains across a change of fingering -------------------
+   * A baroque trill often changes its upper note partway through, because
+   * the written auxiliary is awkward and its neighbour is not: a trill on B
+   * begins C-B-C-B and continues C#-B-C#-B, and one on E becomes E-F#. The
+   * upper pole steps by a semitone, which breaks strict alternation, so the
+   * opening alternations were being left behind and measured as notes -- a
+   * phantom C reported as if it had been meant.
+   *
+   * The join is deliberately narrow: both sides must be two-pole
+   * alternations, one pole must be held in common, and the two odd poles must
+   * be a substitution apart. Merely sharing a pitch is not enough -- tried on
+   * a recorded prelude that swallowed a fifth of its notes, joining trills to
+   * whatever happened to touch them. */
+  const substitutes = (previous, current) => {
+    const a = poles(previous), b = poles(current);
+    if (a.length !== 2 || b.length !== 2) return false;
+    for (const [keptA, movedA] of [[a[0], a[1]], [a[1], a[0]]]) {
+      for (const [keptB, movedB] of [[b[0], b[1]], [b[1], b[0]]]) {
+        if (Math.abs(centsBetween(keptA, keptB)) <= returnCents
+            && Math.abs(centsBetween(movedA, movedB)) <= substitutionCents) return true;
+      }
+    }
+    return false;
+  };
+
+  const joined = [];
+  for (const current of chains) {
+    const previous = joined[joined.length - 1];
+    if (previous) {
+      const before = regions[previous[previous.length - 1]];
+      const after = regions[current[0]];
+      const contiguous = after.atSeconds - (before.atSeconds + before.seconds) <= maxGap;
+      if (contiguous && substitutes(previous, current)) {
+        joined[joined.length - 1] = previous.concat(current);
+        continue;
+      }
+    }
+    joined.push(current);
+  }
+
+  /* ---- 3. drop a held closing note, then keep the long enough --------- */
+  const runs = [];
+  for (let members of joined) {
+    while (members.length > minRun) {
+      const durations = members.map((i) => regions[i].seconds);
+      const last = regions[members[members.length - 1]].seconds;
+      if (last <= median(durations) * tailRatio) break;
+      members = members.slice(0, -1);
+    }
+    if (members.length >= minRun) runs.push({ start: members[0], end: members[members.length - 1] + 1 });
+  }
   return runs;
 }
 

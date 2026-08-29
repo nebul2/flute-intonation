@@ -311,3 +311,50 @@ test("too few alternations are left alone", () => {
   const regions = [415, 466, 415].map((hz, i) => region(i * 0.12, 0.12, hz));
   assert.deepEqual(alternationRuns(regions), []);
 });
+
+/* ---- a trill that changes fingering part-way --------------------------- */
+
+/* On a one-keyed flute the written auxiliary is often unplayable at speed, so
+ * the player substitutes its neighbour: a trill on B starts C-B-C-B and
+ * continues C#-B-C#-B, and one on E becomes E-F#. The upper pole steps by a
+ * semitone, which strict alternation cannot follow. */
+const B4 = 465.9, C5 = 493.5, CS5 = 522.9;   // F5 and FS5 are declared above
+
+const evenly = (pitches, seconds = 0.12) => {
+  let at = 0;
+  return pitches.map((hz) => { const r = region(at, seconds, hz); at += seconds; return r; });
+};
+const covered = (regions) => {
+  const seen = new Set();
+  for (const { start, end } of alternationRuns(regions)) for (let i = start; i < end; i++) seen.add(i);
+  return seen;
+};
+
+test("a trill that swaps C for C# stays one ornament, losing no alternations", () => {
+  // The damaging case is a single written-auxiliary alternation before the
+  // swap: too short to be a run of its own, it was measured as a phantom C.
+  const regions = evenly([C5, B4, CS5, B4, CS5, B4, CS5, B4]);
+  assert.equal(alternationRuns(regions).length, 1);
+  assert.equal(covered(regions).size, regions.length, "nothing left over to be measured");
+});
+
+test("the same for E, whose F becomes F#", () => {
+  const regions = evenly([F5, E5, F5, E5, FS5, E5, FS5, E5, FS5, E5]);
+  assert.equal(alternationRuns(regions).length, 1);
+  assert.equal(covered(regions).size, regions.length);
+});
+
+test("sharing a pitch is not enough to join two ornaments", () => {
+  // Tried loosely, this swallowed a fifth of a recorded prelude by joining
+  // trills to whatever touched them. Both sides must alternate, one pole must
+  // be held, and the odd poles must be a substitution apart.
+  const trillThenLeap = evenly([415, 466, 415, 466, 415, 466, 932, 880, 932, 880]);
+  assert.equal(alternationRuns(trillThenLeap).length, 2, "two ornaments, not one");
+
+  // A trill whose neighbour shares its lower note but leaps above: no join.
+  const trillThenFar = evenly([372, 420, 372, 420, 372, 420, 468, 420, 468, 420]);
+  const runs = alternationRuns(trillThenFar);
+  assert.ok(runs.length >= 1);
+  assert.ok(runs.every((r) => r.end - r.start < trillThenFar.length),
+    "a fourth away is a different figure, not a change of fingering");
+});

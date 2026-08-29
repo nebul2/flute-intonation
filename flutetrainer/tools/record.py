@@ -122,6 +122,14 @@ TAKES: tuple[Take, ...] = (
         "  which is exactly what the segmenter needs to be tested against.",
     ),
     Take(
+        "trillfingering", 45.0,
+        "Trills whose fingering changes as they speed up. The written\n"
+        "  auxiliary is unplayable fast, so it gives way to its neighbour:\n"
+        "  a trill on B starts do-si-do-si and continues do#-si-do#-si, and\n"
+        "  one on E turns its fa into fa#. Play each slow, then let it\n"
+        "  accelerate until the substitution takes over, several times.",
+    ),
+    Take(
         "piece", 90.0,
         "A short piece with trills in place -- a prelude, or a few phrases.\n"
         "  Play it as you would perform it, ornaments and all. This is the\n"

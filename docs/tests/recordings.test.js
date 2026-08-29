@@ -56,6 +56,21 @@ test("recorded trills are recognised as ornaments", { skip: !have("trills.wav") 
     `few unexplained fragments: ${report.counts.short ?? 0}`);
 });
 
+/* A trill whose fingering changes part-way: the written auxiliary gives way
+ * to its neighbour, so the upper pole steps by a semitone mid-ornament. */
+test("a trill that changes fingering stays one ornament",
+     { skip: !have("trillfingering.wav") }, () => {
+  const report = analyse(recording("trillfingering.wav"));
+  assert.ok(report.trillRuns >= 2, `ornaments found: ${report.trillRuns}`);
+  assert.ok(report.counts.trill > report.counts.note,
+    `mostly ornament: ${JSON.stringify(report.counts)}`);
+  // The point of the join: no stray alternation left behind as a note. The
+  // written auxiliary sounded once or twice before the swap and must not be
+  // reported as something the player meant.
+  assert.ok((report.counts.note ?? 0) <= report.trillRuns * 3,
+    `few leftovers: ${report.counts.note} notes for ${report.trillRuns} ornaments`);
+});
+
 test("a piece keeps its notes while its ornaments are set aside",
      { skip: !have("piece.wav") }, () => {
   const report = analyse(recording("piece.wav"));

@@ -213,7 +213,13 @@ shower of too-short ones. Measured across those trills the alternations ran
 from 0.49 s down to 0.05 s. Recognising the run instead finds all five, and
 ten in a recorded prelude, while leaving 85 of its 116 notes to be measured;
 long tones and tongued repetitions yield none. A trill's held closing note
-is left out of the run, being a real note.
+is left out of the run, being a real note. Two runs are joined when a trill
+changes fingering part-way — on a one-keyed flute the written auxiliary is
+often unplayable at speed, so a trill on B starts C–B–C–B and continues
+C♯–B–C♯–B, and one on E turns its F into F♯ — but only when both sides
+alternate, one pole is held in common, and the odd poles are a semitone
+apart. Joining on a shared pitch alone swallowed a fifth of the recorded
+prelude's notes.
 Both rules were reasoned out from simulation, so `docs/tests/wavpipe.js`
 runs the shipped detector and region tracker over a recorded WAV and
 classifies every region exactly as the app does — real audio has
