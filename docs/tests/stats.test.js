@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { SpelledPitch } from "../core/pitch.js";
 import {
   linearFit, withinNoteVolumeLink, volumeVerdict, aggregate, rowsToRecord,
-  sessionScore, scorableRows, standouts, STANDOUT_CENTS, MAX_STANDOUTS,
+  sessionScore, scorableRows, standouts, offsetAction, STANDOUT_CENTS, MAX_STANDOUTS,
   VOLUME_MIN_NOTES, VOLUME_MIN_DB_RANGE,
 } from "../core/stats.js";
 
@@ -232,4 +232,15 @@ test("standouts and the by-note table quote the same number", () => {
   const { list } = standouts(notes);
   assert.equal(list.length, 3);
   for (const s of list) approx(s.mean, 20, 1e-9);
+});
+
+test("a sharp session is told to pull out, a flat one to push in", () => {
+  // Pushing the headjoint in shortens the tube and raises the pitch, so the
+  // instinctive "push it home" is exactly backwards for a sharp session --
+  // which is what the summary used to say, whichever way the error went.
+  assert.equal(offsetAction(7.6), "pullOut");
+  assert.equal(offsetAction(-7.6), "pushIn");
+  assert.equal(offsetAction(0.4), null, "too small to be worth touching");
+  assert.equal(offsetAction(-0.4), null);
+  assert.equal(offsetAction(NaN), null);
 });

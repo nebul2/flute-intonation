@@ -187,6 +187,17 @@ export function standouts(notes, { threshold = STANDOUT_CENTS, limit = MAX_STAND
   };
 }
 
+/* Which way to move the headjoint for a uniform pitch error. Pushing it in
+ * shortens the air column and raises the pitch, so a sharp session needs
+ * pulling OUT -- the opposite of the instinct to 'push it home', and a
+ * direction worth a test of its own, since advice that is confidently
+ * backwards is worse than no advice. Null when the offset is too small to
+ * be worth touching. */
+export function offsetAction(offsetCents, deadband = 1.0) {
+  if (!Number.isFinite(offsetCents) || Math.abs(offsetCents) < deadband) return null;
+  return offsetCents > 0 ? 'pullOut' : 'pushIn';
+}
+
 /* Aggregate rows in the shape sessionScore wants. */
 export function scorableRows(rows) {
   return rows.map((row) => ({

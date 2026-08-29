@@ -21,7 +21,7 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker, driftCents, isOscillating, GLIDE_CENTS } from "../audio/regions.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
-import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows, standouts } from "../core/stats.js";
+import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows, standouts, offsetAction } from "../core/stats.js";
 import { postAttack } from "../core/scoring.js";
 import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
 
@@ -340,11 +340,13 @@ export default {
 
       // Say how much of the error is one uniform shift: that part is the
       // headjoint's business, and correcting it costs nothing musical.
-      parts.push(el("p", { class: "muted", text: Math.abs(score.offset) < 1
+      const action = offsetAction(score.offset);
+      parts.push(el("p", { class: "muted", text: action === null
         ? t("listen.score.centred")
         : t("listen.score.offset",
              `${Math.abs(score.offset).toFixed(1)}`,
              t(score.offset > 0 ? "listen.score.sharp" : "listen.score.flat"),
+             t(`listen.score.${action}`),
              score.relative.toFixed(1)) }));
       parts.push(el("p", { class: "muted small", text: t("listen.score.notSubtraction") }));
       // Name the notes that are actually out of tune. When none clears that
