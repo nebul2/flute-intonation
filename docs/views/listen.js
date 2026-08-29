@@ -20,11 +20,17 @@ import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker } from "../audio/regions.js";
+import { NoteSegmenter } from "../audio/segmenter.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink } from "../core/stats.js";
 import { el, audioControl, labelField, needle, levelBar, bandClass, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
-const TONIC_FRAMES = 40;          // ~0.45 s of the tonic to begin
+/* How long the tonic must be held to begin. Collected by the same state
+ * machine the exercises use, so a brief dropout costs progress rather than
+ * resetting it: counting *consecutive* frames meant one bad frame in forty
+ * sent the count back to zero, which a clean Mac microphone hid and an iPad
+ * did not. */
+const TONIC_SECONDS = 0.45;
 const UNSTABLE_CENTS = 8.0;
 
 const fmt = (c, digits = 1) => `${c >= 0 ? "+" : ""}${c.toFixed(digits)}`;
@@ -82,7 +88,7 @@ export default {
       pure: new PureIntervalTuning(tuning),
       context: new HarmonicContext(tonicPitch),
       candidates: tunerCandidates(tuning),
-      phase: "tonic", tonicRun: 0, label: this.label ? this.label.value : "",
+      phase: "tonic", tonicSegs: [], label: this.label ? this.label.value : "",
       tracker: new RegionTracker({ frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100 }),
       notes: [], shortCount: 0, lastVoiced: null,
     };
@@ -106,6 +112,7 @@ export default {
         extras: [logToggle],
       }),
       note: el("div", { class: "big-note", text: "—" }),
+      progress: el("div", { class: "progress" }, [el("div", { class: "progress-fill" })]),
       readout: el("div", { class: "readout" }, [el("span"), el("span")]),
       gauge: needle(), level: levelBar(),
       table: el("div", { class: "stats scroll" }),
@@ -113,7 +120,15 @@ export default {
       summary: el("div", { class: "summary" }),
     };
     const u = this.ui;
-    u.panel = el("div", { class: "card panel" }, [u.note, u.readout, u.gauge.element, u.level.element]);
+    u.panel = el("div", { class: "card panel" }, [u.note, u.readout, u.progress, u.gauge.element, u.level.element]);
+
+    // The tonic may be played in any octave the flute has it in; whichever
+    // lands first opens the session.
+    const frameSeconds = engine.detector ? engine.detector.frameSeconds : 512 / 44100;
+    run.tonicSegs = run.candidates
+      .filter((c) => c.pitch.letter === tonicPitch.letter && c.pitch.alter === tonicPitch.alter
+                     && c.pitch.octave >= 4 && c.pitch.octave <= 6)
+      .map((c) => new NoteSegmenter({ targetHz: c.hz, frameSeconds, requiredSeconds: TONIC_SECONDS }));
     root.append(u.status, u.nav.top, u.panel, u.table, u.summary, u.rows, u.nav.bottom);
     this.renderTable();
 
@@ -128,16 +143,14 @@ export default {
     if (frame.hz > 0) run.lastVoiced = frame;
 
     if (run.phase === "tonic") {
-      if (frame.hz > 0) {
-        const near = nearestCandidate(run.candidates, frame.hz);
-        const isTonic = near.pitch.letter === run.tonicPitch.letter && near.pitch.alter === run.tonicPitch.alter;
-        run.tonicRun = isTonic ? run.tonicRun + 1 : 0;
-        if (run.tonicRun >= TONIC_FRAMES) {
+      for (const seg of run.tonicSegs) {
+        seg.push(frame.hz, frame.levelDb);
+        if (seg.complete) {
           run.phase = "free";
+          this.ui.progress.hidden = true;
           this.ui.status.textContent = t("listen.tonicHeard");
+          break;
         }
-      } else {
-        run.tonicRun = 0;
       }
       return;
     }
@@ -253,9 +266,16 @@ export default {
       u.gauge.set(near.cents);
     } else {
       u.note.textContent = "—";
-      u.readout.children[0].textContent = run.phase === "tonic" ? "" : t("listen.playing");
+      // Say something during the tonic phase too: a blank panel while the
+      // gate refuses to lock is indistinguishable from a dead microphone.
+      u.readout.children[0].textContent = t("listen.playing");
       u.readout.children[1].textContent = "";
       u.gauge.set(null);
+    }
+    if (run.phase === "tonic") {
+      const best = run.tonicSegs.reduce((most, seg) =>
+        Math.max(most, seg.elapsedSeconds / seg.requiredSeconds), 0);
+      u.progress.firstChild.style.width = `${Math.min(1, best) * 100}%`;
     }
     requestAnimationFrame(() => this.render());
   },
@@ -274,6 +294,7 @@ export default {
     u.readout.children[1].textContent = "";
     u.gauge.element.hidden = true;
     u.level.element.hidden = true;
+    u.progress.hidden = true;
     u.panel.classList.add("finished");
     u.status.textContent = t("practice.done");
     u.nav.finish();

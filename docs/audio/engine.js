@@ -17,6 +17,16 @@ import { Detector } from "./yin.js";
 
 const STATES = ["idle", "starting", "listening", "refused", "error"];
 
+/* An input stream does not deliver usable audio immediately: measured on
+ * macOS, CoreAudio ramps through roughly 150 ms of nonsense (down to -175
+ * dBFS and back) before settling, and iOS takes longer still. Feeding that to
+ * the detector pollutes its median history exactly when a section is trying
+ * to lock on to a first note. The Python capture tool has always discarded
+ * this; the web engine did not, which showed up as Listen to me taking a long
+ * time to start on an iPad. Doubling the measured macOS figure leaves margin
+ * without a delay anyone notices. */
+const WARMUP_SECONDS = 0.3;
+
 // Notch width is f/Q: at Q = 25 a notch on D4 (277 Hz) is ~11 Hz (~70 cents)
 // wide, narrower than the 80-cent acceptance window that decides whether a
 // notch may be engaged at all.
@@ -172,7 +182,16 @@ class Engine {
       this.notches[0].connect(this.notches[1]);
       this.notches[1].connect(this.notches[2]);
       this.notches[2].connect(capture);
+      const warmupFrames = Math.ceil(WARMUP_SECONDS * this.context.sampleRate / this.detector.hop);
+      let warmed = 0;
       capture.port.onmessage = (event) => {
+        if (warmed < warmupFrames) {
+          warmed += 1;
+          // Start clean once the stream has settled: the buffer and median
+          // history must not carry the transient into the first real frame.
+          if (warmed === warmupFrames) this.detector.reset();
+          return;
+        }
         const frame = this.detector.process(event.data);
         frame.t = performance.now();
         this.lastFrame = frame;

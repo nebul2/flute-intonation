@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 
 import { RegionTracker } from "../audio/regions.js";
 import { dronePartialsToNotch } from "../audio/engine.js";
+import { NoteSegmenter } from "../audio/segmenter.js";
 
 const FS = 512 / 44100;
 const voiced = (hz) => ({ hz, levelDb: -20 });
@@ -76,4 +77,51 @@ test("drone partials to notch: everything except the note being played", () => {
   const twelfth = dronePartialsToNotch(d4, 3 * d4);
   assert.ok(near(twelfth, d4) && near(twelfth, 2 * d4) && !near(twelfth, 3 * d4));
   assert.deepEqual(dronePartialsToNotch(null, 415), []);
+});
+
+/* ---- the tonic gate --------------------------------------------------- */
+
+const TONIC_SECONDS = 0.45;
+const tonicGate = () => new NoteSegmenter({
+  targetHz: 277.29, frameSeconds: FS, requiredSeconds: TONIC_SECONDS,
+});
+
+test("the tonic is recognised despite the odd dropped frame", () => {
+  // What an iPad actually delivers: a held note with occasional unvoiced
+  // frames. Counting *consecutive* frames -- the original gate -- never
+  // reached forty here and the session never started.
+  const gate = tonicGate();
+  let consecutive = 0, bestConsecutive = 0;
+  const needed = Math.ceil(TONIC_SECONDS / FS);
+  for (let i = 0; i < 200 && !gate.complete; i++) {
+    const dropped = i % 9 === 8;
+    gate.push(dropped ? 0 : 277.29, dropped ? -70 : -20);
+    consecutive = dropped ? 0 : consecutive + 1;
+    bestConsecutive = Math.max(bestConsecutive, consecutive);
+  }
+  assert.ok(gate.complete, "the gate opens");
+  assert.ok(bestConsecutive < needed,
+    `never ${needed} in a row (best run ${bestConsecutive}) -- the old gate would still be waiting`);
+});
+
+test("the tonic gate keeps progress across a breath, and is not opened by another note", () => {
+  const gate = tonicGate();
+  for (let i = 0; i < 20; i++) gate.push(277.29, -20);
+  const held = gate.elapsedSeconds;
+  for (let i = 0; i < 12; i++) gate.push(0, -70);        // a breath
+  assert.ok(gate.elapsedSeconds >= held, "progress survives the breath");
+  for (let i = 0; i < 40; i++) gate.push(277.29, -20);
+  assert.ok(gate.complete);
+
+  const wrong = tonicGate();
+  for (let i = 0; i < 200; i++) wrong.push(415.0, -20);  // a fifth above
+  assert.equal(wrong.complete, false, "a different note never opens the session");
+});
+
+test("the tonic is accepted in any octave the flute has it in", () => {
+  // One gate per octave; whichever fills first opens the session.
+  const gates = [277.29, 554.58, 1109.16].map((hz) =>
+    new NoteSegmenter({ targetHz: hz, frameSeconds: FS, requiredSeconds: TONIC_SECONDS }));
+  for (let i = 0; i < 60; i++) for (const g of gates) g.push(554.58, -20);
+  assert.deepEqual(gates.map((g) => g.complete), [false, true, false]);
 });
