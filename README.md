@@ -527,6 +527,14 @@ real-time is not in question.
 * Thresholds themselves are **unchanged**: 0.85 confidence and −50 dBFS both
   measured correct on this evidence.
 
+## Change requests
+
+Larger pieces of work are proposed in `cr/` before they are started.
+`cr/001-ornamentation.md` covers a guided trill exercise — the player declares
+the two notes, so detection becomes verification and the analysis window can
+shrink — and a guide to the French agréments, grouped by what the app can
+honestly measure and what it cannot.
+
 ## Next steps
 
 1. **Short notes in imported music.** Measured against real tongued onsets:
