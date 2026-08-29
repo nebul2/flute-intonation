@@ -112,19 +112,17 @@ level; it has no view of articulation. The guide can explain them and the app
 can stay quiet about whether they were done well. Saying so is better than
 inventing a score.
 
-## Naming
+## Naming — decided
 
-The web app currently answers to **Traverso**, chosen in the first hour and
-never revisited. Alternatives worth a moment, since an ornamentation guide
-changes what the thing is:
+The app is **Le Bon Goût**, tagline *le ton juste*: the French baroque ideal
+the agréments serve, paired with the thing the app measures. Chosen by the
+player, who proposed the pair; the two halves live in the name and the
+subtitle rather than in an acronym, since the initials collide with LGBT
+closely enough that every reader would see that first.
 
-- **Justesse** — what it measures, in the language the interface already uses.
-- **Le Bon Goût** — the French baroque ideal the agréments serve; fits a
-  program that teaches ornaments as well as tuning.
-- **Hotteterre** — the treatise these ornaments come from.
-
-A rename costs the icon, the page title and any link already shared, so it is
-worth deciding before the app goes further afield rather than after.
+Applied in phase 4.4. The published URL is unaffected — it derives from the
+repository name, not the app name — so links already shared keep working, and
+the icon carries no wordmark.
 
 ## Sequencing
 

@@ -9,8 +9,8 @@
 
 export const STRINGS = {
   en: {
-    "app.name": "Traverso",
-    "app.tagline": "Intonation trainer for the baroque flute",
+    "app.name": "Le Bon Goût",
+    "app.tagline": "le ton juste — intonation for the baroque flute",
     "nav.back": "Back",
     "nav.stop": "Stop",
     "nav.redo": "Redo",
@@ -326,8 +326,8 @@ export const STRINGS = {
   },
 
   fr: {
-    "app.name": "Traverso",
-    "app.tagline": "Entraîneur de justesse pour le traverso",
+    "app.name": "Le Bon Goût",
+    "app.tagline": "le ton juste — la justesse au traverso",
     "nav.back": "Retour",
     "nav.stop": "Arrêter",
     "nav.redo": "Recommencer",

@@ -10,8 +10,8 @@
  * PRECACHE must list every file the app serves. A test compares it against
  * the files on disk, so a new module cannot be forgotten. */
 
-const VERSION = "phase 3 · 2026-08-24";
-const CACHE = `traverso-${VERSION}`;
+const VERSION = "phase 4.4 · 2026-08-29";
+const CACHE = `bongout-${VERSION}`;
 
 const PRECACHE = [
   "./",

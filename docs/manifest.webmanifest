@@ -1,7 +1,7 @@
 {
-  "name": "Traverso — entraîneur de justesse",
-  "short_name": "Traverso",
-  "description": "Intonation trainer for the baroque flute: historical temperaments and pure intervals over a drone.",
+  "name": "Le Bon Goût — le ton juste",
+  "short_name": "Bon Goût",
+  "description": "Le bon goût, le ton juste: intonation for the baroque flute, in historical temperaments and pure intervals over a drone.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
