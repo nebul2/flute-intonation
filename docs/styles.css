@@ -246,3 +246,34 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .help-doc hr { border: 0; border-top: 1px solid var(--edge); }
 .headline { font-size: 1.05rem; color: var(--ink); max-width: 40rem; }
 .muted.small { font-size: 0.78rem; }
+
+/* ---- which temperament: the twelve pitch classes ---------------------- */
+
+/* A grid rather than a list: the player is filling in a chromatic octave and
+ * wants to see at a glance which ones are still missing. */
+.pc-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin: 12px 0;
+}
+@media (max-width: 380px) { .pc-grid { grid-template-columns: repeat(4, 1fr); } }
+.pc {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  padding: 8px 4px;
+  text-align: center;
+  opacity: 0.45;
+}
+.pc.heard { opacity: 1; border-color: var(--brass); }
+.pc-name { font-size: 0.85rem; color: var(--muted); }
+.pc.heard .pc-name { color: var(--ink); }
+.pc-cents {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.status { color: var(--muted); margin: 8px 0; }
+.warn { color: var(--off); }

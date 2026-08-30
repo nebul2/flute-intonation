@@ -16,10 +16,11 @@ import check from "./views/check.js";
 import listen from "./views/listen.js";
 import stopper from "./views/stopper.js";
 import sessions from "./views/sessions.js";
+import temperament from "./views/temperament.js";
 
-export const VERSION = "phase 4.5 · 2026-08-29";
+export const VERSION = "phase 4.6 · 2026-08-30";
 
-const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions };
+const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament };
 
 function $(id) { return document.getElementById(id); }
 
