@@ -103,6 +103,10 @@ export const STRINGS = {
     "compare.verdict.tooClose": (winner, runnerUp) => `${winner} scores best, but its lead over ${runnerUp} is inside the note-to-note scatter — too close to call.`,
     "compare.offsets": "Overall pitch:",
     "compare.octaves": "Octave widths",
+    "home.experimental": "experimental",
+    "temperament.experimental": "Experimental. The arithmetic is tested, but the detector has never been measured against a harpsichord or an organ — only a flute. Treat the answer as a suggestion, and check the pitch it reports against what you know the instrument to be.",
+    "practice.stopper.trueOctave": "true octave",
+    "practice.stopper.barLabel": (names, cents, direction) => `${names}: ${cents} cents ${direction}`,
     "home.card.temperament.title": "Which temperament?",
     "home.card.temperament.desc": "Play all twelve notes on a keyboard and hear back which temperament it is tuned to.",
 
@@ -439,6 +443,10 @@ export const STRINGS = {
     "compare.verdict.tooClose": (winner, runnerUp) => `${winner} obtient le meilleur score, mais son avance sur ${runnerUp} reste dans la dispersion d'une note à l'autre — trop proche pour trancher.`,
     "compare.offsets": "Hauteur d'ensemble :",
     "compare.octaves": "Largeur des octaves",
+    "home.experimental": "expérimental",
+    "temperament.experimental": "Expérimental. Le calcul est testé, mais le détecteur n'a jamais été mesuré sur un clavecin ou un orgue — seulement sur une flûte. Prends la réponse comme une suggestion, et vérifie la hauteur annoncée contre ce que tu sais de l'instrument.",
+    "practice.stopper.trueOctave": "octave juste",
+    "practice.stopper.barLabel": (names, cents, direction) => `${names} : ${cents} cents ${direction}`,
     "home.card.temperament.title": "Quel tempérament ?",
     "home.card.temperament.desc": "Joue les douze notes d'un clavier et découvre selon quel tempérament il est accordé.",
 

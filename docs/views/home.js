@@ -10,7 +10,7 @@ const SECTIONS = [
   { key: "tools", cards: [
     { route: "tuner", icon: iconTuner },
     { route: "stopper", icon: iconStopper },
-    { route: "temperament", icon: iconTemperament },
+    { route: "temperament", icon: iconTemperament, experimental: true },
     { route: "check", icon: iconCheck },
   ] },
   { key: "play", cards: [
@@ -37,9 +37,9 @@ function iconTemperament() { return svg('<path d="M4 17V7M8 17V5M12 17v-8M16 17V
 function iconSessions() { return svg('<path d="M4 6h16M4 12h16M4 18h10"/><circle cx="18.5" cy="18" r="2.5"/>'); }
 function iconListen() { return svg('<path d="M7 9a5 5 0 0110 0c0 3-3 4-3 7a2 2 0 01-4 0"/><path d="M4 12h2M18 12h2"/>'); }
 
-function card({ route, icon, soon }) {
+function card({ route, icon, soon, experimental }) {
   return el("button", {
-    class: `card${soon ? " soon" : ""}`,
+    class: `card${soon ? " soon" : ""}${experimental ? " experimental" : ""}`,
     onclick: () => navigate(route),
     "aria-label": t(`home.card.${route}.title`),
   }, [
@@ -47,6 +47,7 @@ function card({ route, icon, soon }) {
     el("div", { class: "card-title" }, [
       t(`home.card.${route}.title`),
       soon ? el("span", { class: "chip", text: t("home.soon") }) : null,
+      experimental ? el("span", { class: "chip warn-chip", text: t("home.experimental") }) : null,
     ]),
     el("div", { class: "card-desc", text: t(`home.card.${route}.desc`) }),
   ]);

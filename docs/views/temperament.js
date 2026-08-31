@@ -164,6 +164,7 @@ export default {
     });
 
     append(root,
+      el("p", { class: "note-box warn", text: t("temperament.experimental") }),
       el("p", { class: "intro", text: t("temperament.intro") }),
       el("p", { class: "muted small", text: t("temperament.how", ref) }),
       control,

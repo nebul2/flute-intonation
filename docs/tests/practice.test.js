@@ -254,3 +254,61 @@ test("pickDifferent stays in the pool and never repeats the previous note", () =
     previous = next;
   }
 });
+
+/* ---- the stopper check, drawn ---------------------------------------- */
+
+import { octaveBarGeometry, BAR_SPAN_CENTS, BAR_TRUE_CENTS } from "../core/scoring.js";
+
+test("a true octave sits at the centre of its track", () => {
+  const g = octaveBarGeometry(0);
+  approx(g.percent, 50, 1e-9, "dead centre");
+  assert.equal(g.beyond, false);
+});
+
+test("wide goes right, narrow goes left, symmetrically", () => {
+  // The direction has to be unambiguous: it is what tells the player which way
+  // to move the stopper, and the two mistakes are mirror images of each other.
+  const wide = octaveBarGeometry(20);
+  const narrow = octaveBarGeometry(-20);
+  assert.ok(wide.percent > 50, `wide at ${wide.percent}%`);
+  assert.ok(narrow.percent < 50, `narrow at ${narrow.percent}%`);
+  approx(wide.percent - 50, 50 - narrow.percent, 1e-9, "mirrored about true");
+  approx(wide.percent, 75, 1e-9, "half the half-span is a quarter of the track");
+});
+
+test("the ends of the scale are the ends of the track", () => {
+  approx(octaveBarGeometry(BAR_SPAN_CENTS).percent, 100, 1e-9);
+  approx(octaveBarGeometry(-BAR_SPAN_CENTS).percent, 0, 1e-9);
+  assert.equal(octaveBarGeometry(BAR_SPAN_CENTS).beyond, false, "exactly at the end is not beyond it");
+});
+
+test("beyond the scale is pinned and flagged, never drawn as a near miss", () => {
+  // The figure is always shown next to the mark, but the mark must not be able
+  // to imply a smaller error than there is.
+  for (const width of [BAR_SPAN_CENTS + 0.1, 90, 400]) {
+    const g = octaveBarGeometry(width);
+    assert.equal(g.beyond, true, `${width} cents is off the scale`);
+    approx(g.percent, 100, 1e-9, "pinned to the end");
+    approx(g.clamped, BAR_SPAN_CENTS, 1e-9);
+  }
+  const narrow = octaveBarGeometry(-120);
+  assert.equal(narrow.beyond, true);
+  approx(narrow.percent, 0, 1e-9);
+});
+
+test("the scale is fixed, so two runs can be compared by eye", () => {
+  // Not a tautology: fitting the scale to the data is the obvious thing to do
+  // and would silently break the one comparison this tool exists to support --
+  // did the last move of the stopper help?
+  const before = [30, -12, 18, -25].map((c) => octaveBarGeometry(c).percent);
+  const after = [6, -3, 4, -5].map((c) => octaveBarGeometry(c).percent);
+  const spread = (xs) => Math.max(...xs) - Math.min(...xs);
+  assert.ok(spread(after) < spread(before) / 2,
+    `an improved run must visibly draw tighter: ${spread(before).toFixed(1)} -> ${spread(after).toFixed(1)}`);
+});
+
+test("the shaded centre zone is inside the scale and worth having", () => {
+  assert.ok(BAR_TRUE_CENTS > 0 && BAR_TRUE_CENTS < BAR_SPAN_CENTS);
+  const g = octaveBarGeometry(BAR_TRUE_CENTS);
+  assert.ok(g.percent > 50 && g.percent < 60, `five cents is a small nudge: ${g.percent}%`);
+});

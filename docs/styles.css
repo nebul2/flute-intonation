@@ -277,3 +277,86 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 }
 .status { color: var(--muted); margin: 8px 0; }
 .warn { color: var(--off); }
+
+/* ---- stopper check: the four octaves, drawn --------------------------- */
+
+.octaves { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 14px; }
+.octaves-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  /* Align the scale with the tracks, not with the row that contains them. */
+  margin-left: 5.2rem;
+  margin-right: 3.6rem;
+}
+.octaves-scale-mid { color: var(--ink); }
+
+.octave-row { display: flex; align-items: center; gap: 0.6rem; }
+.octave-name {
+  flex: 0 0 4.6rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* The octave itself: centre is a true 2:1, right is wide, left is narrow. */
+.octave-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 16px;
+  min-width: 90px;
+  background: var(--edge);
+  border-radius: 8px;
+}
+/* Within five cents of true -- as good as the stopper can be judged. */
+.octave-true {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 43.75%; right: 43.75%;      /* +-5 cents of a +-40 cent span */
+  background: color-mix(in srgb, var(--good) 22%, transparent);
+}
+.octave-centre {
+  position: absolute;
+  top: -2px; bottom: -2px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--muted);
+}
+.octave-mark {
+  position: absolute;
+  top: 50%;
+  width: 12px; height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  border: 2px solid var(--ground);
+  background: var(--close);
+}
+.octave-mark.good  { background: var(--good); }
+.octave-mark.close { background: var(--close); }
+.octave-mark.off   { background: var(--off); }
+/* Past the end of the scale: pinned, and shaped so it cannot read as a hit. */
+.octave-mark.pinned { border-radius: 2px; width: 8px; }
+
+.octave-figure {
+  flex: 0 0 3.4rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.octave-figure.good  { color: var(--good); }
+.octave-figure.close { color: var(--close); }
+.octave-figure.off   { color: var(--off); }
+
+@media (max-width: 420px) {
+  .octaves-scale { margin-left: 0; margin-right: 0; }
+  .octave-row { flex-wrap: wrap; }
+  .octave-name { flex-basis: 100%; text-align: left; }
+}
+
+/* An experimental feature says so, on the card and on the page. */
+.chip.warn-chip { background: var(--off); color: var(--brass-ink); }

@@ -100,6 +100,27 @@ export function octavePairs(results) {
   return pairs;
 }
 
+/* Where an octave's width sits on the stopper check's drawn scale.
+ *
+ * The scale is fixed, not fitted to the data: two consecutive runs are meant
+ * to be compared by eye, and a scale that resized itself would make a run that
+ * improved look unchanged. So anything past the end is pinned to it and
+ * flagged, and the caller shows the figure alongside -- a clamped mark must
+ * never be able to read as a near miss.
+ */
+export const BAR_SPAN_CENTS = 40.0;   // half-width of the track
+export const BAR_TRUE_CENTS = 5.0;    // as good as true: the shaded centre
+
+export function octaveBarGeometry(widthCents, span = BAR_SPAN_CENTS) {
+  const clamped = Math.max(-span, Math.min(span, widthCents));
+  return {
+    clamped,
+    // 0% is `span` cents narrow, 50% a true octave, 100% `span` cents wide.
+    percent: 50.0 + (clamped / span) * 50.0,
+    beyond: Math.abs(widthCents) > span,
+  };
+}
+
 export class SessionSummary {
   constructor() { this.results = []; }
 

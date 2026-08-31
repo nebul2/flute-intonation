@@ -27,7 +27,7 @@ import { Mode, TargetResolver } from "../core/resolver.js";
 import { intervalDrill, intervalInContext, enharmonicPair, stopperCheck, scalePool, scaleKeyFor, pickDifferent } from "../core/generator.js";
 import { HarmonicContext } from "../core/tuning.js";
 import { Exercise, TargetNote } from "../core/resolver.js";
-import { SessionSummary, analyseNote, judgeDirection, octavePairs, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
+import { SessionSummary, analyseNote, judgeDirection, octavePairs, octaveBarGeometry, BAR_SPAN_CENTS, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
 import { NoteSegmenter, onsetThresholdFor } from "../audio/segmenter.js";
 import { highestFirst } from "../core/pitch.js";
 import { el, append, needle, levelBar, bandClass, currentTuning, name, nameClass, runNav } from "../ui/widgets.js";
@@ -78,6 +78,51 @@ function bandLabel(cents) {
   if (m <= IN_TUNE_CENTS) return t("band.inTune");
   if (m <= CLOSE_CENTS) return t("band.close");
   return cents > 0 ? t("band.sharp") : t("band.flat");
+}
+
+/* The stopper check, drawn.
+ *
+ * Four octaves, four tracks. Each track is the octave itself: its centre is a
+ * true 2:1, and the marker is where the player actually landed -- right of
+ * centre for a wide octave, left for a narrow one. The numbers were always
+ * there; what was missing was seeing the four of them at once, because the
+ * stopper is one screw and it moves all four together. Whether they are
+ * scattered or all leaning the same way is the whole question, and that reads
+ * off a picture instantly and off a column of figures not at all.
+ *
+ * The geometry -- fixed scale, clamping -- is core/scoring.js.
+ */
+export function octaveBars(pairs, s) {
+  const wrap = el("div", { class: "octaves" });
+  wrap.append(el("div", { class: "octaves-scale" }, [
+    el("span", { text: `−${BAR_SPAN_CENTS}` }),
+    el("span", { class: "octaves-scale-mid", text: t("practice.stopper.trueOctave") }),
+    el("span", { text: `+${BAR_SPAN_CENTS}` }),
+  ]));
+
+  for (const { lower, upper, width } of pairs) {
+    const { percent, beyond } = octaveBarGeometry(width);
+    const figure = `${width >= 0 ? "+" : ""}${width.toFixed(1)}`;
+    const direction = t(width > 0 ? "practice.stopper.wide" : "practice.stopper.narrow");
+    const names = `${name(lower.pitch, s)} → ${name(upper.pitch, s)}`;
+
+    const marker = el("div", { class: `octave-mark ${bandClass(width)}${beyond ? " pinned" : ""}` });
+    marker.style.left = `${percent}%`;
+
+    wrap.append(el("div", { class: "octave-row" }, [
+      el("div", { class: "octave-name", text: names }),
+      el("div", {
+        class: "octave-track", role: "img",
+        "aria-label": t("practice.stopper.barLabel", names, figure, direction),
+      }, [
+        el("div", { class: "octave-true" }),   // the "as good as true" zone
+        el("div", { class: "octave-centre" }), // a true octave, exactly
+        marker,
+      ]),
+      el("div", { class: `octave-figure ${bandClass(width)}`, text: `${figure}¢` }),
+    ]));
+  }
+  return wrap;
 }
 
 export class ExerciseRun {
@@ -424,10 +469,7 @@ export class ExerciseRun {
     const box = el("div", { class: "stopper" });
     if (!pairs.length) { box.append(el("p", { text: t("practice.stopper.noPairs") })); return { element: box }; }
     box.append(el("p", { text: t("practice.stopper.title") }));
-    for (const { lower, upper, width } of pairs) {
-      box.append(el("p", { class: "mono", text: `${name(lower.pitch, s)} → ${name(upper.pitch, s)}  ` +
-        `${width >= 0 ? "+" : ""}${width.toFixed(1)}¢ ${width > 0 ? t("practice.stopper.wide") : t("practice.stopper.narrow")}` }));
-    }
+    box.append(octaveBars(pairs, s));
     const error = pairs.reduce((a, p) => a + Math.abs(p.width), 0) / pairs.length;
     box.append(el("p", { class: "mono", text: t("practice.stopper.error", error.toFixed(1)) }));
     // Direction: the cavity between stopper and embouchure hole makes the end
