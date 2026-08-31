@@ -244,3 +244,90 @@ test("the leaderboard shows each temperament once, at its best root", () => {
     assert.ok(rows[i].distance >= rows[i - 1].distance, "sorted by fit");
   }
 });
+
+/* ---- the teaching table ----------------------------------------------- */
+
+import { temperamentTable, matchRow, INDISTINGUISHABLE_CENTS } from "../core/identify.js";
+
+test("every temperament is anchored to the same A, which is what makes the columns comparable", () => {
+  const table = temperamentTable({ referenceHz: 441, root: 0 });
+  const a = table[9];
+  assert.equal(a.name, "A");
+  for (const cell of a.cells) {
+    assert.ok(Math.abs(cell.hz - 441) < 1e-9, `${cell.temperament} puts A at ${cell.hz}`);
+  }
+  assert.ok(a.spreadCents < 1e-9, "so A cannot differ between them");
+  assert.equal(a.indistinguishable, true);
+});
+
+test("the accidentals are where the temperaments part company", () => {
+  // The lesson the table exists to teach, and the reason it is playable: the
+  // naturals barely move, the accidentals swing about twenty cents.
+  const table = temperamentTable({ referenceHz: 441, root: 0 });
+  const by = Object.fromEntries(table.map((r) => [r.name, r]));
+  assert.ok(by["G#"].spreadCents > 15, `G# spread ${by["G#"].spreadCents.toFixed(1)}c`);
+  assert.ok(by["D#"].spreadCents > 15, `D# spread ${by["D#"].spreadCents.toFixed(1)}c`);
+  assert.ok(by["A#"].spreadCents > 15, `A# spread ${by["A#"].spreadCents.toFixed(1)}c`);
+  assert.ok(by["D"].spreadCents < 5, `D spread ${by["D"].spreadCents.toFixed(1)}c`);
+  assert.ok(by["D"].indistinguishable, "and D is flagged as not worth hunting for");
+  assert.ok(!by["G#"].indistinguishable);
+});
+
+test("the table follows the root it is given", () => {
+  const onC = temperamentTable({ referenceHz: 441, root: 0 });
+  const onF = temperamentTable({ referenceHz: 441, root: 5 });
+  const vallotti = (table) => table.map((r) => r.cells.find((c) => c.temperament === "vallotti").cents);
+  // Assert on the whole vector, not on one note: these temperaments have
+  // repeating structure, so individual notes can happen to land at the same
+  // height under two different roots. E does exactly that between C and F.
+  assert.notDeepEqual(vallotti(onC).map((c) => c.toFixed(2)), vallotti(onF).map((c) => c.toFixed(2)),
+    "Vallotti on C and on F are different instruments to play in");
+  const moved = vallotti(onC).filter((c, i) => Math.abs(c - vallotti(onF)[i]) > 1).length;
+  assert.ok(moved >= 5, `only ${moved} notes moved when the root changed`);
+
+  // Equal is the same at every root, which is the whole of its character.
+  for (let i = 0; i < 12; i++) {
+    const c = onC[i].cells.find((x) => x.temperament === "equal");
+    const f = onF[i].cells.find((x) => x.temperament === "equal");
+    assert.ok(Math.abs(c.hz - f.hz) < 1e-9, `equal moved at ${onC[i].name}`);
+  }
+});
+
+test("frequencies scale by exact octaves and follow the reference", () => {
+  const four = temperamentTable({ referenceHz: 441, root: 0, octave: 4 });
+  const five = temperamentTable({ referenceHz: 441, root: 0, octave: 5 });
+  for (let i = 0; i < 12; i++) {
+    for (let c = 0; c < five[i].cells.length; c++) {
+      assert.ok(Math.abs(five[i].cells[c].hz - four[i].cells[c].hz * 2) < 1e-9,
+        `${four[i].name} ${four[i].cells[c].temperament}`);
+    }
+    assert.ok(Math.abs(five[i].spreadCents - four[i].spreadCents) < 1e-9, "shape is octave-free");
+  }
+  const at415 = temperamentTable({ referenceHz: 415, root: 0 });
+  assert.ok(Math.abs(at415[9].cells[0].hz - 415) < 1e-9, "A follows the reference");
+});
+
+test("a played note matches every candidate it cannot be separated from", () => {
+  const table = temperamentTable({ referenceHz: 441, root: 0 });
+  const gsharp = table[8];
+
+  // Played exactly at meantone's G#, which sits far from the other four.
+  const meantone = gsharp.cells.find((c) => c.temperament === "meantone_quarter");
+  const hit = matchRow(gsharp, meantone.cents);
+  assert.deepEqual(hit.matches, ["meantone_quarter"], "only meantone is that low");
+  assert.equal(hit.nearest, "meantone_quarter");
+
+  // Played on D, where four of them sit within a couple of cents: several
+  // must light up, because claiming one would be inventing a distinction.
+  const d = table[2];
+  const many = matchRow(d, d.cells.find((c) => c.temperament === "vallotti").cents);
+  assert.ok(many.matches.length > 1, `only ${many.matches.length} matched a note they all agree on`);
+});
+
+test("a note played nowhere near any of them matches nothing", () => {
+  const table = temperamentTable({ referenceHz: 441, root: 0 });
+  const wild = matchRow(table[0], table[0].cells[0].cents + 40);
+  assert.deepEqual(wild.matches, [], "40 cents out is not a match for anything");
+  assert.ok(wild.nearest !== null, "but the nearest is still named, so the miss can be measured");
+  assert.ok(wild.nearestOff > INDISTINGUISHABLE_CENTS);
+});

@@ -34,7 +34,8 @@
  * best is reported as fitting equally well.
  */
 
-import { parseScala } from "./tuning.js";
+import { parseScala, TemperamentTuning, ReferencePitch } from "./tuning.js";
+import { SpelledPitch } from "./pitch.js";
 import { TEMPERAMENTS, TEMPERAMENT_ORDER } from "./temperaments.js";
 
 /** Chromatic pitch classes, indexed as SpelledPitch.chromaticIndex is. */
@@ -146,6 +147,75 @@ export function bestByTemperament(ranked) {
     if (!best.has(c.temperament)) best.set(c.temperament, c);
   }
   return [...best.values()].sort((a, b) => a.distance - b.distance);
+}
+
+/* ---- the teaching table ---------------------------------------------- *
+ *
+ * What every temperament makes of every note, side by side, on the player's
+ * own instrument. This is not identification and needs no microphone: it is
+ * the table an advanced student reads to see what a temperament actually does.
+ *
+ * All five are anchored so that A sounds the reference pitch, which is how a
+ * tuner is set and what makes the columns comparable. The lesson is in the
+ * spread column. A is identical everywhere by construction; D and E barely
+ * move; but E flat, G sharp and B flat swing about twenty cents, which is
+ * audible, playable, and the entire point of the exercise.
+ */
+
+/** Two cells nearer than this cannot be told apart by playing them. */
+export const INDISTINGUISHABLE_CENTS = 4.0;
+
+/**
+ * One row per pitch class: what each temperament says it should sound.
+ *
+ * @param root pitch class index the temperaments are rooted on (equal ignores
+ *   it, being the same at every root).
+ * @param octave which octave to write the frequencies at; the comparison
+ *   itself is octave-free, this only decides the numbers shown.
+ */
+export function temperamentTable({ referenceHz = 440, root = 0, octave = 4 } = {}) {
+  const reference = new ReferencePitch(SpelledPitch.parse("A4"), referenceHz);
+  const rootPitch = SpelledPitch.parse(`${PITCH_CLASSES[root]}4`);
+  const tunings = TEMPERAMENT_ORDER.map((key) => [key, new TemperamentTuning(
+    parseScala(TEMPERAMENTS[key].scl), rootPitch, reference)]);
+
+  return PITCH_CLASSES.map((name, index) => {
+    const pitch = SpelledPitch.parse(`${name}${octave}`);
+    const equalHz = referenceHz * 2 ** (((index - A_INDEX) + 12 * (octave - 4)) / 12);
+    const cells = tunings.map(([temperament, tuning]) => {
+      const hz = tuning.targetHz(pitch);
+      return { temperament, hz, cents: 1200 * Math.log2(hz / equalHz) };
+    });
+    const low = Math.min(...cells.map((c) => c.cents));
+    const high = Math.max(...cells.map((c) => c.cents));
+    return {
+      index, name, cells,
+      spreadCents: high - low,
+      spreadHz: Math.max(...cells.map((c) => c.hz)) - Math.min(...cells.map((c) => c.hz)),
+      // Where they all agree there is nothing to hear and nothing to choose
+      // between -- worth saying, so a student does not hunt for a difference
+      // that is not there. A is the extreme case: it is the anchor.
+      indistinguishable: high - low < INDISTINGUISHABLE_CENTS,
+    };
+  });
+}
+
+/**
+ * Which cells of a row a played note could be, and which it is nearest.
+ *
+ * More than one can match, and when they do that is the honest answer: the
+ * temperaments genuinely put the note in the same place, and no amount of
+ * careful playing would separate them.
+ */
+export function matchRow(row, playedCents, tolerance = INDISTINGUISHABLE_CENTS) {
+  let nearest = null;
+  const matches = [];
+  for (const cell of row.cells) {
+    const off = Math.abs(cell.cents - playedCents);
+    if (off <= tolerance) matches.push(cell.temperament);
+    if (nearest === null || off < nearest.off) nearest = { temperament: cell.temperament, off };
+  }
+  return { matches, nearest: nearest ? nearest.temperament : null, nearestOff: nearest ? nearest.off : null };
 }
 
 /**

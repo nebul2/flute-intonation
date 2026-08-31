@@ -14,6 +14,7 @@ export const ROUTES = Object.freeze({
   stopper: "stopper",
   sessions: "sessions",
   temperament: "temperament",
+  temperaments: "temperaments",
 });
 
 export function currentRoute() {

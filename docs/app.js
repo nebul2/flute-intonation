@@ -17,10 +17,11 @@ import listen from "./views/listen.js";
 import stopper from "./views/stopper.js";
 import sessions from "./views/sessions.js";
 import temperament from "./views/temperament.js";
+import temperaments from "./views/temperaments.js";
 
-export const VERSION = "phase 4.8 · 2026-08-31";
+export const VERSION = "phase 4.9 · 2026-08-31";
 
-const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament };
+const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments };
 
 function $(id) { return document.getElementById(id); }
 

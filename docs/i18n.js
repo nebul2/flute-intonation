@@ -107,6 +107,21 @@ export const STRINGS = {
     "temperament.experimental": "Experimental. The arithmetic is tested, but the detector has never been measured against a harpsichord or an organ — only a flute. Treat the answer as a suggestion, and check the pitch it reports against what you know the instrument to be.",
     "practice.stopper.trueOctave": "true octave",
     "practice.stopper.barLabel": (names, cents, direction) => `${names}: ${cents} cents ${direction}`,
+    "home.card.temperaments.title": "Compare temperaments",
+    "home.card.temperaments.desc": "Every temperament's frequency for every note, side by side — and which one you just played.",
+
+    "temperaments.title": "Compare temperaments",
+    "temperaments.intro": "What each temperament makes of each note, on your instrument. Nothing is being judged here — read it, or play along and see which column you land in.",
+    "temperaments.lesson": (tol) => `All five are anchored so that A sounds your reference pitch, which is why A is identical in every column. Look down the spread column: the naturals barely move, but E♭, G♯ and B♭ swing about twenty cents between temperaments — audible, and playable. Where a row is marked “same”, the temperaments agree to within ${tol} cents and no playing could separate them.`,
+    "temperaments.how": (hz) => `Frequencies at A = ${hz} Hz. Play any octave — the octave changes the numbers but nothing about the choice between temperaments.`,
+    "temperaments.root": "Rooted on",
+    "temperaments.octave": "Octave",
+    "temperaments.col.note": "Note",
+    "temperaments.col.spread": "Spread",
+    "temperaments.same": "same",
+    "temperaments.you": (cents) => `you: ${cents}¢`,
+    "temperaments.clear": "Clear what I played",
+
     "home.card.temperament.title": "Which temperament?",
     "home.card.temperament.desc": "Play all twelve notes on a keyboard and hear back which temperament it is tuned to.",
 
@@ -449,6 +464,21 @@ export const STRINGS = {
     "temperament.experimental": "Expérimental. Le calcul est testé, mais le détecteur n'a jamais été mesuré sur un clavecin ou un orgue — seulement sur une flûte. Prends la réponse comme une suggestion, et vérifie la hauteur annoncée contre ce que tu sais de l'instrument.",
     "practice.stopper.trueOctave": "octave juste",
     "practice.stopper.barLabel": (names, cents, direction) => `${names} : ${cents} cents ${direction}`,
+    "home.card.temperaments.title": "Comparer les tempéraments",
+    "home.card.temperaments.desc": "La fréquence de chaque note dans chaque tempérament, côte à côte — et celui que tu viens de jouer.",
+
+    "temperaments.title": "Comparer les tempéraments",
+    "temperaments.intro": "Ce que chaque tempérament fait de chaque note, sur ton instrument. Rien n'est jugé ici — lis le tableau, ou joue et vois dans quelle colonne tu tombes.",
+    "temperaments.lesson": (tol) => `Les cinq sont calés pour que le la sonne ton diapason : c'est pourquoi le la est identique dans toutes les colonnes. Regarde la colonne d'écart : les notes naturelles bougent à peine, mais mi♭, sol♯ et si♭ varient d'une vingtaine de cents d'un tempérament à l'autre — audible, et jouable. Quand une ligne est marquée « idem », les tempéraments s'accordent à ${tol} cents près et aucun jeu ne pourrait les séparer.`,
+    "temperaments.how": (hz) => `Fréquences pour la = ${hz} Hz. Joue n'importe quelle octave — elle change les chiffres, mais rien au choix du tempérament.`,
+    "temperaments.root": "Fondamentale",
+    "temperaments.octave": "Octave",
+    "temperaments.col.note": "Note",
+    "temperaments.col.spread": "Écart",
+    "temperaments.same": "idem",
+    "temperaments.you": (cents) => `toi : ${cents}¢`,
+    "temperaments.clear": "Effacer ce que j'ai joué",
+
     "home.card.temperament.title": "Quel tempérament ?",
     "home.card.temperament.desc": "Joue les douze notes d'un clavier et découvre selon quel tempérament il est accordé.",
 

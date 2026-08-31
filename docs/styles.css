@@ -393,3 +393,37 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
    the honest picture when the well temperaments cannot be told apart. */
 .board-row.lit { opacity: 1; color: var(--ink); border-color: var(--brass); background: var(--panel); }
 .board-fit { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---- compare temperaments: the teaching table ------------------------- */
+
+.temp-table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+.temp-table th, .temp-table td {
+  padding: 5px 7px;
+  border-bottom: 1px solid var(--edge);
+  text-align: right;
+  white-space: nowrap;
+}
+.temp-table thead th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.72rem;
+  text-align: right;
+  border-bottom: 1px solid var(--muted);
+}
+.temp-table thead th:first-child, .temp-note { text-align: left; }
+.temp-note { font-weight: 600; color: var(--ink); }
+.temp-you { font-family: var(--mono); font-size: 0.68rem; color: var(--brass); font-weight: 400; }
+
+.temp-hz { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.temp-cents { font-family: var(--mono); font-size: 0.66rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Where the note you played could be. More than one cell can light up: when
+   the temperaments put a note in the same place, no playing separates them. */
+.temp-cell.hit { background: color-mix(in srgb, var(--good) 20%, transparent); }
+.temp-cell.hit .temp-hz { color: var(--good); font-weight: 600; }
+
+/* A row the temperaments agree on has nothing to teach and says so. */
+.temp-table tr.same .temp-hz { color: var(--muted); }
+.temp-spread { font-family: var(--mono); color: var(--muted); font-size: 0.72rem; }
+.temp-table tr.same .temp-spread { font-style: italic; }
+.temp-table tr.played .temp-note { color: var(--brass); }
