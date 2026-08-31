@@ -196,3 +196,51 @@ test("a reference a whole semitone out shifts the root, and only the pitch revea
   // 412 Hz, for an instrument at 441: the player sees this and knows.
   assert.ok(Math.abs(result.measuredHz - 412.2) < 0.5, `A reads ${result.measuredHz.toFixed(1)}`);
 });
+
+/* ---- what each candidate predicts ------------------------------------- */
+
+import { predictedCents, expectedHz, bestByTemperament, temperamentShape as shapeOf } from "../core/identify.js";
+
+test("a candidate's prediction is slid to the instrument's own pitch", () => {
+  // Vallotti on an instrument sitting 9 cents sharp: the prediction must come
+  // out 9 cents sharp too, or every note would look wrong by the offset -- the
+  // one thing a temperament says nothing about.
+  const measured = shapeOf("vallotti").map((c) => c + 9);
+  const predicted = predictedCents(measured, shapeOf("vallotti"));
+  for (let i = 0; i < 12; i++) {
+    assert.ok(Math.abs(predicted[i] - measured[i]) < 1e-9,
+      `class ${PITCH_CLASSES[i]}: predicted ${predicted[i]}, measured ${measured[i]}`);
+  }
+});
+
+test("the prediction is fitted only on the notes actually played", () => {
+  const measured = Array(12).fill(null);
+  [0, 4, 7].forEach((i) => { measured[i] = shapeOf("vallotti")[i] + 20; });
+  const predicted = predictedCents(measured, shapeOf("vallotti"));
+  for (const i of [0, 4, 7]) {
+    assert.ok(Math.abs(predicted[i] - measured[i]) < 1e-9, `fitted on ${PITCH_CLASSES[i]}`);
+  }
+  assert.ok(Number.isFinite(predicted[1]), "and still predicts the ones that were not");
+});
+
+test("expected frequencies land on the reference and on true octaves", () => {
+  assert.ok(Math.abs(expectedHz(9, 0, 441) - 441) < 1e-9, "A with no deviation is the reference");
+  assert.ok(Math.abs(expectedHz(9, 0, 441, 5) - 882) < 1e-9, "an octave up is exactly double");
+  assert.ok(Math.abs(expectedHz(9, 0, 441, 3) - 220.5) < 1e-9, "an octave down is exactly half");
+  // C4 against A4 = 441: nine semitones below.
+  assert.ok(Math.abs(expectedHz(0, 0, 441) - 441 * 2 ** (-9 / 12)) < 1e-9);
+  // A deviation moves it by exactly that many cents.
+  assert.ok(Math.abs(expectedHz(9, 12, 441) - 441 * 2 ** (12 / 1200)) < 1e-9);
+});
+
+test("the leaderboard shows each temperament once, at its best root", () => {
+  const result = identify(exact("vallotti"));
+  const rows = bestByTemperament(result.ranked);
+  assert.equal(rows.length, 5, "five temperaments, not forty-nine candidates");
+  assert.equal(new Set(rows.map((r) => r.temperament)).size, 5, "each appears once");
+  assert.equal(rows[0].temperament, "vallotti", "best first");
+  assert.equal(rows[0].root, 0);
+  for (let i = 1; i < rows.length; i++) {
+    assert.ok(rows[i].distance >= rows[i - 1].distance, "sorted by fit");
+  }
+});

@@ -105,6 +105,50 @@ const FAMILY = Object.freeze({
 });
 
 /**
+ * What a candidate predicts each pitch class should sound, in cents from equal.
+ *
+ * A temperament fixes the *intervals* between its notes, never their absolute
+ * height: it says nothing about whether the instrument sits at 440 or 441. So
+ * the candidate's shape is slid bodily until it best matches what was actually
+ * heard -- by the difference of the two means over the classes played -- and
+ * only then does it predict anything. Without that step every prediction would
+ * be wrong by however far the instrument sits from the reference, which is the
+ * one thing a temperament cannot be blamed for.
+ */
+export function predictedCents(deviations, shape) {
+  const present = [];
+  for (let i = 0; i < 12; i++) {
+    if (Number.isFinite(deviations[i])) present.push(i);
+  }
+  if (!present.length) return shape.slice();
+  const shift = meanAt(deviations, present) - meanAt(shape, present);
+  return shape.map((c) => c + shift);
+}
+
+/** The frequency a pitch class should sound, given a predicted deviation. */
+export function expectedHz(index, devCents, referenceHz, octave = 4) {
+  // Pitch classes are indexed from C; the reference is stated at A4, which is
+  // nine semitones above C4.
+  const semis = (index - A_INDEX) + 12 * (octave - 4);
+  return referenceHz * 2 ** (semis / 12) * 2 ** (devCents / 1200);
+}
+
+/**
+ * One row per temperament: its best root, and how well it fits there.
+ *
+ * The full ranking is 49 rows and unreadable while playing. This is the
+ * question actually being asked -- which temperaments are still standing --
+ * with each one shown at whichever root suits it best.
+ */
+export function bestByTemperament(ranked) {
+  const best = new Map();
+  for (const c of ranked) {
+    if (!best.has(c.temperament)) best.set(c.temperament, c);
+  }
+  return [...best.values()].sort((a, b) => a.distance - b.distance);
+}
+
+/**
  * Name a heard frequency by proximity, and say how far off it sits.
  *
  * The reference pitch is stated at A, so semitones are counted from there.

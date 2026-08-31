@@ -1,6 +1,9 @@
 /* Headless checks on the shell: language key parity, routes, naming.
  * Run: node --test docs/tests/ */
 import { test } from "node:test";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 
 import { STRINGS, t, setLanguage } from "../i18n.js";
@@ -9,6 +12,8 @@ import { EXERCISES } from "../views/run.js";
 import { SpelledPitch, highestFirst } from "../core/pitch.js";
 import { noteName, pitchClassName, SOLFEGE, LETTERS, REGISTER } from "../ui/naming.js";
 import * as settings from "../settings.js";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 test("every string exists in both languages", () => {
   const en = Object.keys(STRINGS.en).sort();
@@ -44,6 +49,26 @@ test("the exercise list and its strings agree, in both directions", () => {
     .filter((k) => k.startsWith("practice.ex."))
     .filter((k) => !keys.includes(k.split(".")[2]));
   assert.deepEqual(orphans, [], "strings for exercises that are not in EXERCISES");
+});
+
+test("widgets that return a wrapper are appended by their element", () => {
+  // audioControl, labelField and runNav return objects, not nodes. Appending
+  // one bare renders nothing and silently loses the control -- which is how
+  // the temperament page shipped with no way to start the microphone. Node's
+  // test runner has no DOM, so this is checked in the source.
+  const views = fs.readdirSync(path.join(here, "..", "views"));
+  for (const file of views) {
+    const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
+    for (const factory of ["audioControl", "labelField"]) {
+      if (!src.includes(`${factory}(`)) continue;
+      // Whatever it was assigned to must be used through .element somewhere.
+      const assigned = src.match(new RegExp(`const (\\w+) = ${factory}\\(`));
+      assert.ok(assigned, `${file}: ${factory}() result is not held in a const`);
+      const holder = assigned[1];
+      assert.ok(src.includes(`${holder}.element`),
+        `${file}: ${holder} comes from ${factory}() but is never used as ${holder}.element`);
+    }
+  }
 });
 
 test("t() switches language and falls back to the key", () => {

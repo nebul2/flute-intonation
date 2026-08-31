@@ -360,3 +360,36 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 
 /* An experimental feature says so, on the card and on the page. */
 .chip.warn-chip { background: var(--off); color: var(--brass-ink); }
+
+/* Expected frequency, and whether the note agrees with the leading candidate. */
+.pc-hz {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.pc.agrees { border-color: var(--good); }
+.pc.agrees .pc-cents { color: var(--good); }
+.pc.differs { border-color: var(--off); }
+.pc.differs .pc-cents { color: var(--off); }
+
+/* Which temperaments are still standing. */
+.board-wrap { margin: 10px 0; }
+.board { display: flex; flex-direction: column; gap: 3px; }
+.board-title { font-size: 0.78rem; color: var(--muted); margin-bottom: 3px; }
+.board-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 5px 9px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  color: var(--muted);
+  opacity: 0.55;
+}
+/* Lit: still fits as well as the best. Several may be lit at once, which is
+   the honest picture when the well temperaments cannot be told apart. */
+.board-row.lit { opacity: 1; color: var(--ink); border-color: var(--brass); background: var(--panel); }
+.board-fit { font-family: var(--mono); font-variant-numeric: tabular-nums; }

@@ -17,7 +17,8 @@ import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
 import { postAttack } from "../core/scoring.js";
-import { identify, classifyHz, PITCH_CLASSES, MIN_CLASSES, FULL_CLASSES } from "../core/identify.js";
+import { identify, classifyHz, predictedCents, expectedHz, bestByTemperament,
+         PITCH_CLASSES, MIN_CLASSES, FULL_CLASSES } from "../core/identify.js";
 import { el, append, audioControl, levelBar, temperamentLabel } from "../ui/widgets.js";
 
 /* Display names per pitch class, in the naming the player has chosen. The
@@ -25,6 +26,10 @@ import { el, append, audioControl, levelBar, temperamentLabel } from "../ui/widg
  * twelve spellings -- so the sharp side is used throughout and said plainly. */
 const SOLFEGE = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "La♯", "Si"];
 const className = (i, s) => (s.naming === "solfege" ? SOLFEGE[i] : PITCH_CLASSES[i]);
+
+/* How near a note must sit to a candidate's prediction to be shown agreeing.
+ * Generous on purpose: it reports agreement, it does not decide anything. */
+const AGREE_CENTS = 3.0;
 
 const median = (xs) => {
   const o = [...xs].sort((a, b) => a - b);
@@ -45,6 +50,7 @@ export default {
       const cell = el("div", { class: "pc" }, [
         el("div", { class: "pc-name", text: className(i, s0) }),
         el("div", { class: "pc-cents", text: "—" }),
+        el("div", { class: "pc-hz", text: "" }),
       ]);
       grid.append(cell);
       return cell;
@@ -52,6 +58,8 @@ export default {
     const status = el("p", { class: "status", text: t("temperament.waiting") });
     const level = levelBar();
     const control = audioControl({ showGranted: false });
+    this.control = control;
+    const board = el("div", { class: "board-wrap" });
     const result = el("div", { class: "result" });
 
     /* One note: name it by proximity at the current reference, and keep its
@@ -80,12 +88,34 @@ export default {
       show();
     };
 
+    /* What the leading candidate says each box should sound, and whether the
+     * box agrees. A note cannot decide a temperament on its own -- the whole
+     * point is that they differ by a cent or two per note -- so agreement here
+     * is shown to make the verdict inspectable, never to make it note by note.
+     * With no leader yet, the boxes carry equal temperament's frequencies,
+     * which is the honest thing to show before anything has been decided. */
+    const paintExpected = (candidate, r) => {
+      const shape = candidate ? candidate.shape : new Array(12).fill(0);
+      const predicted = predictedCents(deviations(), shape);
+      cells.forEach((cell, i) => {
+        const hz = expectedHz(i, predicted[i], ref);
+        cell.querySelector(".pc-hz").textContent = hz.toFixed(1);
+        cell.classList.remove("agrees", "differs");
+        if (!heard[i].length || !r || !candidate) return;
+        const off = Math.abs(median(heard[i]) - predicted[i]);
+        cell.classList.add(off <= AGREE_CENTS ? "agrees" : "differs");
+      });
+    };
+
     /* The verdict, recomputed as each note lands so the player can watch it
      * settle -- and see for themselves when another note stops changing it. */
     const show = () => {
+      const r = count() >= MIN_CLASSES ? identify(deviations(), { referenceHz: ref }) : null;
+      paintExpected(r ? r.best : null, r);
+      board.replaceChildren();
+      if (r) board.append(leaderboard(r));
       result.replaceChildren();
-      if (count() < MIN_CLASSES) return;
-      const r = identify(deviations(), { referenceHz: ref });
+      if (!r) return;
       const parts = [];
 
       const named = (c) => (c.root === null
@@ -130,6 +160,25 @@ export default {
       append(result, ...parts);
     };
 
+    /* Which temperaments are still standing, updated as each note lands. The
+     * full ranking is 49 rows; this is the question actually being asked. */
+    const leaderboard = (r) => {
+      const rows = bestByTemperament(r.ranked);
+      const contending = new Set(r.contenders.map((c) => `${c.temperament}:${c.root}`));
+      const wrap = el("div", { class: "board" });
+      wrap.append(el("div", { class: "board-title", text: t("temperament.board") }));
+      for (const row of rows) {
+        const lit = contending.has(`${row.temperament}:${row.root}`);
+        wrap.append(el("div", { class: `board-row${lit ? " lit" : ""}` }, [
+          el("div", { class: "board-name", text: row.root === null
+            ? temperamentLabel(row.temperament)
+            : t("temperament.on", temperamentLabel(row.temperament), className(row.root, settings.get())) }),
+          el("div", { class: "board-fit", text: `${row.distance.toFixed(1)}¢` }),
+        ]));
+      }
+      return wrap;
+    };
+
     const tracker = new RegionTracker({
       frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
     });
@@ -167,10 +216,12 @@ export default {
       el("p", { class: "note-box warn", text: t("temperament.experimental") }),
       el("p", { class: "intro", text: t("temperament.intro") }),
       el("p", { class: "muted small", text: t("temperament.how", ref) }),
-      control,
+      control.element,
       level.node,
       status,
       grid,
+      board,
+      el("p", { class: "muted small", text: t("temperament.boardNote") }),
       result,
       el("div", { class: "controls" }, [
         el("button", { class: "primary", text: t("temperament.clear"), onclick: reset }),
@@ -182,5 +233,6 @@ export default {
   unmount() {
     if (this.offFrame) this.offFrame();
     if (this.offSettings) this.offSettings();
+    if (this.control) this.control.dispose();
   },
 };

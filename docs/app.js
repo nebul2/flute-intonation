@@ -18,7 +18,7 @@ import stopper from "./views/stopper.js";
 import sessions from "./views/sessions.js";
 import temperament from "./views/temperament.js";
 
-export const VERSION = "phase 4.7 · 2026-08-31";
+export const VERSION = "phase 4.8 · 2026-08-31";
 
 const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament };
 
