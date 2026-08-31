@@ -22,6 +22,8 @@ import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows, standouts, offsetAction } from "../core/stats.js";
+import { reviewSession, impossible } from "../core/bend.js";
+import * as profiles from "../profiles.js";
 import { postAttack } from "../core/scoring.js";
 import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
@@ -390,6 +392,26 @@ export default {
              t(`listen.score.${action}`),
              score.relative.toFixed(1)) }));
       parts.push(el("p", { class: "muted small", text: t("listen.score.notSubtraction") }));
+
+      /* Before naming anyone's faults, ask the instrument. A note the flute
+       * cannot bring to its target was never the player's to fix, and saying
+       * so is worth more than a tidier-looking list of failings. Only notes
+       * this flute has actually been measured on are spoken about; the rest
+       * are passed over rather than guessed at. */
+      const profile = profiles.get(run.label ?? "");
+      const cannot = profile
+        ? impossible(reviewSession(profile.notes ?? {},
+            rows.map((r) => ({ pitch: r.pitch.name, meanCents: r.meanCents }))))
+        : [];
+      if (cannot.length) {
+        parts.push(el("p", { text: t("listen.bend.title", cannot.length) }));
+        parts.push(el("ul", { class: "plain" }, cannot.map((r) => el("li", {
+          text: t("listen.bend.note", name(SpelledPitch.parse(r.pitch), s),
+                  `${r.playedCents >= 0 ? "+" : ""}${r.playedCents.toFixed(1)}`,
+                  r.shortfall.toFixed(0)),
+        }))));
+        parts.push(el("p", { class: "muted small", text: t("listen.bend.note2") }));
+      }
       // Name the notes that are actually out of tune. When none clears that
       // bar, the single furthest out is still worth knowing, but it is not
       // presented as a fault.

@@ -455,3 +455,35 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
   line-height: 1.55;
   max-width: 42rem;
 }
+
+/* ---- note flexibility: measuring what each note can do ---------------- */
+
+.bend-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin: 12px 0; }
+@media (max-width: 420px) { .bend-grid { grid-template-columns: repeat(4, 1fr); } }
+.bend-cell {
+  background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius);
+  padding: 7px 3px; text-align: center; color: var(--muted);
+  font-family: inherit; font-size: 0.8rem; cursor: pointer;
+}
+.bend-cell:hover { border-color: var(--muted); }
+.bend-cell.done { color: var(--ink); border-color: var(--good); }
+.bend-cell.active { border-color: var(--brass); background: var(--ground); color: var(--ink); }
+.bend-cell-name { font-weight: 600; }
+.bend-cell-reach {
+  font-family: var(--mono); font-size: 0.66rem; margin-top: 2px;
+  font-variant-numeric: tabular-nums; color: var(--muted);
+}
+
+.bend-prompt { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.bend-phase {
+  display: flex; justify-content: space-between; gap: 0.8rem;
+  padding: 6px 10px; border: 1px solid var(--edge); border-radius: var(--radius);
+  font-size: 0.85rem; color: var(--muted); opacity: 0.5;
+}
+/* The one being listened for right now. */
+.bend-phase.now { opacity: 1; border-color: var(--brass); background: var(--panel); color: var(--ink); }
+.bend-phase.got { opacity: 1; border-color: var(--good); }
+.bend-phase-value { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.bend-summary { margin-top: 1rem; }
+ul.plain { margin: 0.4rem 0; padding-left: 1.1rem; }
+ul.plain li { margin: 0.25rem 0; color: var(--muted); font-size: 0.86rem; }

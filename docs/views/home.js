@@ -13,6 +13,7 @@ const SECTIONS = [
     { route: "temperament", icon: iconTemperament, experimental: true },
     { route: "temperaments", icon: iconCompare },
     { route: "check", icon: iconCheck },
+    { route: "bend", icon: iconBend },
   ] },
   { key: "play", cards: [
     { route: "practice", icon: iconPractice },
@@ -36,6 +37,7 @@ function iconSettings() { return svg('<circle cx="12" cy="12" r="3"/><path d="M1
 function iconCheck() { return svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0012 0M12 17v4M9 21h6"/>'); }
 function iconTemperament() { return svg('<path d="M4 17V7M8 17V5M12 17v-8M16 17V6M20 17v-9"/><path d="M2 20h20"/>'); }
 function iconCompare() { return svg('<path d="M4 7h6M4 12h6M4 17h6M14 7h6M14 12h6M14 17h6"/><path d="M12 4v16"/>'); }
+function iconBend() { return svg('<path d="M4 18c4 0 4-12 8-12s4 12 8 12"/><path d="M2 12h20" stroke-dasharray="2 3"/>'); }
 function iconSessions() { return svg('<path d="M4 6h16M4 12h16M4 18h10"/><circle cx="18.5" cy="18" r="2.5"/>'); }
 function iconListen() { return svg('<path d="M7 9a5 5 0 0110 0c0 3-3 4-3 7a2 2 0 01-4 0"/><path d="M4 12h2M18 12h2"/>'); }
 
