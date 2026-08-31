@@ -256,3 +256,45 @@ test("an empty profile has no statistics rather than zeroed ones", () => {
   assert.equal(profileStats([]), null);
   assert.equal(profileStats([{ natural: 0, floor: 5, ceiling: 1 }]), null);
 });
+
+/* ---- what a bend cost in sound ---------------------------------------- */
+
+import { bendCost, wasForced, FORCED_DROP_DB } from "../core/bend.js";
+
+test("a bend that wrecked the sound is distinguished from one that did not", () => {
+  // The flaw this catches: asking for the flattest a note will go measures the
+  // extreme, and most notes can be forced a long way if the tone may collapse.
+  // A note dragged 36 cents down at 9 dB quieter is not 36 cents of usable bend.
+  const forced = {
+    natural: 14, floor: -22, ceiling: 30,
+    levels: { natural: -30, floor: -39, ceiling: -31 },
+  };
+  const cost = bendCost(forced);
+  approx(cost.down, 9, 1e-9, "nine decibels to get down there");
+  approx(cost.up, 1, 1e-9, "but the upward bend cost nothing");
+  assert.equal(wasForced(forced, "down"), true);
+  assert.equal(wasForced(forced, "up"), false);
+});
+
+test("a profile taken before levels were kept says 'not measured', not 'nothing'", () => {
+  assert.equal(bendCost(lowC), null, "no levels recorded at all");
+  assert.equal(wasForced(lowC, "down"), false, "and nothing is claimed about it");
+  const partial = { natural: 0, floor: -20, ceiling: 20, levels: { natural: NaN, floor: -40 } };
+  assert.equal(bendCost(partial), null, "a missing natural level makes the drops meaningless");
+});
+
+test("the forcing threshold is a constant, and sits where a drop is real", () => {
+  const at = (drop) => ({
+    natural: 0, floor: -30, ceiling: 30,
+    levels: { natural: -30, floor: -30 - drop, ceiling: -30 },
+  });
+  assert.equal(wasForced(at(FORCED_DROP_DB + 0.1), "down"), true);
+  assert.equal(wasForced(at(FORCED_DROP_DB - 0.1), "down"), false);
+});
+
+test("levels never change the pitch arithmetic", () => {
+  // The reach is what it is; the cost is reported beside it, never subtracted.
+  const withLevels = { ...lowC, levels: { natural: -30, floor: -45, ceiling: -30 } };
+  approx(reach(withLevels).down, reach(lowC).down, 1e-9);
+  approx(profileStats([withLevels]).meanDown, profileStats([lowC]).meanDown, 1e-9);
+});

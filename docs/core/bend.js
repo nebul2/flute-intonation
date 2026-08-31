@@ -14,6 +14,15 @@
  * profile stays meaningful when the temperament or reference pitch changes
  * only if it is re-measured; the profile records what it was taken under.
  *
+ * One caveat runs through all of it. Asking for the flattest a note will go
+ * measures the *extreme*, not the *usable* bend: most notes can be forced a
+ * long way if the tone is allowed to collapse, and a note you can drag 36
+ * cents down with a dying sound is not a note you can play 36 cents flat in
+ * music. The level of each reading is therefore kept beside its pitch, so a
+ * bend bought at the cost of the sound can be seen as such rather than
+ * counted as capability. Level is a proxy for tone and an unproven one -- it
+ * is reported, never silently subtracted.
+ *
  * The bend is nearly always asymmetric, which is the whole point. A note with
  * 30 cents down and 3 up is a different instrument to play than one with 15
  * either side, even though both "bend 33 cents".
@@ -21,6 +30,11 @@
 
 /** Below this, a note is effectively fixed: it is where it is. */
 export const RIGID_CENTS = 5.0;
+
+/* A bend that costs this much level was forced rather than played. A first
+ * guess, to be checked against real playing before it is trusted -- which is
+ * why it is shown to the player rather than used to discard a reading. */
+export const FORCED_DROP_DB = 6.0;
 
 /** How far a note moves from where it naturally sits, each way. */
 export function reach(entry) {
@@ -225,4 +239,25 @@ export function profileStats(entries) {
     rigidUp: valid.filter((e) => isRigid(e, "up")).length,
     rigidDown: valid.filter((e) => isRigid(e, "down")).length,
   };
+}
+
+/**
+ * What each bend cost in level, when the readings recorded it.
+ *
+ * Returns null for a profile taken before levels were kept, which is the
+ * honest answer: not "nothing", but "not measured".
+ */
+export function bendCost(entry) {
+  const levels = entry.levels;
+  if (!levels || !Number.isFinite(levels.natural)) return null;
+  const drop = (db) => (Number.isFinite(db) ? levels.natural - db : null);
+  return { down: drop(levels.floor), up: drop(levels.ceiling) };
+}
+
+/** A bend the player had to force, rather than one they can use. */
+export function wasForced(entry, direction, threshold = FORCED_DROP_DB) {
+  const cost = bendCost(entry);
+  if (!cost) return false;
+  const drop = direction === "down" ? cost.down : cost.up;
+  return Number.isFinite(drop) && drop >= threshold;
 }

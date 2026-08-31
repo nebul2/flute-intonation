@@ -19,22 +19,37 @@
 const KEY = "flute-intonation.profiles";
 
 const listeners = new Set();
-let cache = null;
+
+/* Only used when localStorage is unavailable -- private browsing, or node.
+ * Otherwise storage is read through on every call rather than cached: a
+ * profile is a few kilobytes, and a cache that is never invalidated goes
+ * stale the moment the app is open in a second tab. Correctness is worth more
+ * than the parse. */
+let memory = null;
 
 function read() {
-  if (cache) return cache;
+  let raw;
   try {
-    const raw = localStorage.getItem(KEY);
-    cache = raw ? JSON.parse(raw) : {};
+    raw = localStorage.getItem(KEY);
   } catch (_error) {
-    cache = {};              // private mode, or a corrupt entry: start clean
+    // Storage is unavailable at all -- private browsing. The session still
+    // works, in memory, and nothing is claimed to have been saved.
+    return memory ?? {};
   }
-  if (!cache || typeof cache !== "object") cache = {};
-  return cache;
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_error) {
+    // Present but unreadable. Starting clean is the only safe reading: an
+    // in-memory copy from this session would look like the saved profile and
+    // would overwrite whatever is actually there on the next write.
+    return {};
+  }
 }
 
 function write(next) {
-  cache = next;
+  memory = next;
   try {
     localStorage.setItem(KEY, JSON.stringify(next));
   } catch (_error) { /* full or unavailable: the session still works */ }
@@ -115,4 +130,44 @@ export function staleFor(name, tuning) {
   return p.temperament !== tuning.temperament || p.root !== tuning.root
     || Math.abs((p.referenceHz ?? 0) - (tuning.referenceHz ?? 0)) > 0.01
     || p.mode !== tuning.mode;
+}
+
+/**
+ * Create an empty profile so a flute exists before it has been measured.
+ *
+ * Without this a newly named instrument is invisible until its first note is
+ * stored, so the picker cannot show it and appears to have lost the name.
+ */
+export function ensure(name) {
+  const key = name || "";
+  const store = read();
+  if (store[key]) return store[key];
+  const next = { ...store, [key]: { name: key, notes: {}, tuning: null, at: null } };
+  write(next);
+  return next[key];
+}
+
+/**
+ * Rename a flute, keeping everything measured under it.
+ *
+ * Renaming rather than creating-and-abandoning is what a player actually wants
+ * the first time: the readings already exist under the unnamed default, and
+ * they belong to the instrument, not to the blank string.
+ *
+ * Refuses to write over a different flute that already has that name --
+ * merging two instruments' readings would describe a flute that does not
+ * exist, and there would be no way back.
+ */
+export function rename(from, to) {
+  const oldKey = from || "";
+  const newKey = to || "";
+  if (oldKey === newKey) return { ok: true };
+  const store = read();
+  if (!store[oldKey]) return { ok: false, reason: "missing" };
+  if (store[newKey]) return { ok: false, reason: "taken" };
+  const next = { ...store };
+  next[newKey] = { ...next[oldKey], name: newKey };
+  delete next[oldKey];
+  write(next);
+  return { ok: true };
 }

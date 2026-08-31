@@ -22,7 +22,8 @@ import * as profiles from "../profiles.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { postAttack } from "../core/scoring.js";
 import { RegionTracker } from "../audio/regions.js";
-import { reach, isRigid, bestOffset, profileStats, validEntry, RIGID_CENTS } from "../core/bend.js";
+import { reach, isRigid, bestOffset, profileStats, wasForced, bendCost,
+         validEntry, RIGID_CENTS, FORCED_DROP_DB } from "../core/bend.js";
 import {
   el, append, audioControl, levelBar, currentTuning, name, explainer,
 } from "../ui/widgets.js";
@@ -81,47 +82,88 @@ export default {
       referenceHz: Number(s.referenceHz) || 415, mode: s.mode,
     };
 
-    /* Which flute this is. A player with two instruments must be able to pick
-     * between them in one tap, and must not be able to pour readings from one
-     * into the other's profile by mistyping its name. So: a list of the flutes
-     * already measured, plus a way to start a new one. */
+    /* Which flute this is.
+     *
+     * Three separate jobs, and conflating them is what broke the first
+     * version: switching between flutes, renaming the one you are on, and
+     * starting a new one. Renaming is the common case -- the readings already
+     * exist under the unnamed default and belong to the instrument -- and the
+     * first version offered no way to do it at all, so naming a flute silently
+     * started an empty one instead and the notes looked lost.
+     *
+     * A new flute is created empty the moment it is named, so it can appear in
+     * the list before it has been measured. Without that the picker is asked
+     * to select an option that does not exist yet, and quietly shows blank.
+     */
     let current = profiles.names()[0] ?? "";
+    profiles.ensure(current);
     const chooser = el("select", { class: "select" });
-    const newName = el("input", {
-      class: "text", type: "text", placeholder: t("bend.newPlaceholder"), hidden: true,
-    });
+    const nameInput = el("input", { class: "text", type: "text", hidden: true });
+    const renameButton = el("button", { class: "secondary", text: t("bend.rename") });
+    const nameNote = el("p", { class: "muted small" });
     const NEW = "\u0000new";
+    let mode = null;                       // "rename" | "new" while editing
 
     const fillChooser = () => {
       chooser.replaceChildren();
       for (const flute of profiles.names()) {
         chooser.append(el("option", { value: flute, text: flute || t("bend.unnamed") }));
       }
-      if (!profiles.names().length) {
-        chooser.append(el("option", { value: "", text: t("bend.unnamed") }));
-      }
       chooser.append(el("option", { value: NEW, text: t("bend.newFlute") }));
       chooser.value = current;
-      newName.hidden = chooser.value !== NEW;
+      renameButton.hidden = false;
     };
-    chooser.addEventListener("change", () => {
-      if (chooser.value === NEW) {
-        newName.hidden = false;
-        newName.value = "";
-        newName.focus();
-        return;
+
+    const beginEdit = (which) => {
+      mode = which;
+      nameInput.hidden = false;
+      nameInput.value = which === "rename" ? current : "";
+      nameInput.placeholder = t("bend.newPlaceholder");
+      nameNote.textContent = "";
+      nameInput.focus();
+      nameInput.select();
+    };
+
+    const endEdit = () => {
+      const wanted = nameInput.value.trim();
+      nameInput.hidden = true;
+      if (!wanted || wanted === current) { mode = null; fillChooser(); return; }
+      if (mode === "rename") {
+        const result = profiles.rename(current, wanted);
+        if (!result.ok) {
+          // Merging two instruments' readings would describe a flute that does
+          // not exist, and there is no way back from it.
+          nameNote.textContent = t("bend.renameTaken", wanted);
+          nameInput.hidden = false;
+          return;
+        }
+        current = wanted;
+      } else {
+        if (profiles.names().includes(wanted)) {
+          nameNote.textContent = t("bend.newTaken", wanted);
+          nameInput.hidden = false;
+          return;
+        }
+        profiles.ensure(wanted);
+        current = wanted;
       }
-      newName.hidden = true;
+      mode = null;
+      nameNote.textContent = "";
+      target = null; readings = [];
+      fillChooser(); drawGrid(); drawPrompt(); drawSummary();
+    };
+
+    chooser.addEventListener("change", () => {
+      if (chooser.value === NEW) { beginEdit("new"); return; }
+      nameInput.hidden = true;
+      nameNote.textContent = "";
       current = chooser.value;
       target = null; readings = [];
       drawGrid(); drawPrompt(); drawSummary();
     });
-    newName.addEventListener("change", () => {
-      current = newName.value.trim();
-      newName.hidden = true;
-      target = null; readings = [];
-      fillChooser(); drawGrid(); drawPrompt(); drawSummary();
-    });
+    renameButton.addEventListener("click", () => beginEdit("rename"));
+    nameInput.addEventListener("change", endEdit);
+    nameInput.addEventListener("blur", () => { if (!nameInput.hidden) endEdit(); });
 
     const control = audioControl({ showGranted: false });
     this.control = control;
@@ -166,7 +208,7 @@ export default {
       }, [
         el("div", { class: "bend-phase-label", text: t(`bend.phase.${phase}`) }),
         el("div", { class: "bend-phase-value", text: i < readings.length
-          ? `${readings[i] >= 0 ? "+" : ""}${readings[i].toFixed(1)}¢` : "—" }),
+          ? `${readings[i].cents >= 0 ? "+" : ""}${readings[i].cents.toFixed(1)}¢` : "—" }),
       ]));
       append(prompt, ...rows,
         el("div", { class: "controls left" }, [
@@ -186,16 +228,24 @@ export default {
       const region = tracker.push(frame);
       if (!region || !target || readings.length >= 3) return;
       if (region.short || region.seconds < MIN_READING_SECONDS) return;
-      const [framesHz] = postAttack(region.framesHz, tracker.frameSeconds, region.levelsDb);
+      const [framesHz, levelsDb] = postAttack(region.framesHz, tracker.frameSeconds, region.levelsDb);
       if (!framesHz.length) return;
-      readings.push(centsBetween(targetHz(target), median(framesHz)));
+      // The level goes in beside the pitch: a bend that killed the sound is
+      // not the same finding as a bend the player can actually use.
+      readings.push({
+        cents: centsBetween(targetHz(target), median(framesHz)),
+        db: levelsDb.length ? levelsDb.reduce((a, b) => a + b, 0) / levelsDb.length : NaN,
+      });
       if (readings.length === 3) finish();
       drawPrompt();
     });
 
     const finish = () => {
-      const [natural, floor, ceiling] = readings;
-      const entry = { natural, floor, ceiling };
+      const [n, f, c] = readings;
+      const entry = {
+        natural: n.cents, floor: f.cents, ceiling: c.cents,
+        levels: { natural: n.db, floor: f.db, ceiling: c.db },
+      };
       if (!validEntry(entry)) {
         // Almost always the readings arriving out of order -- a bend that went
         // the wrong way, or a stray note between two of them.
@@ -240,6 +290,23 @@ export default {
         ]));
       }
 
+      /* Bends bought by wrecking the sound. Reported, not subtracted: whether
+       * a 9 dB drop still counts as playable is the player's call, not a
+       * threshold's, and the threshold itself is unverified. */
+      const forced = measured.filter((e) => wasForced(e, "up") || wasForced(e, "down"));
+      if (forced.length) {
+        parts.push(el("p", { text: t("bend.forced", FORCED_DROP_DB) }));
+        parts.push(el("ul", { class: "plain" }, forced.map((e) => {
+          const cost = bendCost(e);
+          const dir = wasForced(e, "down") ? "down" : "up";
+          return el("li", { text: t("bend.forcedNote",
+            name(SpelledPitch.parse(e.pitch), s),
+            t(`bend.dir.${dir}`),
+            (dir === "down" ? reach(e).down : reach(e).up).toFixed(0),
+            (dir === "down" ? cost.down : cost.up).toFixed(0)) });
+        })));
+      }
+
       const rigid = measured.filter((e) => isRigid(e, "up") || isRigid(e, "down"));
       if (rigid.length) {
         parts.push(el("p", { text: t("bend.rigid", RIGID_CENTS) }));
@@ -274,8 +341,10 @@ export default {
     append(root,
       explainer(t("bend.intro"), t("bend.protocol"), t("bend.why")),
       el("div", { class: "row" }, [
-        el("label", { class: "field" }, [t("bend.flute"), chooser]), newName,
+        el("label", { class: "field" }, [t("bend.flute"), chooser]),
+        renameButton, nameInput,
       ]),
+      nameNote,
       control.element,
       level.node,
       status,

@@ -20,7 +20,7 @@ import temperament from "./views/temperament.js";
 import temperaments from "./views/temperaments.js";
 import bend from "./views/bend.js";
 
-export const VERSION = "phase 5.2 · 2026-08-31";
+export const VERSION = "phase 5.3 · 2026-08-31";
 
 const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments, bend };
 
