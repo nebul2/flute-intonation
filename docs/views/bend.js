@@ -22,9 +22,9 @@ import * as profiles from "../profiles.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { postAttack } from "../core/scoring.js";
 import { RegionTracker } from "../audio/regions.js";
-import { reach, isRigid, bestOffset, validEntry, RIGID_CENTS } from "../core/bend.js";
+import { reach, isRigid, bestOffset, profileStats, validEntry, RIGID_CENTS } from "../core/bend.js";
 import {
-  el, append, audioControl, levelBar, labelField, currentTuning, name, explainer,
+  el, append, audioControl, levelBar, currentTuning, name, explainer,
 } from "../ui/widgets.js";
 
 /* Enough of the note to be a reading rather than a stab. */
@@ -65,7 +65,6 @@ export default {
     if (this.offFrame) { this.offFrame(); this.offFrame = null; }
     if (this.offSettings) { this.offSettings(); this.offSettings = null; }
     if (this.control) { this.control.dispose(); this.control = null; }
-    if (this.label) { this.label = null; }
   },
 
   render() {
@@ -74,13 +73,56 @@ export default {
     root.replaceChildren();
     const s = settings.get();
     const tuning = currentTuning(s);
+    /* Which note is being measured, and how far through its three readings. */
+    let target = null;
+    let readings = [];
     const tuningStamp = {
       temperament: s.temperament, root: s.root,
       referenceHz: Number(s.referenceHz) || 415, mode: s.mode,
     };
 
-    const label = labelField();
-    this.label = label;
+    /* Which flute this is. A player with two instruments must be able to pick
+     * between them in one tap, and must not be able to pour readings from one
+     * into the other's profile by mistyping its name. So: a list of the flutes
+     * already measured, plus a way to start a new one. */
+    let current = profiles.names()[0] ?? "";
+    const chooser = el("select", { class: "select" });
+    const newName = el("input", {
+      class: "text", type: "text", placeholder: t("bend.newPlaceholder"), hidden: true,
+    });
+    const NEW = "\u0000new";
+
+    const fillChooser = () => {
+      chooser.replaceChildren();
+      for (const flute of profiles.names()) {
+        chooser.append(el("option", { value: flute, text: flute || t("bend.unnamed") }));
+      }
+      if (!profiles.names().length) {
+        chooser.append(el("option", { value: "", text: t("bend.unnamed") }));
+      }
+      chooser.append(el("option", { value: NEW, text: t("bend.newFlute") }));
+      chooser.value = current;
+      newName.hidden = chooser.value !== NEW;
+    };
+    chooser.addEventListener("change", () => {
+      if (chooser.value === NEW) {
+        newName.hidden = false;
+        newName.value = "";
+        newName.focus();
+        return;
+      }
+      newName.hidden = true;
+      current = chooser.value;
+      target = null; readings = [];
+      drawGrid(); drawPrompt(); drawSummary();
+    });
+    newName.addEventListener("change", () => {
+      current = newName.value.trim();
+      newName.hidden = true;
+      target = null; readings = [];
+      fillChooser(); drawGrid(); drawPrompt(); drawSummary();
+    });
+
     const control = audioControl({ showGranted: false });
     this.control = control;
     const level = levelBar();
@@ -89,11 +131,7 @@ export default {
     const grid = el("div", { class: "bend-grid" });
     const summary = el("div", { class: "bend-summary" });
 
-    /* Which note is being measured, and how far through its three readings. */
-    let target = null;
-    let readings = [];
-
-    const instrument = () => label.value;
+    const instrument = () => current;
 
     const targetHz = (pitchName) => tuning.targetHz(SpelledPitch.parse(pitchName));
 
@@ -168,6 +206,7 @@ export default {
       profiles.setNote(instrument(), target, entry, tuningStamp, new Date().toISOString());
       target = null;
       readings = [];
+      fillChooser();
       drawGrid();
       drawSummary();
     };
@@ -177,6 +216,29 @@ export default {
       const measured = profiles.entries(instrument());
       if (!measured.length) return;
       const parts = [el("h2", { text: t("bend.summary", measured.length) })];
+
+      /* Where the flute sits, and how consistent it is with itself: two
+       * different things, and only the first is the headjoint's business. */
+      const stats = profileStats(measured);
+      if (stats) {
+        parts.push(el("div", { class: "stats scroll" }, [
+          el("table", {}, [
+            el("tbody", {}, [
+              [t("bend.stat.centre"), `${stats.centre >= 0 ? "+" : ""}${stats.centre.toFixed(1)}¢`,
+               t("bend.stat.centreNote")],
+              [t("bend.stat.scatter"), `${stats.scatter.toFixed(1)}¢`, t("bend.stat.scatterNote")],
+              [t("bend.stat.down"), `${stats.meanDown.toFixed(1)}¢`,
+               t("bend.stat.least", stats.leastDown.toFixed(0))],
+              [t("bend.stat.up"), `${stats.meanUp.toFixed(1)}¢`,
+               t("bend.stat.least", stats.leastUp.toFixed(0))],
+            ].map(([what, value, note]) => el("tr", {}, [
+              el("td", { text: what }),
+              el("td", { class: "num", text: value }),
+              el("td", { class: "muted", text: note }),
+            ]))),
+          ]),
+        ]));
+      }
 
       const rigid = measured.filter((e) => isRigid(e, "up") || isRigid(e, "down"));
       if (rigid.length) {
@@ -208,11 +270,12 @@ export default {
     };
 
     this.offSettings = settings.subscribe(() => { drawGrid(); drawPrompt(); drawSummary(); });
-    label.element.addEventListener("change", () => { drawGrid(); drawSummary(); });
 
     append(root,
       explainer(t("bend.intro"), t("bend.protocol"), t("bend.why")),
-      el("div", { class: "row" }, [label.element]),
+      el("div", { class: "row" }, [
+        el("label", { class: "field" }, [t("bend.flute"), chooser]), newName,
+      ]),
       control.element,
       level.node,
       status,
@@ -220,6 +283,7 @@ export default {
       grid,
       summary,
     );
+    fillChooser();
     drawGrid();
     drawPrompt();
     drawSummary();

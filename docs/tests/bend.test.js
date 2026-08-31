@@ -213,3 +213,46 @@ test("a note already in tune asks for no correction and is never impossible", ()
   assert.equal(reviews[0].possible, true, "asking for nothing is always possible");
   approx(reviews[0].wanted, 0, 1e-9);
 });
+
+/* ---- the instrument as a whole ---------------------------------------- */
+
+import { profileStats } from "../core/bend.js";
+
+test("where the flute sits and how consistent it is are two different numbers", () => {
+  // A flute sitting uniformly 12 cents sharp is not out of tune with itself at
+  // all: one push of the headjoint fixes every note. Averaging raw distances
+  // would score it as badly as a scattered one, which is the mistake.
+  const uniform = [12, 12, 12, 12].map((c) => ({ natural: c, floor: c - 20, ceiling: c + 20 }));
+  const stats = profileStats(uniform);
+  approx(stats.centre, 12, 1e-9, "it sits 12 sharp");
+  approx(stats.scatter, 0, 1e-9, "and is perfectly consistent with itself");
+  approx(stats.rawError, 12, 1e-9, "which the raw average cannot tell you");
+});
+
+test("a scattered flute is scattered even when it sits on the target", () => {
+  const scattered = [-15, 15, -15, 15].map((c) => ({ natural: c, floor: c - 20, ceiling: c + 20 }));
+  const stats = profileStats(scattered);
+  approx(stats.centre, 0, 1e-9, "centred overall");
+  approx(stats.scatter, 15, 1e-9, "and 15 cents out with itself, which no headjoint fixes");
+});
+
+test("bend capability is averaged in each direction separately, and the worst named", () => {
+  const stats = profileStats([lowC, f, a]);
+  assert.equal(stats.n, 3);
+  approx(stats.meanDown, (27 + 4 + 25) / 3, 1e-9, "mean downward bend");
+  approx(stats.meanUp, (2 + 16 + 25) / 3, 1e-9, "mean upward bend");
+  approx(stats.leastUp, 2, 1e-9, "low C is the stiffest upward");
+  approx(stats.leastDown, 4, 1e-9, "F is the stiffest downward");
+  assert.equal(stats.rigidUp, 1, "one note that will not go up");
+  assert.equal(stats.rigidDown, 1, "one that will not come down");
+});
+
+test("half-measured notes are left out of the statistics entirely", () => {
+  const stats = profileStats([a, { natural: 0, floor: 10, ceiling: 20 }]);
+  assert.equal(stats.n, 1, "only the valid one counts");
+});
+
+test("an empty profile has no statistics rather than zeroed ones", () => {
+  assert.equal(profileStats([]), null);
+  assert.equal(profileStats([{ natural: 0, floor: 5, ceiling: 1 }]), null);
+});

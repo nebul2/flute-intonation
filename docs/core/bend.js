@@ -187,3 +187,42 @@ export function reviewSession(profile, notes) {
 export function impossible(reviews) {
   return reviews.filter((r) => !r.possible);
 }
+
+/**
+ * What a profile says about the instrument as a whole.
+ *
+ * Two separate questions, kept apart on purpose, the same way a session's
+ * score separates its overall pitch from its note-to-note scatter. *Where*
+ * the flute sits is one number and it is the headjoint's business, costing
+ * nothing musical to correct. *How consistent* it is with itself is the other,
+ * and no amount of pushing the headjoint about will improve it.
+ *
+ * Averaging the raw distances from target would confuse the two: a flute
+ * sitting uniformly 12 cents sharp would score as badly as one scattered
+ * wildly around its target, and only the second is really out of tune with
+ * itself.
+ */
+export function profileStats(entries) {
+  const valid = entries.filter(validEntry);
+  if (!valid.length) return null;
+  const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+  const naturals = valid.map((e) => e.natural);
+  const centre = mean(naturals);
+  const reaches = valid.map(reach);
+
+  return {
+    n: valid.length,
+    // Where the flute sits as it comes, and how far it is from being one flute.
+    centre,
+    scatter: mean(naturals.map((c) => Math.abs(c - centre))),
+    rawError: mean(naturals.map(Math.abs)),
+    // What the player has to work with, each way.
+    meanDown: mean(reaches.map((r) => r.down)),
+    meanUp: mean(reaches.map((r) => r.up)),
+    leastDown: Math.min(...reaches.map((r) => r.down)),
+    leastUp: Math.min(...reaches.map((r) => r.up)),
+    rigidUp: valid.filter((e) => isRigid(e, "up")).length,
+    rigidDown: valid.filter((e) => isRigid(e, "down")).length,
+  };
+}
