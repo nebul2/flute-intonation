@@ -27,7 +27,8 @@ import { TEMPERAMENT_ORDER } from "../core/temperaments.js";
 import {
   temperamentTable, matchRow, classifyHz, PITCH_CLASSES, INDISTINGUISHABLE_CENTS,
 } from "../core/identify.js";
-import { el, append, audioControl, levelBar, temperamentLabel } from "../ui/widgets.js";
+import { el, append, audioControl, levelBar, temperamentLabel, explainer } from "../ui/widgets.js";
+import { helpSection } from "../ui/help.js";
 
 const SOLFEGE = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "La♯", "Si"];
 const className = (i, s) => (s.naming === "solfege" ? SOLFEGE[i] : PITCH_CLASSES[i]);
@@ -126,16 +127,16 @@ export default {
     });
 
     append(root,
-      el("p", { class: "intro", text: t("temperaments.intro") }),
-      el("p", { class: "note-box", text: t("temperaments.lesson", INDISTINGUISHABLE_CENTS) }),
+      explainer(t("temperaments.intro"), t("temperaments.lesson", INDISTINGUISHABLE_CENTS),
+                t("temperaments.how", ref)),
       el("div", { class: "row" }, [
         el("label", { class: "field" }, [t("temperaments.root"), rootSelect]),
         el("label", { class: "field" }, [t("temperaments.octave"), octaveSelect]),
       ]),
-      el("p", { class: "muted small", text: t("temperaments.how", ref) }),
       control.element,
       level.node,
       el("div", { class: "scroll" }, [table]),
+      helpSection("temperaments").element,
       el("div", { class: "controls" }, [
         el("button", { class: "primary", text: t("temperaments.clear"), onclick: () => {
           played.forEach((xs) => { xs.length = 0; });

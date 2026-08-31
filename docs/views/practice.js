@@ -4,7 +4,7 @@
 import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import { SpelledPitch } from "../core/pitch.js";
-import { el, append, audioControl, labelField, nameClass } from "../ui/widgets.js";
+import { el, append, audioControl, labelField, nameClass, explainer } from "../ui/widgets.js";
 import { EXERCISES, ExerciseRun } from "./run.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
@@ -52,7 +52,7 @@ export default {
     this.offState = engine.onState(() => buttons.forEach((b) => { b.disabled = !engine.listening; }));
 
     append(root,
-      el("p", { class: "intro", text: t("practice.intro") }),
+      explainer(t("practice.intro")),
       el("div", { class: "row" }, [control.element, el("span", { text: t("practice.tonic") }), tonicSelect,
                                     el("span", { text: t("practice.quality") }), qualitySelect]),
       el("div", { class: "row" }, [label.element]),

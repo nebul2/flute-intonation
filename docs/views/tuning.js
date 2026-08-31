@@ -8,7 +8,7 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { TEMPERAMENTS, TEMPERAMENT_ORDER } from "../core/temperaments.js";
 import { lang } from "../i18n.js";
-import { el, currentTuning, temperamentLabel, nameClass } from "../ui/widgets.js";
+import { el, currentTuning, temperamentLabel, nameClass, explainer } from "../ui/widgets.js";
 
 const ROOTS = ["C", "D", "F", "G", "A", "Bb"];
 
@@ -67,7 +67,7 @@ export default {
       el("div", { class: "row" }, [el("span", { text: t("tuning.root") }), rootSelect]),
       el("h2", { text: t("tuning.example") }),
       example,
-      el("p", { class: "note-box", text: t("tuning.enharmonic") }),
+      explainer(t("tuning.enharmonic")),
     );
   },
 

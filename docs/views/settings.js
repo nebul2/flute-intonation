@@ -93,6 +93,16 @@ export default {
       },
     });
 
+    /* page explanations: folded away by default, once you know the app */
+    const explainToggle = el("label", { class: "option" }, [
+      el("input", { type: "checkbox", checked: s.explainOpen === true || null,
+                    onchange: (e) => settings.set({ explainOpen: e.target.checked }) }),
+      el("span", { class: "option-body" }, [
+        el("span", { class: "option-label", text: t("settings.explainOpen") }),
+        el("span", { class: "option-help", text: t("settings.explainOpenHelp") }),
+      ]),
+    ]);
+
     /* headphones */
     const headphones = el("label", { class: "option" }, [
       el("input", { type: "checkbox", checked: s.headphones || null,
@@ -130,6 +140,7 @@ export default {
       el("h2", { text: t("settings.reference") }),
       el("div", { class: "row" }, [refs, custom]),
       el("h2", { text: t("settings.naming") }), naming,
+      el("h2", { text: t("settings.reading") }), explainToggle,
       el("h2", { text: t("settings.octaveStyle") }), octaveStyle,
       el("p", { class: "note-box", text: t("settings.octaveStyleHelp") }),
       el("div", { class: "row" }, [el("span", { text: t("settings.registerBreak") }), registerBreak]),

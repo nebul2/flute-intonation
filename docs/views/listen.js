@@ -23,7 +23,7 @@ import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS 
 import { NoteSegmenter } from "../audio/segmenter.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows, standouts, offsetAction } from "../core/stats.js";
 import { postAttack } from "../core/scoring.js";
-import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav } from "../ui/widgets.js";
+import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
 const TONICS = ["D", "G", "A", "C", "F"];
 /* How long the tonic must be held to begin. Collected by the same state
@@ -71,7 +71,7 @@ export default {
                                  onclick: () => this.startSession() });
     this.offState = engine.onState(() => { start.disabled = !engine.listening; });
     root.append(
-      el("p", { class: "intro", text: t("listen.intro") }),
+      explainer(t("listen.intro")),
       el("div", { class: "row" }, [control.element, el("span", { text: t("practice.tonic") }), tonicSelect, start]),
       el("div", { class: "row" }, [label.element]),
     );

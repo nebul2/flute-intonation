@@ -108,6 +108,32 @@ export function audioControl({ showGranted = true } = {}) {
   return { element: wrap, update, dispose: off };
 }
 
+/* ---- page explanations ------------------------------------------------ */
+
+/* What a page is for, folded away by default.
+ *
+ * Every page opened with a paragraph or two of explanation, which is right the
+ * first few times and clutter forever after. They now live behind a native
+ * <details>, so the page opens on the thing you came to use.
+ *
+ * The setting decides how they start; toggling one on a page is for that visit
+ * only and never writes the setting back. Somebody who wants them open always
+ * says so once in Settings rather than re-opening them page after page, and
+ * somebody who opens one to check something does not silently change how every
+ * other page behaves.
+ */
+export function explainer(...paragraphs) {
+  const body = paragraphs
+    .filter((p) => p !== null && p !== undefined && p !== "")
+    .map((p) => (typeof p === "string" ? el("p", { text: p }) : p));
+  const details = el("details", { class: "explain" }, [
+    el("summary", { text: t("explain.label") }),
+    el("div", { class: "explain-body" }, body),
+  ]);
+  details.open = settings.get().explainOpen === true;
+  return details;
+}
+
 /* ---- session label -------------------------------------------------- */
 
 let labelFieldCount = 0;

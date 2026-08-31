@@ -427,3 +427,31 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .temp-spread { font-family: var(--mono); color: var(--muted); font-size: 0.72rem; }
 .temp-table tr.same .temp-spread { font-style: italic; }
 .temp-table tr.played .temp-note { color: var(--brass); }
+
+/* ---- page explanations, folded away by default ------------------------ */
+
+.explain { margin: 0 0 0.9rem; }
+.explain > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 3px 0;
+  list-style: none;
+}
+.explain > summary::-webkit-details-marker { display: none; }
+.explain > summary::before { content: "▸ "; }
+.explain[open] > summary::before { content: "▾ "; }
+.explain > summary:hover { color: var(--ink); }
+.explain > summary:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.explain-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0.2rem 0.9rem;
+  border-left: 2px solid var(--edge);
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.55;
+  max-width: 42rem;
+}

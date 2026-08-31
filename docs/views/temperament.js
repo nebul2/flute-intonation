@@ -19,7 +19,7 @@ import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
 import { postAttack } from "../core/scoring.js";
 import { identify, classifyHz, predictedCents, expectedHz, bestByTemperament,
          PITCH_CLASSES, MIN_CLASSES, FULL_CLASSES } from "../core/identify.js";
-import { el, append, audioControl, levelBar, temperamentLabel } from "../ui/widgets.js";
+import { el, append, audioControl, levelBar, temperamentLabel, explainer } from "../ui/widgets.js";
 
 /* Display names per pitch class, in the naming the player has chosen. The
  * spelling is arbitrary here -- a temperament has twelve pitch classes, not
@@ -214,14 +214,12 @@ export default {
 
     append(root,
       el("p", { class: "note-box warn", text: t("temperament.experimental") }),
-      el("p", { class: "intro", text: t("temperament.intro") }),
-      el("p", { class: "muted small", text: t("temperament.how", ref) }),
+      explainer(t("temperament.intro"), t("temperament.how", ref), t("temperament.boardNote")),
       control.element,
       level.node,
       status,
       grid,
       board,
-      el("p", { class: "muted small", text: t("temperament.boardNote") }),
       result,
       el("div", { class: "controls" }, [
         el("button", { class: "primary", text: t("temperament.clear"), onclick: reset }),

@@ -107,6 +107,11 @@ export const STRINGS = {
     "temperament.experimental": "Experimental. The arithmetic is tested, but the detector has never been measured against a harpsichord or an organ — only a flute. Treat the answer as a suggestion, and check the pitch it reports against what you know the instrument to be.",
     "practice.stopper.trueOctave": "true octave",
     "practice.stopper.barLabel": (names, cents, direction) => `${names}: ${cents} cents ${direction}`,
+    "explain.label": "What this page is for",
+    "settings.reading": "Explanations",
+    "settings.explainOpen": "Open explanations by default",
+    "settings.explainOpenHelp": "Every page can explain itself. Off, they stay folded away and you open the ones you want; on, they are open when the page loads. Opening one on a page is only for that visit.",
+    "help.temperaments.label": "Background — where the comma goes, and why meantone howls",
     "home.card.temperaments.title": "Compare temperaments",
     "home.card.temperaments.desc": "Every temperament's frequency for every note, side by side — and which one you just played.",
 
@@ -464,6 +469,11 @@ export const STRINGS = {
     "temperament.experimental": "Expérimental. Le calcul est testé, mais le détecteur n'a jamais été mesuré sur un clavecin ou un orgue — seulement sur une flûte. Prends la réponse comme une suggestion, et vérifie la hauteur annoncée contre ce que tu sais de l'instrument.",
     "practice.stopper.trueOctave": "octave juste",
     "practice.stopper.barLabel": (names, cents, direction) => `${names} : ${cents} cents ${direction}`,
+    "explain.label": "À quoi sert cette page",
+    "settings.reading": "Explications",
+    "settings.explainOpen": "Ouvrir les explications par défaut",
+    "settings.explainOpenHelp": "Chaque page peut s'expliquer. Décoché, les explications restent repliées et tu ouvres celles que tu veux ; coché, elles sont ouvertes au chargement. En ouvrir une sur une page ne vaut que pour cette visite.",
+    "help.temperaments.label": "En savoir plus — où passe le comma, et pourquoi le mésotonique hurle",
     "home.card.temperaments.title": "Comparer les tempéraments",
     "home.card.temperaments.desc": "La fréquence de chaque note dans chaque tempérament, côte à côte — et celui que tu viens de jouer.",
 

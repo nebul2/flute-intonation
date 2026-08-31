@@ -12,7 +12,7 @@ import * as settings from "../settings.js";
 import { SpelledPitch } from "../core/pitch.js";
 import { compare, perNote, MAX_COMPARE } from "../core/compare.js";
 import { sessionScore } from "../core/stats.js";
-import { el, append, name, bandClass } from "../ui/widgets.js";
+import { el, append, name, bandClass, explainer } from "../ui/widgets.js";
 
 const fmt = (c, digits = 1) => `${c >= 0 ? "+" : ""}${c.toFixed(digits)}`;
 
@@ -119,7 +119,7 @@ export default {
     this.panel = el("div", { class: "compare" });
 
     append(root,
-      el("p", { class: "intro", text: t("sessions.intro") }),
+      explainer(t("sessions.intro")),
       this.records.length ? null : el("p", { class: "note-box", text: t("sessions.empty") }),
       this.records.length
         ? el("div", { class: "row" }, [compareButton,

@@ -5,7 +5,7 @@
 import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
-import { el, audioControl, needle, levelBar, bandClass } from "../ui/widgets.js";
+import { el, audioControl, needle, levelBar, bandClass, explainer } from "../ui/widgets.js";
 
 const NAMES = ["Do", "Do♯", "Ré", "Mi♭", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "Si♭", "Si"];
 
@@ -73,7 +73,7 @@ export default {
     requestAnimationFrame(render);
 
     root.append(
-      el("p", { class: "intro", text: t("check.intro") }),
+      explainer(t("check.intro"), t("check.note")),
       el("div", { class: "card panel" }, [
         note,
         el("div", { class: "readout" }, [hz, cents]),
@@ -81,7 +81,6 @@ export default {
         level.element,
         el("div", { class: "controls" }, [control.element, drone]),
       ]),
-      el("p", { class: "note-box", text: t("check.note") }),
     );
     this.control = control;
   },
