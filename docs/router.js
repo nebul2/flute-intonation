@@ -16,6 +16,7 @@ export const ROUTES = Object.freeze({
   temperament: "temperament",
   temperaments: "temperaments",
   bend: "bend",
+  feedback: "feedback",
 });
 
 export function currentRoute() {

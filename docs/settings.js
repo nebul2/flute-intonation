@@ -24,6 +24,7 @@ export const DEFAULTS = Object.freeze({
   octaveStyle: "register",  // "register" (Ré grave) or "number" (Ré4)
   registerBreak: "D",    // where the registers break: D (one-keyed) or C (C foot)
   explainOpen: false,    // page explanations start open rather than folded away
+  feedbackAsked: false,  // the one-time "what do you think?" has been settled
 });
 
 let state = null;

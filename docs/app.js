@@ -6,6 +6,7 @@ import * as settings from "./settings.js";
 import { Router, currentRoute, back } from "./router.js";
 import { el, statusText } from "./ui/widgets.js";
 import * as analytics from "./analytics.js";
+import { VERSION } from "./app-version.js";
 
 import home from "./views/home.js";
 import tuner from "./views/tuner.js";
@@ -19,10 +20,11 @@ import sessions from "./views/sessions.js";
 import temperament from "./views/temperament.js";
 import temperaments from "./views/temperaments.js";
 import bend from "./views/bend.js";
+import feedbackView from "./views/feedback.js";
 
-export const VERSION = "phase 5.3 · 2026-08-31";
+export { VERSION } from "./app-version.js";
 
-const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments, bend };
+const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments, bend, feedback: feedbackView };
 
 function $(id) { return document.getElementById(id); }
 
@@ -45,6 +47,7 @@ function renderChrome() {
   $("back").setAttribute("aria-label", t("nav.back"));
   $("srclink").textContent = t("footer.source");
   $("privacy").textContent = t("footer.privacy");
+  $("feedbacklink").textContent = t("footer.feedback");
   $("version").textContent = VERSION;
   renderOffline();
   document.querySelectorAll("[data-lang]").forEach((b) =>

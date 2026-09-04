@@ -30,6 +30,7 @@ import { Exercise, TargetNote } from "../core/resolver.js";
 import { SessionSummary, analyseNote, judgeDirection, octavePairs, octaveBarGeometry, BAR_SPAN_CENTS, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
 import { NoteSegmenter, onsetThresholdFor } from "../audio/segmenter.js";
 import { highestFirst } from "../core/pitch.js";
+import { invitation } from "../ui/feedback.js";
 import { el, append, needle, levelBar, bandClass, currentTuning, name, nameClass, runNav } from "../ui/widgets.js";
 
 /* The practice set. */
@@ -459,8 +460,15 @@ export class ExerciseRun {
       if (run.judgements.length) {
         record.judgement = { agreed: run.judgements.filter(Boolean).length, total: run.judgements.length };
       }
-      try { await history.add(record); u.summary.append(el("p", { class: "muted", text: t("practice.saved") })); }
-      catch (_e) { /* storage unavailable: the session still displayed */ }
+      try {
+        await history.add(record);
+        u.summary.append(el("p", { class: "muted", text: t("practice.saved") }));
+        // Asked once, after enough sessions to have an opinion, and never
+        // again. Appended last so it can never come between the player and
+        // their own results.
+        const invite = invitation(`practice: ${run.key}`, await history.count());
+        if (invite) u.summary.append(invite);
+      } catch (_e) { /* storage unavailable: the session still displayed */ }
     }
   }
 

@@ -24,6 +24,7 @@ import { NoteSegmenter } from "../audio/segmenter.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows, standouts, offsetAction } from "../core/stats.js";
 import { reviewSession, impossible } from "../core/bend.js";
 import * as profiles from "../profiles.js";
+import { invitation } from "../ui/feedback.js";
 import { postAttack } from "../core/scoring.js";
 import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
@@ -481,8 +482,13 @@ export default {
         glides: run.glideCount,
         trills: run.trillCount,
       };
-      try { await history.add(record); u.summary.append(el("p", { class: "muted", text: t("practice.saved") })); }
-      catch (_e) { /* storage unavailable */ }
+      try {
+        await history.add(record);
+        u.summary.append(el("p", { class: "muted", text: t("practice.saved") }));
+        // Last of all, and only ever once: the results are what they came for.
+        const invite = invitation("listen", await history.count());
+        if (invite) u.summary.append(invite);
+      } catch (_e) { /* storage unavailable */ }
     }
   },
 };

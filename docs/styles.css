@@ -487,3 +487,27 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .bend-summary { margin-top: 1rem; }
 ul.plain { margin: 0.4rem 0; padding-left: 1.1rem; }
 ul.plain li { margin: 0.25rem 0; color: var(--muted); font-size: 0.86rem; }
+
+/* ---- feedback: a link that never asks, and one invitation that does --- */
+
+/* Anchors that must read as buttons: a mailto: cannot be a <button>. */
+a.button {
+  display: inline-block;
+  text-decoration: none;
+  text-align: center;
+}
+.feedback { margin: 0.6rem 0; }
+.feedback-fallback {
+  width: 100%; margin-top: 0.5rem; padding: 0.5rem;
+  background: var(--ground); color: var(--ink);
+  border: 1px solid var(--edge); border-radius: var(--radius);
+  font-family: var(--mono); font-size: 0.72rem;
+}
+/* Quiet: it sits under a session's results and must not compete with them. */
+.invite {
+  margin-top: 1.2rem;
+  padding: 0.8rem 0 0.2rem;
+  border-top: 1px solid var(--edge);
+}
+.invite > p { color: var(--muted); font-size: 0.88rem; max-width: 40rem; }
+#feedbacklink { color: inherit; }
