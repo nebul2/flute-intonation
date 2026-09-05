@@ -24,7 +24,7 @@ import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { Mode, TargetResolver } from "../core/resolver.js";
-import { intervalDrill, intervalInContext, enharmonicPair, intervalAdjust, stopperCheck, scalePool, scaleKeyFor, pickDifferent } from "../core/generator.js";
+import { intervalDrill, intervalInContext, enharmonicPair, intervalAdjust, stopperCheck, scalePool, scaleKeyFor, pickDifferent, PRACTICE_KEYS } from "../core/generator.js";
 import { HarmonicContext } from "../core/tuning.js";
 import { Exercise, TargetNote } from "../core/resolver.js";
 import { SessionSummary, analyseNote, judgeDirection, octavePairs, octaveBarGeometry, BAR_SPAN_CENTS, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
@@ -49,7 +49,12 @@ export const EXERCISES = {
    * `feedback: "end"` on purpose -- a needle during would teach exactly the
    * habit this exercise exists to break. */
   adjust: {
-    build: (tonic) => intervalAdjust(tonic),
+    /* Every key the app can spell, not the five letters the shared tonic
+     * select offers -- that control cannot name a flat key at all, and the
+     * widest and most instructive of these are B and Ab at a full comma. */
+    keys: PRACTICE_KEYS,
+    build: (tonic, quality, chosen) =>
+      intervalAdjust(chosen ? chosen.tonic : tonic, { key: chosen ? chosen.key : "" }),
     feedback: "end", report: "adjust", help: "intervals",
     explain: ["practice.adjust.what", "practice.adjust.how", "practice.adjust.why"],
   },
@@ -157,7 +162,7 @@ export class ExerciseRun {
 
   mount(root) {
     this.root = root;
-    const built = this.spec.build(this.tonic, this.quality);
+    const built = this.spec.build(this.tonic, this.quality, this.chosenKey());
     const s = settings.get();
     const tuning = currentTuning(s);
     this.run = {
@@ -189,6 +194,14 @@ export class ExerciseRun {
     this.run = null;
   }
 
+  /* The key this run is in, when the exercise offers a choice. Remembered
+   * across sessions, so picking up where you left off is the default. */
+  chosenKey() {
+    if (!this.spec.keys) return null;
+    const at = settings.get().practiceKeyIndex ?? 0;
+    return this.spec.keys[Math.min(at, this.spec.keys.length - 1)];
+  }
+
   restart() {
     const root = this.root;
     this.unmount();
@@ -202,6 +215,13 @@ export class ExerciseRun {
     root.replaceChildren();
     this.ui = {
       heading: el("h2", { text: t(`practice.ex.${run.key}.title`) }),
+      keyPicker: run.spec.keys ? el("select", { class: "select", onchange: (e) => {
+        settings.set({ practiceKeyIndex: Number(e.target.value) });
+        this.restart();
+      } }, run.spec.keys.map((entry, i) => el("option", {
+        value: String(i), selected: entry === this.chosenKey() || null,
+        text: t("practice.inKey", nameClass(SpelledPitch.parse(`${entry.key}4`), run.settings)),
+      }))) : null,
       status: el("p", { class: "intro" }),
       noteLabel: el("div", { class: "big-note", text: "—" }),
       target: el("div", { class: "target" }),
@@ -224,6 +244,9 @@ export class ExerciseRun {
     u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.level.element, u.judge]);
     append(root,
       u.heading,
+      u.keyPicker ? el("div", { class: "row" }, [
+        el("label", { class: "field" }, [t("practice.key"), u.keyPicker]),
+      ]) : null,
       // Short version folded away, sources behind it. The page stays clean and
       // nothing that explains WHY this exercise exists is more than a tap
       // away -- which for an exercise about harmonic intonation matters more

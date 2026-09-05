@@ -133,3 +133,65 @@ test("the thresholds are constants, and sit where they are described", () => {
   assert.ok(ENOUGH > 0 && ENOUGH < 1, "partial credit is partial");
   assert.ok(TOO_FAR > 1, "overshooting means going past the whole way");
 });
+
+/* ---- choosing the key ---------------------------------------------------- */
+
+import { EXERCISES } from "../views/run.js";
+import { PRACTICE_KEYS, KEY_SIGNATURES } from "../core/generator.js";
+
+test("the key list covers every key the app can spell, tonic and signature apart", () => {
+  // A flat key's name is not its tonic letter -- Bb major is tonic "B" under
+  // the signature "Bb". Passing the name where a letter belongs throws, and
+  // that mistake has already shipped once in the scales page.
+
+  assert.equal(PRACTICE_KEYS.length, Object.keys(KEY_SIGNATURES).length,
+    "every spellable key should be offered");
+  for (const entry of PRACTICE_KEYS) {
+    assert.ok(KEY_SIGNATURES[entry.key], `${entry.key} has no signature`);
+    assert.equal(entry.tonic, entry.key[0]);
+    assert.doesNotThrow(() => SpelledPitch.parse(`${entry.tonic}4`),
+      `${entry.key}: the tonic must parse as a letter`);
+  }
+  assert.equal(PRACTICE_KEYS[0].key, "D", "the traverso's home key comes first");
+});
+
+test("the exercise builds in every offered key, ignoring a stale tonic", () => {
+  // The picker supersedes the shared tonic select, which offers five letters
+  // and cannot name a flat key at all -- which is why the exercise only ever
+  // ran in D until it had its own control.
+  const spec = EXERCISES.adjust;
+  assert.ok(spec.keys, "the exercise must declare that it offers a choice");
+  for (const entry of spec.keys) {
+    const built = spec.build("D", "major", entry);
+    assert.equal(built.length, 2, `${entry.key}: two exercises, two drones`);
+    const [third, fifth] = built;
+    assert.ok(third.notes[0].pitch.equals(fifth.notes[0].pitch));
+    assert.equal(third.drone.letter, entry.tonic,
+      `${entry.key}: the first drone is the tonic, not the stale D`);
+    assert.equal(third.notes[0].pitch.chromaticIndex - third.drone.chromaticIndex, 4);
+    assert.equal(fifth.notes[0].pitch.chromaticIndex - fifth.drone.chromaticIndex, 7);
+  }
+});
+
+test("every offered key asks for a move worth making", () => {
+  const spec = EXERCISES.adjust;
+  const tuning = tuningAt();
+  const pure = new PureIntervalTuning(tuning);
+  const rises = spec.keys.map((entry) => {
+    const [third, fifth] = spec.build("D", "major", entry);
+    const pitch = third.notes[0].pitch;
+    return centsBetween(pure.targetHz(pitch, third.notes[0].context),
+                        pure.targetHz(pitch, fifth.notes[0].context));
+  });
+  for (let i = 0; i < rises.length; i++) {
+    assert.ok(rises[i] > 5 && rises[i] < 25,
+      `${spec.keys[i].key}: ${rises[i].toFixed(1)} cents is not a playable move`);
+  }
+  assert.ok(Math.max(...rises) > 20,
+    "the widest keys should ask for about a comma, which is the whole lesson");
+});
+
+test("no choice at all falls back to the tonic rather than throwing", () => {
+  const built = EXERCISES.adjust.build("G", "major", null);
+  assert.equal(built[0].drone.name, "G4");
+});

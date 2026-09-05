@@ -28,6 +28,7 @@ export const DEFAULTS = Object.freeze({
   scalesMinutes: 15,     // Play scales stops itself after this long
   scalesMode: "guided",  // "guided" (app names a key) | "key" | "free"
   scalesKeyIndex: 0,     // where the guided sequence had got to
+  practiceKeyIndex: 0,   // which key the key-choosing exercises are in
 });
 
 let state = null;

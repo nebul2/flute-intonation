@@ -25,6 +25,17 @@ export const KEY_SIGNATURES = Object.freeze({
   Ab: { B: -1, E: -1, A: -1, D: -1 },
 });
 
+/* The keys this app can spell, in the order a traverso player meets them:
+ * home key first, outward through the sharps, then the flats.
+ *
+ * A pair rather than a letter, because a flat key's name is not its tonic
+ * letter -- Bb major is tonic "B" under the signature "Bb", and passing the
+ * name where a letter belongs throws. Anything offering a choice of key
+ * should walk this rather than keep its own list. */
+export const PRACTICE_KEYS = Object.freeze(
+  ["D", "G", "A", "E", "B", "C", "F", "Bb", "Eb", "Ab"]
+    .map((key) => Object.freeze({ key, tonic: key[0] })));
+
 /* The relative major whose signature spells each natural minor scale. */
 export const MINOR_RELATIVE = Object.freeze({ C: "Eb", D: "F", E: "G", F: "Ab", G: "Bb", A: "C", B: "D" });
 
