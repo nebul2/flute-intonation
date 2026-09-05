@@ -63,6 +63,19 @@ EXCERPTS: tuple[Excerpt, ...] = (
         "main note, between the written auxiliary and its neighbour.",
     ),
     Excerpt(
+        "scales_run_together", "scales", 128.0, 12.0,
+        "Two scales with no breath between them -- D major straight into G "
+        "major. Silence cannot separate these: within a scale the notes are "
+        "contiguous (median gap 0.00s) and these two are 0.05s apart, so a "
+        "gap threshold can never split them and the contour must.",
+    ),
+    Excerpt(
+        "scale_two_octave", "scales", 14.7, 10.0,
+        "The ascent of a two-octave D major scale, containing one of the "
+        "detector's octave jumps: E5 heard as E4. Left unrepaired it breaks "
+        "the run in half and the scale is lost.",
+    ),
+    Excerpt(
         "slurred", "piece", 2.40, 3.0,
         "A slurred passage. The pitch genuinely sounds the notes in between, "
         "so a region that is still travelling is a transition, not a note -- "

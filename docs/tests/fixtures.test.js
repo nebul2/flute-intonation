@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import fs from "node:fs";
 import { analyse } from "./wavpipe.js";
+import { scaleRuns } from "../core/scales.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => analyse(path.join(here, "fixtures", `${name}.wav`));
@@ -63,9 +64,39 @@ test("a slurred passage still yields the notes at either end", () => {
 });
 
 test("every fixture is small enough to belong in a repository", () => {
-  // The point of excerpting: whole takes are tens of megabytes.
-  for (const name of ["sustained", "tongued", "trill", "trill_fingering", "slurred"]) {
+  // The point of excerpting: whole takes are tens of megabytes. A scale is a
+  // longer gesture than a trill and cannot be cut as short, so the per-file
+  // cap allows for that -- but the total is what actually matters to anyone
+  // cloning, and it stays two orders of magnitude below the takes.
+  let total = 0;
+  for (const name of ["sustained", "tongued", "trill", "trill_fingering", "slurred",
+                      "scales_run_together", "scale_two_octave"]) {
     const bytes = fs.statSync(path.join(here, "fixtures", `${name}.wav`)).size;
-    assert.ok(bytes < 600 * 1024, `${name}.wav is ${(bytes / 1024).toFixed(0)} KB`);
+    total += bytes;
+    assert.ok(bytes < 1200 * 1024, `${name}.wav is ${(bytes / 1024).toFixed(0)} KB`);
   }
+  assert.ok(total < 4 * 1024 * 1024, `fixtures total ${(total / 1024 / 1024).toFixed(1)} MB`);
+});
+
+test("two scales run together are split by contour, with no silence to help", () => {
+  // Real playing, and the case that decided the design: within a scale the
+  // notes are contiguous -- median gap 0.00 s across the whole take -- and
+  // these two scales are 0.05 s apart. No silence threshold could separate
+  // them, so the contour has to.
+  const notes = fixture("scales_run_together").notes;
+  const runs = scaleRuns(notes);
+  assert.equal(runs.length, 2, `expected two scales, got ${runs.length}`);
+  assert.deepEqual(runs.map((r) => r.tonicName), ["D", "G"]);
+  assert.ok(runs.every((r) => r.shape === "up"), "both were played ascending only");
+});
+
+test("a two-octave scale survives the detector jumping an octave", () => {
+  // Six of these in 226 real notes, always at a register crossing. This one
+  // is E5 heard as E4 in the middle of the ascent; unrepaired it breaks the
+  // run in half and the scale is lost entirely.
+  const runs = scaleRuns(fixture("scale_two_octave").notes);
+  assert.equal(runs.length, 1, `expected one scale, got ${runs.length}`);
+  assert.equal(runs[0].tonicName, "D");
+  assert.equal(runs[0].octaves, 2);
+  assert.equal(runs[0].octaveErrors, 1, "the jump is repaired, and reported rather than hidden");
 });

@@ -44,6 +44,7 @@ const PRECACHE = [
   "core/compare.js",
   "core/generator.js",
   "core/naming.js",
+  "core/scales.js",
   "core/pitch.js",
   "core/resolver.js",
   "core/scoring.js",

@@ -17,6 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { analyse } from "./wavpipe.js";
+import { scaleRuns } from "../core/scales.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const recording = (name) => path.join(root, "recordings", name);
@@ -81,4 +82,68 @@ test("a piece keeps its notes while its ornaments are set aside",
   // is eating the piece rather than its ornaments.
   assert.ok(report.counts.note > (report.counts.short ?? 0) + (report.counts.slur ?? 0),
     "measured notes outnumber the leftovers");
+});
+
+/* ---- scales, on the instrument ---------------------------------------- */
+
+test("a scales session is recognised key by key", { skip: !have("scales.wav") }, () => {
+  // 175 seconds of this flute: D one octave and two, G two, A one, E, Bb, a
+  // C scale with a deliberate F#, a false start, a scale abandoned half way,
+  // two scales run together with no breath, and one fast and one slow.
+  const runs = scaleRuns(analyse(recording("scales.wav")).notes);
+  const keys = runs.map((r) => r.tonicName ?? r.pitchClassName);
+
+  for (const key of ["D", "G", "A", "E", "Bb", "C"]) {
+    assert.ok(keys.includes(key), `${key} major was played and should be found: got ${keys.join(" ")}`);
+  }
+  // The two-octave scales are told from the one-octave ones.
+  assert.ok(runs.some((r) => r.tonicName === "D" && r.octaves === 2), "D over two octaves");
+  assert.ok(runs.some((r) => r.tonicName === "G" && r.octaves === 2), "G over two octaves");
+  assert.ok(runs.some((r) => r.tonicName === "A" && r.octaves === 1), "A over one octave");
+});
+
+test("the two scales run together with no breath are split apart", () => {
+  // The case that killed the obvious design: within a scale the notes are
+  // contiguous -- median gap 0.00 s -- and these two were 0.05 s apart, well
+  // inside that. No silence threshold could ever separate them, so the
+  // contour has to, and this is the proof that it does.
+  if (!have("scales.wav")) return;
+  const runs = scaleRuns(analyse(recording("scales.wav")).notes);
+  const ups = runs.filter((r) => r.shape === "up" && r.octaves === 1);
+  const pair = ups.findIndex((r, i) =>
+    i + 1 < ups.length && r.tonicName === "D" && ups[i + 1].tonicName === "G");
+  assert.ok(pair >= 0, `expected a D-then-G pair among ${ups.map((r) => r.tonicName).join(" ")}`);
+});
+
+test("the spelling comes from the key, on real audio", () => {
+  // E major's D# arrives from the detector named Eb, because naming picks the
+  // nearest of a fixed list by cents alone. Confirmed in this recording.
+  if (!have("scales.wav")) return;
+  const e = scaleRuns(analyse(recording("scales.wav")).notes).find((r) => r.tonicName === "E");
+  assert.ok(e, "E major should be found");
+  assert.ok(e.expected.map((p) => p.name).includes("D#5"),
+    `E major must spell D#5, got ${e.expected.map((p) => p.name).join(" ")}`);
+});
+
+test("real playing that is not scales yields no scales", () => {
+  // The bound that matters most. piece.wav is 85 notes of a Hotteterre
+  // prelude -- real music, full of stepwise motion, and exactly what a loose
+  // recogniser would claim as scales. arpeggio.wav is the clean negative.
+  for (const take of ["arpeggio", "piece", "attacks", "trills", "trillfingering"]) {
+    if (!have(`${take}.wav`)) continue;
+    const runs = scaleRuns(analyse(recording(`${take}.wav`)).notes);
+    assert.deepEqual(runs, [], `${take}.wav gave ${runs.length} false scales: `
+      + runs.map((r) => `${r.tonicName ?? r.pitchClassName} fit ${r.fit.toFixed(2)}`).join(", "));
+  }
+});
+
+test("the long-tones take is the two-octave D major scale it actually is", () => {
+  // Not planned as a scales fixture; it simply is one, played slowly up the
+  // instrument. A free positive control that predates the feature.
+  if (!have("longtones.wav")) return;
+  const runs = scaleRuns(analyse(recording("longtones.wav")).notes);
+  assert.equal(runs.length, 1, `expected one run, got ${runs.length}`);
+  assert.equal(runs[0].tonicName, "D");
+  assert.equal(runs[0].octaves, 2);
+  assert.equal(runs[0].shape, "up", "played up only, never brought back down");
 });
