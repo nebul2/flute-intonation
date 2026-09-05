@@ -83,18 +83,29 @@ const PITCH_CLASSES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#
  * @returns {{ chroma: number[], repaired: number[] }} corrected values and the
  *   indices that were moved, so the caller can report rather than hide them.
  */
-export function correctOctaveErrors(chroma) {
+export function correctOctaveErrors(chroma, { maxStep = SCALE_MAX_STEP } = {}) {
   const out = [...chroma];
   const repaired = [];
   for (let i = 1; i < out.length; i++) {
     const leap = out[i] - out[i - 1];
     if (Math.abs(leap) <= OCTAVE_ERROR_LEAP) continue;
     for (const shift of [12, -12]) {
-      if (Math.abs(leap + shift) <= OCTAVE_ERROR_TOLERANCE) {
-        out[i] += shift;
-        repaired.push(i);
-        break;
-      }
+      if (Math.abs(leap + shift) > OCTAVE_ERROR_TOLERANCE) continue;
+      /* Both neighbours must agree, not just the one behind.
+       *
+       * A genuine octave error is one note displaced out of a line that
+       * continues either side of it: D5 -> E4 -> E5 reads as a step of two
+       * and then nothing once E4 is lifted. But the join between two scales
+       * looks identical from behind -- G5 -> A4 starting a new scale is a
+       * drop of ten, and lifting the A an octave makes it a step of two, so
+       * the repair would swallow the join and weld two scales into one. What
+       * separates them is what comes next: after the lift, A5 -> B4 is a leap
+       * of ten, where E5 -> F#5 is a step. */
+      const next = i + 1 < out.length ? out[i + 1] : null;
+      if (next !== null && Math.abs(next - (out[i] + shift)) > maxStep) continue;
+      out[i] += shift;
+      repaired.push(i);
+      break;
     }
   }
   return { chroma: out, repaired };
@@ -351,4 +362,31 @@ export function scaleRuns(notes, options = {}) {
     });
   }
   return runs;
+}
+
+/**
+ * Recognise a whole session, where the player may have been told a key.
+ *
+ * `scaleRuns` with an `expectTonic` considers that tonic and no other, which
+ * is what makes a declared key able to rescue a damaged run. Applied to a
+ * whole session it is a disaster: re-analysing everything already played
+ * under the key being suggested *now* un-recognises every scale in every
+ * earlier key. A guided session that worked through eight keys reported one.
+ *
+ * So the session is read twice. Free first, which keeps everything already
+ * played on its own merits; then again with the declared tonic, and any run
+ * that pass finds where the free pass found nothing is added. The declared
+ * key can therefore only ever add a scale, never take one away.
+ */
+export function recogniseSession(notes, { expectTonic = null, ...options } = {}) {
+  const free = scaleRuns(notes, options);
+  if (expectTonic === null || expectTonic === undefined) return free;
+
+  const told = scaleRuns(notes, { ...options, expectTonic });
+  const overlaps = (a, b) => a.start < b.end && b.start < a.end;
+  const merged = [...free];
+  for (const run of told) {
+    if (!merged.some((kept) => overlaps(kept, run))) merged.push(run);
+  }
+  return merged.sort((a, b) => a.start - b.start);
 }

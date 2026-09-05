@@ -249,3 +249,60 @@ test("only the notes that landed on a degree are offered for measuring", () => {
     assert.ok(i >= runs[0].start && i < runs[0].end, "indices are absolute, not chain-relative");
   }
 });
+
+/* ---- a whole session, where a key may have been declared ---------------- */
+
+import { recogniseSession } from "../core/scales.js";
+
+test("declaring a key never un-recognises what was played in another", () => {
+  // The regression this exists for. scaleRuns with an expectTonic considers
+  // that tonic and no other, which is what rescues a damaged run -- but
+  // applied to a whole session it re-analyses everything already played under
+  // the key being suggested NOW. A guided session through eight keys reported
+  // one, and the cross-key comparison silently emptied with it.
+  const notes = played([
+    ...majorScale("D", { descending: false }),
+    ...majorScale("G", { descending: false }),
+    ...majorScale("A", { descending: false }),
+  ], { spacing: 0.4, hold: 0.35 });
+
+  const free = recogniseSession(notes);
+  assert.deepEqual(free.map((r) => r.tonicName), ["D", "G", "A"], "free finds all three");
+
+  for (const [key, pc] of [["D", 2], ["G", 7], ["A", 9], ["Eb", 3]]) {
+    const told = recogniseSession(notes, { expectTonic: pc });
+    assert.deepEqual(told.map((r) => r.tonicName), ["D", "G", "A"],
+      `asking for ${key} must not lose the others`);
+  }
+
+  // And the old behaviour, kept as the contrast: restricted, it sees one key.
+  const restricted = scaleRuns(notes, { expectTonic: 7 });
+  assert.ok(new Set(restricted.map((r) => r.tonicName)).size <= 1,
+    "scaleRuns alone is single-key by design -- which is why the view must not use it");
+});
+
+test("a declared key can only ever add a scale, never remove one", () => {
+  const notes = played(majorScale("D"));
+  const free = recogniseSession(notes);
+  for (let pc = 0; pc < 12; pc++) {
+    const told = recogniseSession(notes, { expectTonic: pc });
+    assert.ok(told.length >= free.length,
+      `expecting pitch class ${pc} lost a run that free mode found`);
+    for (const run of free) {
+      assert.ok(told.some((r) => r.start === run.start && r.tonicName === run.tonicName),
+        `expecting ${pc} dropped the ${run.tonicName} run free mode kept`);
+    }
+  }
+});
+
+test("runs come back in the order they were played", () => {
+  const notes = played([
+    ...majorScale("G", { descending: false }),
+    ...majorScale("D", { descending: false }),
+  ], { spacing: 0.4, hold: 0.35 });
+  const runs = recogniseSession(notes, { expectTonic: 2 });
+  assert.deepEqual(runs.map((r) => r.tonicName), ["G", "D"]);
+  for (let i = 1; i < runs.length; i++) {
+    assert.ok(runs[i].start >= runs[i - 1].end, "and they do not overlap");
+  }
+});

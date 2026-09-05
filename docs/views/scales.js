@@ -29,9 +29,9 @@ import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { postAttack, analyseNote } from "../core/scoring.js";
 import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
-import { scaleRuns } from "../core/scales.js";
+import { recogniseSession } from "../core/scales.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
-import { aggregate, scorableRows, sessionScore, offsetAction } from "../core/stats.js";
+import { aggregate, scorableRows, sessionScore, offsetAction, standouts, STANDOUT_CENTS } from "../core/stats.js";
 import { tunerCandidates, nearestCandidate } from "../core/naming.js";
 import {
   el, append, audioControl, levelBar, runNav, currentTuning, name, nameClass, bandClass, explainer,
@@ -298,9 +298,10 @@ export default {
 
     const expectTonic = run.mode === "free" ? null
       : tonicOf(GUIDED_KEYS[run.keyIndex].key).pitchClass;
-    // Free mode has to place a run unaided; the other two are told the key,
-    // which is what lets them accept a run free mode would have to decline.
-    run.runs = scaleRuns(run.notes, run.mode === "free" ? {} : { expectTonic });
+    // Never restrict the whole session to the key being suggested now: that
+    // un-recognises everything played in every earlier key. recogniseSession
+    // reads it free first and lets the declared key only ever add.
+    run.runs = recogniseSession(run.notes, { expectTonic });
 
     this.renderHeard();
     this.retally();
@@ -425,6 +426,39 @@ export default {
     // happened to sit nearest the tuner -- that is the session offset again.
     const best = measurable.length
       ? measurable.reduce((a, b) => (b.score.relative < a.score.relative ? b : a)) : null;
+    /* Which notes were actually out, across everything played.
+     *
+     * This has to work when only one key was played, which the cross-key
+     * table below cannot -- it needs two keys to compare. A session that
+     * recognised a single scale should still say something about the notes
+     * in it, or the page has listened to five minutes of playing and
+     * answered with a count. */
+    const corrected = everyNote.map((n) => ({ ...n, primaryCents: n.primaryCents - shift }));
+    const flagged = corrected.length ? standouts(scorableRows(aggregate(corrected)))
+                                     : { list: [], more: 0 };
+    parts.push(el("h2", { text: t("scales.notes") }));
+    if (!flagged.list.length) {
+      parts.push(el("p", { text: t("scales.notesAllClose", STANDOUT_CENTS) }));
+    } else {
+      parts.push(el("p", { text: t("scales.notesLead", flagged.list.length) }));
+      parts.push(el("div", { class: "stats scroll" }, [
+        el("table", {}, [
+          el("thead", {}, [el("tr", {}, ["note", "n", "out", "spread"].map((k) =>
+            el("th", { text: t(`scales.col.${k}`) })))]),
+          el("tbody", {}, flagged.list.map((n) => el("tr", {}, [
+            el("th", { class: "temp-note", text: name(n.pitch, s) }),
+            el("td", { class: "num", text: String(n.n) }),
+            el("td", { class: `num ${bandClass(n.mean)}`,
+              text: `${n.mean >= 0 ? "+" : ""}${n.mean.toFixed(0)}¢ ${t(`listen.standouts.${n.direction}`)}` }),
+            el("td", { class: "num muted", text: n.once ? t("scales.once") : `${n.spread.toFixed(0)}¢` }),
+          ]))),
+        ]),
+      ]));
+      if (flagged.more) {
+        parts.push(el("p", { class: "muted small", text: t("listen.standouts.more", flagged.more) }));
+      }
+    }
+
     /* The same note, key by key.
      *
      * This is what a scales session can say that nothing else in the app can.
