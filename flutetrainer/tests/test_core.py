@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from flutetrainer.core.context import HarmonicContext
-from flutetrainer.core.generator import KEY_SIGNATURES, arpeggio, interval_drill, scale
+from flutetrainer.core.generator import KEY_SIGNATURES, arpeggio, interval_adjust, interval_drill, scale
 from flutetrainer.core.pitch import SpelledPitch, cents_between, interval_between
 from flutetrainer.core.resolver import Mode, TargetNote, TargetResolver
 from flutetrainer.core.scoring import analyse_note, cents_deviation
@@ -512,3 +512,27 @@ def test_every_key_signature_spells_a_major_scale() -> None:
         assert len(set(letters)) == 7, f"{key} major reuses a letter: {''.join(letters)}"
         assert notes[0].pitch.letter == tonic
         assert len(notes) == 8
+
+
+def test_interval_adjust_mirrors_the_web_exercise() -> None:
+    """The same written note over two basses: a third, then a fifth.
+
+    Mirrors docs/tests/adjust.test.js. D major is the case François
+    Lazarevitch demonstrates: F# is a major third over D and a fifth over B,
+    and it has to move between them.
+    """
+    third, fifth = interval_adjust("D")
+    assert third.notes[0].pitch.name == "F#4"
+    assert third.drone.name == "D4"
+    assert fifth.drone.name == "B3"
+    assert third.notes[0].pitch == fifth.notes[0].pitch, "the written note must not change"
+
+    for tonic in ("D", "G", "A", "C", "F"):
+        low, high = interval_adjust(tonic)
+        note = low.notes[0].pitch
+        assert note == high.notes[0].pitch
+        assert low.drone != high.drone, f"{tonic}: the bass must change"
+        assert note.chromatic_index - low.drone.chromatic_index == 4, "a major third"
+        assert note.chromatic_index - high.drone.chromatic_index == 7, "a fifth"
+        assert low.drone.chromatic_index < note.chromatic_index
+        assert high.drone.chromatic_index < note.chromatic_index

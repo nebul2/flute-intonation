@@ -107,6 +107,53 @@ def scale(
     )
 
 
+def interval_adjust(
+    tonic: str,
+    *,
+    key: str = "",
+    start_octave: int = 4,
+    beats: float = 4.0,
+    tempo_bpm: float = 60.0,
+    low: SpelledPitch = DEFAULT_LOW,
+    high: SpelledPitch = DEFAULT_HIGH,
+) -> list[Exercise]:
+    """The same written note over two different basses: a third, then a fifth.
+
+    A written F# is a major third over D and must sit low for the third to
+    ring; the same F# is a fifth over B, and sounding it that low makes the
+    fifth beat. Nothing on the page changes -- the note moves, and moving it
+    is most of what playing in tune means on this instrument.
+
+    Derived from the tonic so it needs no extra choice: the note is the
+    mediant, the first bass the tonic, the second the submediant an octave
+    down, which turns that same note into a fifth.
+
+    Two exercises rather than one, because each needs its own drone.
+    """
+    signature = KEY_SIGNATURES[key or tonic]
+    root = _spell(tonic, start_octave, signature)
+    if not in_range(root, low, high):
+        root = _spell(tonic, start_octave + 1, signature)
+    note = _ascend(root, 2, signature)                              # the mediant
+    under = _ascend(root, 5, signature).transpose_octaves(-1)       # submediant, down an octave
+    return [
+        Exercise(
+            name=f"{note} as a third over {root}",
+            notes=(TargetNote(note, beats, HarmonicContext(root)),),
+            drone=root,
+            tempo_bpm=tempo_bpm,
+            key=key or tonic,
+        ),
+        Exercise(
+            name=f"{note} as a fifth over {under}",
+            notes=(TargetNote(note, beats, HarmonicContext(under)),),
+            drone=under,
+            tempo_bpm=tempo_bpm,
+            key=key or tonic,
+        ),
+    ]
+
+
 def arpeggio(
     tonic: str,
     key: str = "",

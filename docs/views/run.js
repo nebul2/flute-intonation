@@ -24,14 +24,16 @@ import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { Mode, TargetResolver } from "../core/resolver.js";
-import { intervalDrill, intervalInContext, enharmonicPair, stopperCheck, scalePool, scaleKeyFor, pickDifferent } from "../core/generator.js";
+import { intervalDrill, intervalInContext, enharmonicPair, intervalAdjust, stopperCheck, scalePool, scaleKeyFor, pickDifferent } from "../core/generator.js";
 import { HarmonicContext } from "../core/tuning.js";
 import { Exercise, TargetNote } from "../core/resolver.js";
 import { SessionSummary, analyseNote, judgeDirection, octavePairs, octaveBarGeometry, BAR_SPAN_CENTS, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
 import { NoteSegmenter, onsetThresholdFor } from "../audio/segmenter.js";
 import { highestFirst } from "../core/pitch.js";
 import { invitation } from "../ui/feedback.js";
-import { el, append, needle, levelBar, bandClass, currentTuning, name, nameClass, runNav } from "../ui/widgets.js";
+import { helpSection } from "../ui/help.js";
+import { compareAdjustment } from "../core/adjust.js";
+import { el, append, needle, levelBar, bandClass, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
 
 /* The practice set. */
 export const EXERCISES = {
@@ -42,6 +44,15 @@ export const EXERCISES = {
   /* Endless: random notes of the chosen scale over the tonic drone until the
    * player stops. The exercise starts with one note; the runner asks
    * `nextNote` for each further one, so it never runs out. */
+  /* The same written note over two basses: a third, then a fifth. Two
+   * Exercises so each carries its own drone, which the runner already walks.
+   * `feedback: "end"` on purpose -- a needle during would teach exactly the
+   * habit this exercise exists to break. */
+  adjust: {
+    build: (tonic) => intervalAdjust(tonic),
+    feedback: "end", report: "adjust", help: "intervals",
+    explain: ["practice.adjust.what", "practice.adjust.how", "practice.adjust.why"],
+  },
   /* Runs on its own page: free playing recognised afterwards, which the
    * note-by-note runner here cannot express. Experimental until it has
    * been used by someone other than the player it was calibrated on. */
@@ -213,6 +224,12 @@ export class ExerciseRun {
     u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.level.element, u.judge]);
     append(root,
       u.heading,
+      // Short version folded away, sources behind it. The page stays clean and
+      // nothing that explains WHY this exercise exists is more than a tap
+      // away -- which for an exercise about harmonic intonation matters more
+      // than usual, since the instruction on its own sounds like nonsense.
+      run.spec.explain ? explainer(...run.spec.explain.map((k) => t(k))) : null,
+      run.spec.help ? helpSection(run.spec.help).element : null,
       run.spec.report === "stopper" ? el("p", { class: "note-box", text: t("practice.stopper.protocol") }) : null,
       (run.exercises.some((e) => e.drone) && !run.settings.headphones)
         ? el("p", { class: "note-box", text: t("practice.bleed") }) : null,
@@ -451,6 +468,7 @@ export class ExerciseRun {
       }
     }
     if (run.spec.report === "stopper") parts.push((await this.stopperReport(summary, s)).element);
+    if (run.spec.report === "adjust") parts.push(this.adjustReport(summary, s));
     u.summary.replaceChildren(el("h2", { text: t("practice.summary") }), ...parts);
 
     if (summary.results.length) {
@@ -474,6 +492,40 @@ export class ExerciseRun {
         if (invite) u.summary.append(invite);
       } catch (_e) { /* storage unavailable: the session still displayed */ }
     }
+  }
+
+  /* Did the note move when the bass did?
+   *
+   * The measurement is a difference between two soundings, never a distance
+   * from a reference -- so it survives a reference pitch set wrong, a flute
+   * sitting sharp, and a player warming up mid-session. All three have
+   * produced wrong answers elsewhere in this app; here they cancel. */
+  adjustReport(summary, s) {
+    const box = el("div", { class: "adjust" });
+    const [first, second] = summary.results;
+    const compared = compareAdjustment(first, second);
+    if (!compared) {
+      box.append(el("p", { text: t("practice.adjust.needBoth") }));
+      return box;
+    }
+    const noteName = name(compared.pitch, s);
+    const fmt = (c) => `${c >= 0 ? "+" : ""}${c.toFixed(1)}`;
+
+    box.append(el("p", { class: "headline", text: t(`practice.adjust.${compared.verdict}`, noteName) }));
+    box.append(el("div", { class: "stats scroll" }, [
+      el("table", {}, [
+        el("tbody", {}, [
+          [t("practice.adjust.asked"), `${fmt(compared.required)}¢`, t("practice.adjust.askedWhy")],
+          [t("practice.adjust.did"), `${fmt(compared.actual)}¢`, t("practice.adjust.didWhy")],
+        ].map(([what, value, why]) => el("tr", {}, [
+          el("td", { text: what }),
+          el("td", { class: "num", text: value }),
+          el("td", { class: "muted", text: why }),
+        ]))),
+      ]),
+    ]));
+    box.append(el("p", { class: "muted small", text: t("practice.adjust.note") }));
+    return box;
   }
 
   async stopperReport(summary, s) {

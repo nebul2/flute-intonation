@@ -94,6 +94,45 @@ export function scale(tonic, { key = "", octaves = 1, startOctave = 4, descendin
   });
 }
 
+/**
+ * The same written note, over two different basses.
+ *
+ * The exercise a baroque flautist actually needs, and the one a needle cannot
+ * teach. A written F sharp is a major third over D and must sit low for the
+ * third to be beautiful; the same F sharp is a fifth over B and sounding it
+ * that low makes the fifth beat. Nothing on the page changes. The player
+ * moves it with the embouchure, and learning to is most of what playing in
+ * tune means on this instrument.
+ *
+ * Derived from the tonic so it needs no new choice: the note is the mediant,
+ * the first bass is the tonic, and the second is the submediant an octave
+ * down, which turns that same note into a fifth.
+ *
+ * Two Exercises rather than one, because each needs its own drone --
+ * enharmonicPair() takes the same shape, and the runner already walks an
+ * array.
+ */
+export function intervalAdjust(tonic, { key = "", startOctave = 4, beats = 4.0,
+                                        tempoBpm = 60.0, low, high } = {}) {
+  const signature = KEY_SIGNATURES[key || tonic];
+  if (!signature) throw new Error(`no key signature for ${key || tonic}`);
+  const root = rootOf(tonic, startOctave, signature, low, high);
+  const note = ascend(root, 2, signature);                          // the mediant
+  const under = ascend(root, 5, signature).transposeOctaves(-1);    // submediant, down an octave
+  return [
+    new Exercise({
+      name: `${note} as a third over ${root}`,
+      notes: [new TargetNote(note, beats, new HarmonicContext(root))],
+      drone: root, tempoBpm, key: key || tonic,
+    }),
+    new Exercise({
+      name: `${note} as a fifth over ${under}`,
+      notes: [new TargetNote(note, beats, new HarmonicContext(under))],
+      drone: under, tempoBpm, key: key || tonic,
+    }),
+  ];
+}
+
 export function arpeggio(tonic, { key = "", octaves = 1, startOctave = 4, beats = 2.0,
                                   tempoBpm = 60.0, drone = true,
                                   low = DEFAULT_LOW, high = DEFAULT_HIGH } = {}) {
