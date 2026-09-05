@@ -335,6 +335,16 @@ export function scaleRuns(notes, options = {}) {
       missingNotes: best.missing,
       extraNotes: best.extra,
       octaveErrors: [...repairedSet].filter((i) => i >= start && i < end).length,
+      /* Which notes actually landed on a template degree, as absolute indices.
+       *
+       * Only these are worth measuring the pitch of. A note that aligned as
+       * "wrong" is either a fluff or a mis-hearing, and in both cases its
+       * distance from the pitch it was named as says nothing about the
+       * player: measured on this flute, E major's G# was heard as A, and
+       * scoring that sound against A's target reported the player 38 cents
+       * flat when they were nothing of the kind. */
+      matchedIndices: best.ops.filter((o) => o.op === "match").map((o) => start + o.observed),
+      wrongIndices: best.ops.filter((o) => o.op === "wrong").map((o) => start + o.observed),
       expected: spellRun(keyName, best.template),
       ambiguous,
       runnerUpPitchClass: ambiguous ? runnerUp.pc : null,

@@ -34,7 +34,7 @@ import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { aggregate, scorableRows, sessionScore, offsetAction } from "../core/stats.js";
 import { tunerCandidates, nearestCandidate } from "../core/naming.js";
 import {
-  el, append, audioControl, levelBar, runNav, currentTuning, name, nameClass, explainer,
+  el, append, audioControl, levelBar, runNav, currentTuning, name, nameClass, bandClass, explainer,
 } from "../ui/widgets.js";
 
 /* The order the player asked for: the traverso's home key first, then outward
@@ -43,20 +43,35 @@ import {
  * tonic "B" under key "Bb" -- and `maxOctaves` because B, C and Bb run off
  * the top of the instrument before a second octave is finished. */
 export const GUIDED_KEYS = Object.freeze([
-  { tonic: "D", key: "D", maxOctaves: 2 },
-  { tonic: "G", key: "G", maxOctaves: 2 },
-  { tonic: "A", key: "A", maxOctaves: 1 },
-  { tonic: "E", key: "E", maxOctaves: 1 },
-  { tonic: "B", key: "B", maxOctaves: 1 },
-  { tonic: "C", key: "C", maxOctaves: 1 },
-  { tonic: "F", key: "F", maxOctaves: 2 },
-  { tonic: "B", key: "Bb", maxOctaves: 1 },
-  { tonic: "E", key: "Eb", maxOctaves: 2 },
-  { tonic: "A", key: "Ab", maxOctaves: 1 },
+  { key: "D", maxOctaves: 2 },
+  { key: "G", maxOctaves: 2 },
+  { key: "A", maxOctaves: 1 },
+  { key: "E", maxOctaves: 1 },
+  { key: "C", maxOctaves: 1 },
+  { key: "F", maxOctaves: 2 },
+  { key: "Bb", maxOctaves: 1 },
+  { key: "Eb", maxOctaves: 2 },
 ]);
 
-const keyLabel = (entry, s) => `${nameClass(SpelledPitch.parse(`${entry.key[0]}4`), s)}`
-  + (entry.key.length > 1 ? (entry.key[1] === "b" ? "♭" : "♯") : "");
+/* How long the player must stop for before the suggestion moves on.
+ *
+ * Without this the key advanced the moment a run was recognised, which is
+ * part-way up the scale -- the recogniser is happy with an ascent alone, so
+ * it fired before the descent had been played. Silence is what says "I have
+ * finished", and nothing else in the signal does. */
+export const ADVANCE_SILENCE_MS = 1500;
+
+/* A note differing this much between two keys is worth pointing at;
+ * below it, the difference is inside what a flute does anyway. */
+export const CROSS_KEY_NOTABLE_CENTS = 8;
+/** Rows in the same-note table, worst spread first. */
+export const CROSS_KEY_ROWS = 8;
+
+/* A key name parses whole: "Bb" is B flat, not B. Taking key[0] made guided
+ * mode expect B where the player was asked for B flat -- a semitone out, so
+ * it could never match, and the flat keys silently never advanced. */
+const tonicOf = (key) => SpelledPitch.parse(`${key}4`);
+const keyLabel = (entry, s) => nameClass(tonicOf(entry.key), s);
 
 export default {
   title: () => t("scales.title"),
@@ -143,6 +158,7 @@ export default {
       pure: new PureIntervalTuning(tuning),
       candidates: tunerCandidates(tuning),
       regions: [], notes: [], runs: [],
+      askedAtIndex: 0, lastNoteAt: 0,
       startedAt: Date.now(),
       limitMs: Math.max(1, Number(s.scalesMinutes) || 15) * 60_000,
       tracker: new RegionTracker({
@@ -186,6 +202,10 @@ export default {
   askNext() {
     const run = this.run;
     const s = run.settings;
+    // Only what is played from here on can satisfy the new ask. Without this,
+    // a scale played five minutes ago in the key now being suggested would
+    // advance it instantly, and the sequence would race ahead untouched.
+    run.askedAtIndex = run.notes.length;
     run.ui.asked.replaceChildren();
     if (run.mode === "free") {
       run.ui.asked.append(el("p", { class: "intro", text: t("scales.freePrompt") }));
@@ -215,6 +235,7 @@ export default {
     if (!run) return;
     const left = run.limitMs - (Date.now() - run.startedAt);
     if (left <= 0) { this.finish(true); return; }
+    this.maybeAdvance();
     const m = Math.floor(left / 60000), sec = Math.floor((left % 60000) / 1000);
     run.ui.clock.textContent = `${m}:${String(sec).padStart(2, "0")}`;
   },
@@ -243,6 +264,7 @@ export default {
       else entry.note = { region, framesHz, levelsDb };
     }
     run.regions.push(entry);
+    run.lastNoteAt = Date.now();
     this.reconcile();
   },
 
@@ -275,7 +297,7 @@ export default {
     });
 
     const expectTonic = run.mode === "free" ? null
-      : SpelledPitch.parse(`${GUIDED_KEYS[run.keyIndex].key[0]}4`).pitchClass;
+      : tonicOf(GUIDED_KEYS[run.keyIndex].key).pitchClass;
     // Free mode has to place a run unaided; the other two are told the key,
     // which is what lets them accept a run free mode would have to decline.
     run.runs = scaleRuns(run.notes, run.mode === "free" ? {} : { expectTonic });
@@ -300,15 +322,24 @@ export default {
       ? t("scales.noneYet")
       : t("scales.tally", found, new Set(run.runs.map((r) => r.tonicName ?? r.pitchClassName)).size);
 
-    // In guided mode the asked-for key advances once it has been played --
-    // by whatever route, including the player ignoring the ask entirely.
+  },
+
+  /* Has the asked-for key been played, and has the player stopped?
+   *
+   * Both halves matter. The recogniser is satisfied by an ascent alone -- a
+   * player who stops at the top has still played a scale -- so it fires
+   * part-way through, and advancing then snatches the key away mid-descent.
+   * Silence is the only thing in the signal that means "I have finished". */
+  maybeAdvance() {
+    const run = this.run;
     if (run.mode !== "guided") return;
     const wanted = GUIDED_KEYS[run.keyIndex].key;
-    if (run.runs.some((r) => r.tonicName === wanted)) {
-      run.keyIndex = (run.keyIndex + 1) % GUIDED_KEYS.length;
-      settings.set({ scalesKeyIndex: run.keyIndex });
-      this.askNext();
-    }
+    const done = run.runs.some((r) => r.tonicName === wanted && r.start >= run.askedAtIndex);
+    if (!done) return;
+    if (Date.now() - run.lastNoteAt < ADVANCE_SILENCE_MS) return;
+    run.keyIndex = (run.keyIndex + 1) % GUIDED_KEYS.length;
+    settings.set({ scalesKeyIndex: run.keyIndex });
+    this.askNext();
   },
 
   /* ---- the report ----------------------------------------------------- */
@@ -346,9 +377,11 @@ export default {
       const bucket = byKey.get(label);
       bucket.runs.push(r);
       if (!r.spellable) continue;
-      const tonic = SpelledPitch.parse(`${r.tonicName[0]}${r.expected[0].octave}`);
+      const tonic = SpelledPitch.parse(`${r.tonicName}${r.expected[0].octave}`);
       const context = new HarmonicContext(tonic);
-      for (let i = r.start; i < r.end; i++) {
+      // Only the notes that landed on a degree. A misheard or fluffed note
+      // measured against the pitch it was named as is measuring the detector.
+      for (const i of r.matchedIndices) {
         const note = run.notes[i];
         let targetHz = null;
         try { targetHz = run.pure.targetHz(note.pitch, context); } catch (_e) { /* no ratio */ }
@@ -392,6 +425,76 @@ export default {
     // happened to sit nearest the tuner -- that is the session offset again.
     const best = measurable.length
       ? measurable.reduce((a, b) => (b.score.relative < a.score.relative ? b : a)) : null;
+    /* The same note, key by key.
+     *
+     * This is what a scales session can say that nothing else in the app can.
+     * A note is not simply sharp or flat on a flute -- it is sharp in one key
+     * and fine in another, because the fingering, the neighbours it sits
+     * between and the harmony it belongs to all change with the key. Playing
+     * eight keys and never comparing them across would waste the whole point.
+     *
+     * Grouped by pitch class, so a D in the first octave and the second count
+     * as the same note: the question is about the note, not the register. The
+     * session-wide offset comes off first -- otherwise a reference set wrong
+     * shifts every cell equally and hides the differences it should reveal.
+     */
+    const shift = overall ? overall.offset : 0;
+    const byNote = new Map();
+    for (const bucket of scored) {
+      for (const n of bucket.notes) {
+        const label = nameClass(n.pitch, s);
+        if (!byNote.has(label)) byNote.set(label, new Map());
+        const perKey = byNote.get(label);
+        if (!perKey.has(bucket.label)) perKey.set(bucket.label, []);
+        perKey.get(bucket.label).push(n.primaryCents - shift);
+      }
+    }
+
+    const crossKey = [...byNote.entries()]
+      .filter(([, perKey]) => perKey.size >= 2)      // needs two keys to compare
+      .map(([label, perKey]) => {
+        const cells = [...perKey.entries()].map(([key, cents]) => ({
+          key, mean: cents.reduce((a, b) => a + b, 0) / cents.length, n: cents.length,
+        }));
+        const highs = cells.map((c) => c.mean);
+        return { label, cells, spread: Math.max(...highs) - Math.min(...highs) };
+      })
+      .sort((a, b) => b.spread - a.spread);
+
+    if (crossKey.length) {
+      const worst = crossKey[0];
+      const high = worst.cells.reduce((a, b) => (b.mean > a.mean ? b : a));
+      const low = worst.cells.reduce((a, b) => (b.mean < a.mean ? b : a));
+      parts.push(el("h2", { text: t("scales.sameNote") }));
+      if (worst.spread >= CROSS_KEY_NOTABLE_CENTS) {
+        parts.push(el("p", { text: t("scales.sameNoteLead", worst.label,
+          worst.spread.toFixed(0), high.key, low.key) }));
+      } else {
+        parts.push(el("p", { text: t("scales.sameNoteSteady", worst.spread.toFixed(0)) }));
+      }
+
+      const keys = scored.map((b) => b.label);
+      parts.push(el("div", { class: "stats scroll" }, [
+        el("table", {}, [
+          el("thead", {}, [el("tr", {}, [
+            el("th", { text: t("scales.col.note") }),
+            ...keys.map((k) => el("th", { text: k })),
+            el("th", { text: t("scales.col.across") }),
+          ])]),
+          el("tbody", {}, crossKey.slice(0, CROSS_KEY_ROWS).map((row) => el("tr", {}, [
+            el("th", { class: "temp-note", text: row.label }),
+            ...keys.map((k) => {
+              const cell = row.cells.find((c) => c.key === k);
+              return el("td", { class: `num${cell ? " " + bandClass(cell.mean) : ""}`,
+                text: cell ? `${cell.mean >= 0 ? "+" : ""}${cell.mean.toFixed(0)}` : "·" });
+            }),
+            el("td", { class: "num muted", text: `${row.spread.toFixed(0)}¢` }),
+          ]))),
+        ]),
+      ]));
+      parts.push(el("p", { class: "muted small", text: t("scales.sameNoteNote") }));
+    }
+
     // Keys not touched. An invitation, never a scolding.
     const played = new Set(scored.map((b) => b.label));
     const missed = GUIDED_KEYS.filter((k) => !played.has(k.key));

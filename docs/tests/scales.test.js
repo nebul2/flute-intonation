@@ -214,3 +214,38 @@ test("chains are found without judging what they are", () => {
   assert.equal(chains.length, 1);
   assert.deepEqual(chains[0], { start: 0, end: 15 });
 });
+
+test("a flat key is expected by its own tonic, not by its first letter", () => {
+  // The defect this pins: guided mode derived the expected tonic from key[0],
+  // so asking for Bb major told the recogniser to expect B -- a semitone out,
+  // which can never match. The flat keys silently never advanced.
+  for (const [key, tonic] of [["Bb", "B"], ["Eb", "E"], ["Ab", "A"]]) {
+    assert.notEqual(SpelledPitch.parse(`${key}4`).pitchClass,
+      SpelledPitch.parse(`${key[0]}4`).pitchClass,
+      `${key} and ${key[0]} must not share a pitch class`);
+
+    const names = majorScale(tonic, { key });
+    const told = scaleRuns(played(names), {
+      expectTonic: SpelledPitch.parse(`${key}4`).pitchClass,
+    });
+    assert.equal(told.length, 1, `${key} major should be found when correctly expected`);
+    assert.equal(told[0].tonicName, key);
+  }
+});
+
+test("only the notes that landed on a degree are offered for measuring", () => {
+  // A fluffed or misheard note measured against the pitch it was named as is
+  // measuring the detector, not the player -- on this flute, E major's G#
+  // was heard as A at the wrong reference and read 38 cents flat.
+  const names = majorScale("D", { descending: false });
+  const fluffed = [...names];
+  fluffed[3] = "G#4";                                  // G natural played sharp
+  const runs = scaleRuns(played(fluffed));
+  assert.equal(runs.length, 1);
+  assert.ok(runs[0].wrongIndices.includes(3), "the fluff is named as wrong");
+  assert.ok(!runs[0].matchedIndices.includes(3), "and kept out of the matched set");
+  assert.equal(runs[0].matchedIndices.length + runs[0].wrongIndices.length, names.length);
+  for (const i of runs[0].matchedIndices) {
+    assert.ok(i >= runs[0].start && i < runs[0].end, "indices are absolute, not chain-relative");
+  }
+});
