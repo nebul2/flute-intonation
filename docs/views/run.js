@@ -42,6 +42,10 @@ export const EXERCISES = {
   /* Endless: random notes of the chosen scale over the tonic drone until the
    * player stops. The exercise starts with one note; the runner asks
    * `nextNote` for each further one, so it never runs out. */
+  /* Runs on its own page: free playing recognised afterwards, which the
+   * note-by-note runner here cannot express. Experimental until it has
+   * been used by someone other than the player it was calibrated on. */
+  scales: { route: "scales", experimental: true },
   predictRandom: {
     build: (tonic, quality = "major") => {
       const root = SpelledPitch.parse(`${tonic}4`);

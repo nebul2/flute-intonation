@@ -52,16 +52,24 @@ test("the exercise list and its strings agree, in both directions", () => {
 });
 
 test("widgets that return a wrapper are appended by their element", () => {
-  // audioControl, labelField and runNav return objects, not nodes. Appending
-  // one bare renders nothing and silently loses the control -- which is how
-  // the temperament page shipped with no way to start the microphone. Node's
-  // test runner has no DOM, so this is checked in the source.
+  // audioControl, labelField, levelBar and needle all return objects, not
+  // nodes. Appending one bare renders nothing and silently loses the control,
+  // which is how the temperament page shipped with no way to start the
+  // microphone. Node's test runner has no DOM, so this is checked in source.
   const views = fs.readdirSync(path.join(here, "..", "views"));
   for (const file of views) {
     const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
+
+    // The specific slip, and the one worth banning outright: four pages used
+    // `.node`, which none of these widgets has. `append` skips undefined, so
+    // the level meter simply never rendered and nothing ever complained.
+    assert.ok(!/\.node\b/.test(src),
+      `${file}: these widgets expose .element, never .node`);
+
     for (const factory of ["audioControl", "labelField"]) {
       if (!src.includes(`${factory}(`)) continue;
-      // Whatever it was assigned to must be used through .element somewhere.
+      // Assigned to a const in every current caller; an object property would
+      // need widening here rather than dropping the check.
       const assigned = src.match(new RegExp(`const (\\w+) = ${factory}\\(`));
       assert.ok(assigned, `${file}: ${factory}() result is not held in a const`);
       const holder = assigned[1];

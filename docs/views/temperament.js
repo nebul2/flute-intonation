@@ -216,7 +216,7 @@ export default {
       el("p", { class: "note-box warn", text: t("temperament.experimental") }),
       explainer(t("temperament.intro"), t("temperament.how", ref), t("temperament.boardNote")),
       control.element,
-      level.node,
+      level.element,
       status,
       grid,
       board,

@@ -30,6 +30,7 @@ const PRECACHE = [
   "views/temperament.js",
   "views/temperaments.js",
   "views/bend.js",
+  "views/scales.js",
   "views/feedback.js",
   "ui/feedback.js",
   "core/bend.js",

@@ -115,6 +115,10 @@ export function analyse(file, { hop = 512, referenceHz = 415, temperament = "val
       kind,
       pitch: near.pitch,
       cents: near.cents,
+      // Carried through so anything that measures a note -- not merely names
+      // it -- can be run over a real recording too.
+      framesHz,
+      levelsDb: region.levelsDb,
       atSeconds: region.startIndex * frameSeconds,
       seconds: region.seconds,
       medianHz: region.medianHz,

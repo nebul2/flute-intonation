@@ -25,6 +25,9 @@ export const DEFAULTS = Object.freeze({
   registerBreak: "D",    // where the registers break: D (one-keyed) or C (C foot)
   explainOpen: false,    // page explanations start open rather than folded away
   feedbackAsked: false,  // the one-time "what do you think?" has been settled
+  scalesMinutes: 15,     // Play scales stops itself after this long
+  scalesMode: "guided",  // "guided" (app names a key) | "key" | "free"
+  scalesKeyIndex: 0,     // where the guided sequence had got to
 });
 
 let state = null;

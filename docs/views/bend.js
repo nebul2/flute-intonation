@@ -346,7 +346,7 @@ export default {
       ]),
       nameNote,
       control.element,
-      level.node,
+      level.element,
       status,
       prompt,
       grid,

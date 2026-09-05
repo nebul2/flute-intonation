@@ -2,6 +2,7 @@
  * ExerciseRun in views/run.js; this page only chooses. */
 
 import { t } from "../i18n.js";
+import { navigate } from "../router.js";
 import { engine } from "../audio/engine.js";
 import { SpelledPitch } from "../core/pitch.js";
 import { el, append, audioControl, labelField, nameClass, explainer } from "../ui/widgets.js";
@@ -43,10 +44,19 @@ export default {
       ["major", "minor"].map((q) => el("option", { value: q, selected: q === this.quality || null,
                                                     text: t(`practice.quality.${q}`) })));
 
+    // A spec with a `route` runs itself on its own page: Play Scales is a
+    // listening exercise, not a walk through fixed target notes, so it
+    // cannot be an ExerciseRun. One list of exercises either way.
     const buttons = Object.keys(EXERCISES).map((key) => el("button", {
-      class: "card exercise", disabled: !engine.listening, onclick: () => this.startRun(key),
+      class: `card exercise${EXERCISES[key].experimental ? " experimental" : ""}`,
+      disabled: !engine.listening,
+      onclick: () => (EXERCISES[key].route ? navigate(EXERCISES[key].route) : this.startRun(key)),
     }, [
-      el("div", { class: "card-title", text: t(`practice.ex.${key}.title`) }),
+      el("div", { class: "card-title" }, [
+        t(`practice.ex.${key}.title`),
+        EXERCISES[key].experimental
+          ? el("span", { class: "chip warn-chip", text: t("home.experimental") }) : null,
+      ]),
       el("div", { class: "card-desc", text: t(`practice.ex.${key}.desc`) }),
     ]));
     this.offState = engine.onState(() => buttons.forEach((b) => { b.disabled = !engine.listening; }));

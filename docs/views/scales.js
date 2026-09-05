@@ -1,0 +1,438 @@
+/* Play scales, and be told afterwards what was heard.
+ *
+ * A listening page, not an exercise run. The drills in views/run.js walk a
+ * fixed list of target notes and hold each until the segmenter is satisfied,
+ * which is the opposite of practising scales: the player wants to play freely
+ * for as long as they like and be left alone while they do it.
+ *
+ * So nothing is judged while playing. The note names appear as they register
+ * -- enough to see that the microphone is alive, and to catch it hearing Fa
+ * where you played Fa sharp -- and no cents, no needle, no colour. Being
+ * watched note by note is the opposite of practising.
+ *
+ * Three ways to choose what to play, and ONE recogniser behind all of them.
+ * Guided names a key, Key lets the player pick one, Free says nothing. In
+ * every mode the run is recognised on its own merits, so playing something
+ * other than what was asked still counts and the suggestion simply moves on:
+ * guidance must never become a cage.
+ *
+ * Guided is the default because it is the most reliable, not the least. A
+ * declared tonic turns identification into verification, and a run too
+ * damaged for free mode to place can still be accepted when the app already
+ * knows which key to expect.
+ */
+
+import { t } from "../i18n.js";
+import { engine } from "../audio/engine.js";
+import * as settings from "../settings.js";
+import * as history from "../history.js";
+import { SpelledPitch, centsBetween } from "../core/pitch.js";
+import { postAttack, analyseNote } from "../core/scoring.js";
+import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
+import { scaleRuns } from "../core/scales.js";
+import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
+import { aggregate, scorableRows, sessionScore, offsetAction } from "../core/stats.js";
+import { tunerCandidates, nearestCandidate } from "../core/naming.js";
+import {
+  el, append, audioControl, levelBar, runNav, currentTuning, name, nameClass, explainer,
+} from "../ui/widgets.js";
+
+/* The order the player asked for: the traverso's home key first, then outward
+ * through the sharps, then the flats. Each carries its own tonic letter and
+ * signature name, because a flat key's name is not a letter -- Bb major is
+ * tonic "B" under key "Bb" -- and `maxOctaves` because B, C and Bb run off
+ * the top of the instrument before a second octave is finished. */
+export const GUIDED_KEYS = Object.freeze([
+  { tonic: "D", key: "D", maxOctaves: 2 },
+  { tonic: "G", key: "G", maxOctaves: 2 },
+  { tonic: "A", key: "A", maxOctaves: 1 },
+  { tonic: "E", key: "E", maxOctaves: 1 },
+  { tonic: "B", key: "B", maxOctaves: 1 },
+  { tonic: "C", key: "C", maxOctaves: 1 },
+  { tonic: "F", key: "F", maxOctaves: 2 },
+  { tonic: "B", key: "Bb", maxOctaves: 1 },
+  { tonic: "E", key: "Eb", maxOctaves: 2 },
+  { tonic: "A", key: "Ab", maxOctaves: 1 },
+]);
+
+const keyLabel = (entry, s) => `${nameClass(SpelledPitch.parse(`${entry.key[0]}4`), s)}`
+  + (entry.key.length > 1 ? (entry.key[1] === "b" ? "♭" : "♯") : "");
+
+export default {
+  title: () => t("scales.title"),
+
+  mount(root) {
+    this.root = root;
+    this.showStart();
+  },
+
+  unmount() { this.teardown(); },
+
+  teardown() {
+    if (this.offFrame) { this.offFrame(); this.offFrame = null; }
+    if (this.control) { this.control.dispose(); this.control = null; }
+    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    this.run = null;
+  },
+
+  /* ---- start screen --------------------------------------------------- */
+
+  showStart() {
+    this.teardown();
+    const root = this.root;
+    root.replaceChildren();
+    const s = settings.get();
+    let mode = s.scalesMode ?? "guided";
+    let keyIndex = Math.min(s.scalesKeyIndex ?? 0, GUIDED_KEYS.length - 1);
+
+    const control = audioControl({ showGranted: false });
+    this.control = control;
+
+    const modeSelect = el("select", { class: "select", onchange: (e) => {
+      mode = e.target.value;
+      settings.set({ scalesMode: mode });
+      keyRow.hidden = mode !== "key";
+      hint.textContent = t(`scales.mode.${mode}.hint`);
+    } }, ["guided", "key", "free"].map((m) => el("option", {
+      value: m, selected: m === mode || null, text: t(`scales.mode.${m}`),
+    })));
+
+    const keySelect = el("select", { class: "select", onchange: (e) => {
+      keyIndex = Number(e.target.value);
+      settings.set({ scalesKeyIndex: keyIndex });
+    } }, GUIDED_KEYS.map((entry, i) => el("option", {
+      value: String(i), selected: i === keyIndex || null,
+      text: t("scales.keyName", keyLabel(entry, s)),
+    })));
+    const keyRow = el("div", { class: "row" }, [
+      el("label", { class: "field" }, [t("scales.whichKey"), keySelect]),
+    ]);
+    keyRow.hidden = mode !== "key";
+
+    const hint = el("p", { class: "muted small", text: t(`scales.mode.${mode}.hint`) });
+    const start = el("button", {
+      class: "primary", text: t("scales.start"), disabled: !engine.listening,
+      onclick: () => this.startSession(mode, keyIndex),
+    });
+    this.offFrame = engine.onState(() => { start.disabled = !engine.listening; });
+
+    append(root,
+      el("p", { class: "note-box warn", text: t("scales.experimental") }),
+      explainer(t("scales.intro"), t("scales.protocol"), t("scales.why")),
+      el("div", { class: "row" }, [
+        el("label", { class: "field" }, [t("scales.mode"), modeSelect]),
+      ]),
+      keyRow,
+      hint,
+      el("div", { class: "row" }, [control.element, start]),
+      engine.listening ? null : el("p", { class: "note-box", text: t("practice.needMic") }),
+    );
+  },
+
+  /* ---- the session ---------------------------------------------------- */
+
+  startSession(mode, keyIndex) {
+    this.teardown();
+    const root = this.root;
+    root.replaceChildren();
+    const s = settings.get();
+    const tuning = currentTuning(s);
+
+    const run = this.run = {
+      settings: s, tuning, mode, keyIndex,
+      pure: new PureIntervalTuning(tuning),
+      candidates: tunerCandidates(tuning),
+      regions: [], notes: [], runs: [],
+      startedAt: Date.now(),
+      limitMs: Math.max(1, Number(s.scalesMinutes) || 15) * 60_000,
+      tracker: new RegionTracker({
+        frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
+      }),
+    };
+
+    const asked = el("div", { class: "scales-asked" });
+    const heard = el("div", { class: "scales-heard" });
+    const tally = el("p", { class: "status" });
+    const clock = el("span", { class: "mono muted small" });
+    const level = levelBar();
+    const summary = el("div", { class: "summary" });
+    const nav = runNav({
+      onStop: () => this.finish(false),
+      onRedo: () => this.showStart(),
+      onBack: () => this.showStart(),
+      stopLabel: t("scales.done"),
+      backLabel: t("scales.change"),
+      extras: [clock],
+    });
+    run.ui = { asked, heard, tally, clock, level, summary, nav };
+
+    append(root,
+      nav.top,
+      asked,
+      level.element,
+      heard,
+      tally,
+      summary,
+      nav.bottom,
+    );
+
+    this.offFrame = engine.onFrame((frame) => this.onFrame(frame));
+    this.timer = setInterval(() => this.tick(), 1000);
+    this.askNext();
+    this.retally();
+  },
+
+  /** What the app is asking for, if anything. Never enforced. */
+  askNext() {
+    const run = this.run;
+    const s = run.settings;
+    run.ui.asked.replaceChildren();
+    if (run.mode === "free") {
+      run.ui.asked.append(el("p", { class: "intro", text: t("scales.freePrompt") }));
+      return;
+    }
+    const entry = GUIDED_KEYS[run.keyIndex];
+    run.ui.asked.append(
+      el("div", { class: "scales-key" }, [
+        el("div", { class: "scales-key-name", text: t("scales.keyName", keyLabel(entry, s)) }),
+        el("div", { class: "scales-key-note", text: entry.maxOctaves === 2
+          ? t("scales.oneOrTwo") : t("scales.oneOnly") }),
+      ]),
+      run.mode === "guided"
+        ? el("div", { class: "controls left" }, [
+            el("button", { class: "secondary", text: t("scales.skip"), onclick: () => {
+              run.keyIndex = (run.keyIndex + 1) % GUIDED_KEYS.length;
+              settings.set({ scalesKeyIndex: run.keyIndex });
+              this.askNext();
+            } }),
+          ])
+        : null,
+    );
+  },
+
+  tick() {
+    const run = this.run;
+    if (!run) return;
+    const left = run.limitMs - (Date.now() - run.startedAt);
+    if (left <= 0) { this.finish(true); return; }
+    const m = Math.floor(left / 60000), sec = Math.floor((left % 60000) / 1000);
+    run.ui.clock.textContent = `${m}:${String(sec).padStart(2, "0")}`;
+  },
+
+  onFrame(frame) {
+    const run = this.run;
+    if (!run) return;
+    run.ui.level.set(frame.levelDb);
+    const region = run.tracker.push(frame);
+    if (region) this.addRegion(region);
+  },
+
+  /* Same triage as views/listen.js. The trill filter is load-bearing rather
+   * than incidental: a trill alternates by a semitone or two, which is
+   * exactly the shape a stepwise matcher reads as a scale, so ornaments must
+   * be stripped before the recogniser ever sees the notes. */
+  addRegion(region) {
+    const run = this.run;
+    const entry = { region, kind: "note", note: null };
+    if (region.short) entry.kind = "short";
+    else if (isOscillating(region)) entry.kind = "trill";
+    else {
+      const [framesHz, levelsDb] = postAttack(region.framesHz, run.tracker.frameSeconds, region.levelsDb);
+      if (!framesHz.length) entry.kind = "short";
+      else if (Math.abs(driftCents(framesHz)) >= GLIDE_CENTS) entry.kind = "slur";
+      else entry.note = { region, framesHz, levelsDb };
+    }
+    run.regions.push(entry);
+    this.reconcile();
+  },
+
+  /* Unlike trills, a scale's extent AND its key legitimately change as later
+   * notes arrive -- a one-octave run becomes a two-octave one, and the key
+   * can be revised. So the whole list is rebuilt every time rather than
+   * assuming, as listen.js may, that runs only ever grow. */
+  reconcile() {
+    const run = this.run;
+    const ornament = new Set();
+    for (const { start, end } of alternationRuns(run.regions.map((e) => e.region))) {
+      for (let i = start; i < end; i++) ornament.add(i);
+    }
+
+    run.notes = [];
+    run.regions.forEach((entry, i) => {
+      if (ornament.has(i) || entry.kind !== "note" || !entry.note) return;
+      const { framesHz, region } = entry.note;
+      const ordered = [...framesHz].sort((a, b) => a - b);
+      const medianHz = ordered[ordered.length >> 1];
+      const near = nearestCandidate(run.candidates, medianHz);
+      run.notes.push({
+        pitch: near.pitch,
+        index: run.notes.length,
+        atSeconds: region.atSeconds,
+        seconds: region.seconds,
+        medianHz, framesHz,
+        levelsDb: entry.note.levelsDb,
+      });
+    });
+
+    const expectTonic = run.mode === "free" ? null
+      : SpelledPitch.parse(`${GUIDED_KEYS[run.keyIndex].key[0]}4`).pitchClass;
+    // Free mode has to place a run unaided; the other two are told the key,
+    // which is what lets them accept a run free mode would have to decline.
+    run.runs = scaleRuns(run.notes, run.mode === "free" ? {} : { expectTonic });
+
+    this.renderHeard();
+    this.retally();
+  },
+
+  /** Names only. No cents, no colour, nothing that judges the pitch. */
+  renderHeard() {
+    const run = this.run;
+    const s = run.settings;
+    const recent = run.notes.slice(-28);
+    run.ui.heard.replaceChildren(...recent.map((n) =>
+      el("span", { class: "scales-note", text: name(n.pitch, s) })));
+  },
+
+  retally() {
+    const run = this.run;
+    const found = run.runs.length;
+    run.ui.tally.textContent = found === 0
+      ? t("scales.noneYet")
+      : t("scales.tally", found, new Set(run.runs.map((r) => r.tonicName ?? r.pitchClassName)).size);
+
+    // In guided mode the asked-for key advances once it has been played --
+    // by whatever route, including the player ignoring the ask entirely.
+    if (run.mode !== "guided") return;
+    const wanted = GUIDED_KEYS[run.keyIndex].key;
+    if (run.runs.some((r) => r.tonicName === wanted)) {
+      run.keyIndex = (run.keyIndex + 1) % GUIDED_KEYS.length;
+      settings.set({ scalesKeyIndex: run.keyIndex });
+      this.askNext();
+    }
+  },
+
+  /* ---- the report ----------------------------------------------------- */
+
+  async finish(timedOut) {
+    const run = this.run;
+    if (!run) return;
+    const last = run.tracker.flush();
+    if (last) this.addRegion(last);
+    if (this.offFrame) { this.offFrame(); this.offFrame = null; }
+    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+
+    const s = run.settings;
+    run.ui.nav.finish();
+    run.ui.level.element.hidden = true;
+    run.ui.asked.replaceChildren();
+
+    const parts = [];
+    if (timedOut) parts.push(el("p", { class: "muted", text: t("scales.timeUp") }));
+
+    if (!run.runs.length) {
+      parts.push(el("p", { class: "headline", text: t("scales.nothingFound") }));
+      parts.push(el("p", { class: "muted", text: t("scales.nothingFoundWhy") }));
+      run.ui.summary.replaceChildren(...parts);
+      return;
+    }
+
+    // Per key, scored against that run's OWN tonic as pure intervals -- which
+    // free play cannot do, because it never knows what the tonic is. This is
+    // the musical gain, not the count of scales.
+    const byKey = new Map();
+    for (const r of run.runs) {
+      const label = r.tonicName ?? r.pitchClassName;
+      if (!byKey.has(label)) byKey.set(label, { label, spellable: r.spellable, runs: [], notes: [] });
+      const bucket = byKey.get(label);
+      bucket.runs.push(r);
+      if (!r.spellable) continue;
+      const tonic = SpelledPitch.parse(`${r.tonicName[0]}${r.expected[0].octave}`);
+      const context = new HarmonicContext(tonic);
+      for (let i = r.start; i < r.end; i++) {
+        const note = run.notes[i];
+        let targetHz = null;
+        try { targetHz = run.pure.targetHz(note.pitch, context); } catch (_e) { /* no ratio */ }
+        if (targetHz === null) targetHz = run.tuning.targetHz(note.pitch);
+        const measured = analyseNote(note.pitch, targetHz, note.framesHz, run.tracker.frameSeconds);
+        if (!measured) continue;
+        bucket.notes.push({
+          pitch: note.pitch, primaryCents: measured.meanCents, stdev: measured.stdevCents,
+          seconds: note.seconds, meanDb: null, index: bucket.notes.length,
+        });
+      }
+    }
+
+    const scored = [...byKey.values()].map((b) => {
+      const rows = b.notes.length ? aggregate(b.notes) : [];
+      const score = rows.length ? sessionScore(scorableRows(rows)) : null;
+      return { ...b, rows, score };
+    }).filter((b) => b.runs.length);
+
+    const measurable = scored.filter((b) => b.score);
+
+    /* Where the whole session sat is one number and it belongs to the
+     * headjoint -- or to a reference pitch set wrong. It must come off before
+     * any key is compared with any other, or a flute sitting twenty cents
+     * sharp reads as bad playing in every key at once. Calibrating this page
+     * against a real take, the recording turned out to be at A = 420 against
+     * a reference of 415: uncorrected, every key looked 20 cents out. */
+    const everyNote = scored.flatMap((b) => b.notes);
+    const overall = everyNote.length
+      ? sessionScore(scorableRows(aggregate(everyNote))) : null;
+    if (overall) {
+      const action = offsetAction(overall.offset);
+      parts.push(el("p", { class: "muted", text: action === null
+        ? t("scales.centred")
+        : t("scales.offset", Math.abs(overall.offset).toFixed(1),
+             t(overall.offset > 0 ? "listen.score.sharp" : "listen.score.flat"),
+             t(`listen.score.${action}`)) }));
+    }
+
+    // Best is the key you were most consistent WITHIN, not the one that
+    // happened to sit nearest the tuner -- that is the session offset again.
+    const best = measurable.length
+      ? measurable.reduce((a, b) => (b.score.relative < a.score.relative ? b : a)) : null;
+    // Keys not touched. An invitation, never a scolding.
+    const played = new Set(scored.map((b) => b.label));
+    const missed = GUIDED_KEYS.filter((k) => !played.has(k.key));
+    if (missed.length && missed.length < GUIDED_KEYS.length) {
+      parts.push(el("p", { class: "muted small",
+        text: t("scales.notYet", missed.map((k) => keyLabel(k, s)).join(", ")) }));
+    }
+    parts.push(el("p", { class: "muted small", text: t("scales.pureNote") }));
+
+    run.ui.summary.replaceChildren(...parts);
+    await this.save(scored, timedOut);
+  },
+
+  async save(scored, stopped) {
+    const run = this.run;
+    const s = run.settings;
+    const r2 = (x) => (x === null || x === undefined ? null : Math.round(x * 100) / 100);
+    const record = {
+      v: 1,
+      exercise: "practice: scales",
+      mode: s.mode, temperament: s.temperament, root: s.root,
+      reference_hz: s.referenceHz, naming: s.naming, stopped,
+      scales_mode: run.mode,
+      notes: scored.flatMap((b) => b.notes.map((n) => ({
+        pitch: n.pitch.name, mean_cents: r2(n.primaryCents), stdev_cents: r2(n.stdev),
+        target_hz: null, settle_s: null, frames: null, key: b.label,
+      }))),
+      scale_runs: run.runs.map((r) => ({
+        key: r.tonicName ?? r.pitchClassName, spellable: r.spellable,
+        octaves: r.octaves, shape: r.shape, fit: r2(r.fit),
+        wrong: r.wrongNotes, missing: r.missingNotes, octave_errors: r.octaveErrors,
+      })),
+      by_key: scored.map((b) => ({
+        key: b.label, runs: b.runs.length, notes: b.notes.length,
+        accuracy: r2(b.score?.accuracy ?? null),
+        repeatability: r2(b.score?.repeatability ?? null),
+      })),
+    };
+    try {
+      await history.add(record);
+      run.ui.summary.append(el("p", { class: "muted", text: t("practice.saved") }));
+    } catch (_e) { /* storage unavailable: the session still displayed */ }
+  },
+};

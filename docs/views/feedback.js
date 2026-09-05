@@ -20,6 +20,8 @@ export default {
         el("li", { text: t("feedback.want.instrument") }),
         el("li", { text: t("feedback.want.missing") }),
       ]),
+      el("p", { class: "note-box", text: t("feedback.trainedOn") }),
+      el("p", { class: "note-box", text: t("feedback.sendRecording") }),
       feedbackLinks("feedback"),
     );
   },

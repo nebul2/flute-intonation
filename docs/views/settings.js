@@ -93,6 +93,14 @@ export default {
       },
     });
 
+    /* how long Play scales runs before stopping itself */
+    const scalesMinutes = el("select", { class: "select",
+      onchange: (e) => settings.set({ scalesMinutes: Number(e.target.value) }) },
+      [5, 10, 15, 20, 30, 45].map((m) => el("option", {
+        value: String(m), selected: Number(s.scalesMinutes ?? 15) === m || null,
+        text: t("settings.minutes", m),
+      })));
+
     /* page explanations: folded away by default, once you know the app */
     const explainToggle = el("label", { class: "option" }, [
       el("input", { type: "checkbox", checked: s.explainOpen === true || null,
@@ -141,6 +149,7 @@ export default {
       el("div", { class: "row" }, [refs, custom]),
       el("h2", { text: t("settings.naming") }), naming,
       el("h2", { text: t("settings.reading") }), explainToggle,
+      el("div", { class: "row" }, [el("span", { text: t("settings.scalesMinutes") }), scalesMinutes]),
       el("h2", { text: t("settings.octaveStyle") }), octaveStyle,
       el("p", { class: "note-box", text: t("settings.octaveStyleHelp") }),
       el("div", { class: "row" }, [el("span", { text: t("settings.registerBreak") }), registerBreak]),

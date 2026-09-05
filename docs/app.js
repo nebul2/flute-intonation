@@ -20,11 +20,12 @@ import sessions from "./views/sessions.js";
 import temperament from "./views/temperament.js";
 import temperaments from "./views/temperaments.js";
 import bend from "./views/bend.js";
+import scales from "./views/scales.js";
 import feedbackView from "./views/feedback.js";
 
 export { VERSION } from "./app-version.js";
 
-const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments, bend, feedback: feedbackView };
+const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments, bend, scales, feedback: feedbackView };
 
 function $(id) { return document.getElementById(id); }
 

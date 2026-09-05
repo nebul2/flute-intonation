@@ -134,7 +134,7 @@ export default {
         el("label", { class: "field" }, [t("temperaments.octave"), octaveSelect]),
       ]),
       control.element,
-      level.node,
+      level.element,
       el("div", { class: "scroll" }, [table]),
       helpSection("temperaments").element,
       el("div", { class: "controls" }, [

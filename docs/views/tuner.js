@@ -47,6 +47,13 @@ export default {
     let cands = candidates(tuning);
 
     const intro = el("p", { class: "intro" });
+    // A needle is for settling an argument about one note, not for learning
+    // to play in tune -- the players who teach this instrument say so plainly,
+    // and the drone exercises are where the ear actually gets trained.
+    const caution = el("p", { class: "caution" }, [
+      el("span", { class: "chip warn-chip", text: t("tuner.checkOnly") }),
+      el("span", { text: t("tuner.checkOnlyWhy") }),
+    ]);
     const link = el("a", { href: "#/tuning", class: "link", text: t("tuner.changeTuning") });
     const note = el("div", { class: "big-note", text: "—" });
     const hz = el("span", { text: t("tuner.listening") });
@@ -134,7 +141,8 @@ export default {
     requestAnimationFrame(render);
 
     root.append(
-      intro, link,
+      intro,
+      caution, link,
       el("div", { class: "card panel" }, [
         note,
         el("div", { class: "readout" }, [hz, cents]),
