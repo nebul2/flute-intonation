@@ -56,15 +56,25 @@ test("the player's own words come first, the machine's after a separator", () =>
   assert.ok(mine.indexOf("app:") === -1, "with nothing technical above the fold");
 });
 
-test("with no address configured the mail link is absent rather than broken", () => {
-  // The address is deliberately left empty in the repository -- it is public,
-  // and a personal address in it gets harvested. Until one is set the UI
-  // falls back to copying, so nothing is dead.
+test("the mail link addresses the mailbox, or is absent rather than broken", () => {
+  // The address is a dedicated one in a public repository, replaceable if it
+  // attracts spam. Empty is a supported state: the buttons fall back to
+  // copying and to the issue tracker, so nothing is ever a dead link.
+  const href = mailto("subject", CONTEXT, "prompt");
   if (ADDRESS === "") {
-    assert.equal(mailto("subject", CONTEXT, "prompt"), null);
-  } else {
-    assert.match(mailto("subject", CONTEXT, "prompt"), /^mailto:/);
+    assert.equal(href, null, "no address means no mail button at all");
+    return;
   }
+  assert.match(ADDRESS, /^[^@\s]+@[^@\s]+\.[^@\s]+$/, `${ADDRESS} is not an address`);
+  assert.ok(!ADDRESS.includes(" "), "an address with a space would break the link");
+  const url = new URL(href);
+  assert.equal(url.protocol, "mailto:");
+  assert.equal(url.pathname, ADDRESS, "the link must reach the mailbox itself");
+
+  const params = new URLSearchParams(url.search);
+  assert.equal(params.get("subject"), "subject");
+  assert.match(params.get("body"), /^prompt/, "their words open the mail");
+  assert.match(params.get("body"), /\napp: phase /, "and the setup follows below");
 });
 
 test("a configured address produces a link that survives the encoding", () => {

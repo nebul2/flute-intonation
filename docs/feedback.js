@@ -16,15 +16,15 @@ import { VERSION } from "./app-version.js";
 
 /* Where feedback goes.
  *
- * PUT A THROWAWAY ALIAS HERE, not a personal address: this file is in a public
- * repository and harvesters read it. A Proton alias can be burnt and replaced
- * if it starts attracting spam, and nothing else has to change.
+ * A dedicated address, not a personal one: this file is in a public
+ * repository and harvesters read it. If it starts attracting spam it can be
+ * abandoned and replaced here, and nothing else has to change.
  *
  * Left empty, the app falls back to copying the report to the clipboard and
- * pointing at the issue tracker, so the feature works either way -- it is just
- * friendlier once this is filled in.
+ * pointing at the issue tracker, so the feature still works -- it is just
+ * friendlier with an address.
  */
-export const ADDRESS = "";
+export const ADDRESS = "lebongoutjuste@proton.me";
 
 export const ISSUES = "https://github.com/nebul2/flute-intonation/issues/new";
 
