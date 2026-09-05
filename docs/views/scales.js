@@ -26,12 +26,13 @@ import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
-import { SpelledPitch, centsBetween } from "../core/pitch.js";
-import { postAttack, analyseNote } from "../core/scoring.js";
+import { SpelledPitch } from "../core/pitch.js";
+import { postAttack } from "../core/scoring.js";
 import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
 import { recogniseSession } from "../core/scales.js";
-import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
-import { aggregate, scorableRows, sessionScore, offsetAction, standouts, STANDOUT_CENTS } from "../core/stats.js";
+import { scaleReport, CROSS_KEY_NOTABLE_CENTS, CROSS_KEY_ROWS } from "../core/scaleReport.js";
+import { PureIntervalTuning } from "../core/tuning.js";
+import { STANDOUT_CENTS } from "../core/stats.js";
 import { tunerCandidates, nearestCandidate } from "../core/naming.js";
 import {
   el, append, audioControl, levelBar, runNav, currentTuning, name, nameClass, bandClass, explainer,
@@ -61,11 +62,6 @@ export const GUIDED_KEYS = Object.freeze([
  * finished", and nothing else in the signal does. */
 export const ADVANCE_SILENCE_MS = 1500;
 
-/* A note differing this much between two keys is worth pointing at;
- * below it, the difference is inside what a flute does anyway. */
-export const CROSS_KEY_NOTABLE_CENTS = 8;
-/** Rows in the same-note table, worst spread first. */
-export const CROSS_KEY_ROWS = 8;
 
 /* A key name parses whole: "Bb" is B flat, not B. Taking key[0] made guided
  * mode expect B where the player was asked for B flat -- a semitone out, so
@@ -353,99 +349,90 @@ export default {
     if (this.offFrame) { this.offFrame(); this.offFrame = null; }
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
 
-    const s = run.settings;
     run.ui.nav.finish();
     run.ui.level.element.hidden = true;
     run.ui.asked.replaceChildren();
 
+    /* Everything the report says is worked out in core/scaleReport.js, which
+     * can be run over a real recording in a terminal. That matters more than
+     * it sounds: this report was silently broken three times -- most recently
+     * by a variable used above the line that declared it, thrown inside an
+     * async method nobody was awaiting, so the whole summary vanished without
+     * a word while the session tally kept counting scales happily. The view
+     * renders and decides nothing, and if it throws anyway it now says so
+     * rather than showing an empty page. */
+    try {
+      run.ui.summary.replaceChildren(...this.report(timedOut));
+    } catch (error) {
+      run.ui.summary.replaceChildren(
+        el("p", { class: "note-box warn", text: t("scales.reportFailed", error.message) }));
+      throw error;
+    }
+    await this.save(timedOut);
+  },
+
+  report(timedOut) {
+    const run = this.run;
+    const s = run.settings;
     const parts = [];
     if (timedOut) parts.push(el("p", { class: "muted", text: t("scales.timeUp") }));
 
     if (!run.runs.length) {
       parts.push(el("p", { class: "headline", text: t("scales.nothingFound") }));
       parts.push(el("p", { class: "muted", text: t("scales.nothingFoundWhy") }));
-      run.ui.summary.replaceChildren(...parts);
-      return;
+      return parts;
     }
 
-    // Per key, scored against that run's OWN tonic as pure intervals -- which
-    // free play cannot do, because it never knows what the tonic is. This is
-    // the musical gain, not the count of scales.
-    const byKey = new Map();
-    for (const r of run.runs) {
-      const label = r.tonicName ?? r.pitchClassName;
-      if (!byKey.has(label)) byKey.set(label, { label, spellable: r.spellable, runs: [], notes: [] });
-      const bucket = byKey.get(label);
-      bucket.runs.push(r);
-      if (!r.spellable) continue;
-      const tonic = SpelledPitch.parse(`${r.tonicName}${r.expected[0].octave}`);
-      const context = new HarmonicContext(tonic);
-      // Only the notes that landed on a degree. A misheard or fluffed note
-      // measured against the pitch it was named as is measuring the detector.
-      for (const i of r.matchedIndices) {
-        const note = run.notes[i];
-        let targetHz = null;
-        try { targetHz = run.pure.targetHz(note.pitch, context); } catch (_e) { /* no ratio */ }
-        if (targetHz === null) targetHz = run.tuning.targetHz(note.pitch);
-        const measured = analyseNote(note.pitch, targetHz, note.framesHz, run.tracker.frameSeconds);
-        if (!measured) continue;
-        bucket.notes.push({
-          pitch: note.pitch, primaryCents: measured.meanCents, stdev: measured.stdevCents,
-          seconds: note.seconds, meanDb: null, index: bucket.notes.length,
-        });
-      }
-    }
+    const report = scaleReport({
+      notes: run.notes, runs: run.runs, tuning: run.tuning, pure: run.pure,
+      frameSeconds: run.tracker.frameSeconds,
+      expectedKeys: GUIDED_KEYS.map((k) => k.key),
+    });
+    run.report = report;
 
-    const scored = [...byKey.values()].map((b) => {
-      const rows = b.notes.length ? aggregate(b.notes) : [];
-      const score = rows.length ? sessionScore(scorableRows(rows)) : null;
-      return { ...b, rows, score };
-    }).filter((b) => b.runs.length);
+    parts.push(el("p", { class: "headline",
+      text: t("scales.found", report.scaleCount, report.keys.length) }));
 
-    const measurable = scored.filter((b) => b.score);
-
-    /* Where the whole session sat is one number and it belongs to the
-     * headjoint -- or to a reference pitch set wrong. It must come off before
-     * any key is compared with any other, or a flute sitting twenty cents
-     * sharp reads as bad playing in every key at once. Calibrating this page
-     * against a real take, the recording turned out to be at A = 420 against
-     * a reference of 415: uncorrected, every key looked 20 cents out. */
-    const everyNote = scored.flatMap((b) => b.notes);
-    const overall = everyNote.length
-      ? sessionScore(scorableRows(aggregate(everyNote))) : null;
-    if (overall) {
-      const action = offsetAction(overall.offset);
-      parts.push(el("p", { class: "muted", text: action === null
+    if (report.overall) {
+      parts.push(el("p", { class: "muted", text: report.action === null
         ? t("scales.centred")
-        : t("scales.offset", Math.abs(overall.offset).toFixed(1),
-             t(overall.offset > 0 ? "listen.score.sharp" : "listen.score.flat"),
-             t(`listen.score.${action}`)) }));
+        : t("scales.offset", Math.abs(report.offsetCents).toFixed(1),
+             t(report.offsetCents > 0 ? "listen.score.sharp" : "listen.score.flat"),
+             t(`listen.score.${report.action}`)) }));
+    }
+    if (report.best) {
+      const measurable = report.keys.filter((k) => k.score).length;
+      parts.push(el("p", { text: t(measurable > 1 ? "scales.bestKey" : "scales.oneKey",
+        report.best.label, report.best.score.relative.toFixed(1)) }));
     }
 
-    // Best is the key you were most consistent WITHIN, not the one that
-    // happened to sit nearest the tuner -- that is the session offset again.
-    const best = measurable.length
-      ? measurable.reduce((a, b) => (b.score.relative < a.score.relative ? b : a)) : null;
-    /* Which notes were actually out, across everything played.
-     *
-     * This has to work when only one key was played, which the cross-key
-     * table below cannot -- it needs two keys to compare. A session that
-     * recognised a single scale should still say something about the notes
-     * in it, or the page has listened to five minutes of playing and
-     * answered with a count. */
-    const corrected = everyNote.map((n) => ({ ...n, primaryCents: n.primaryCents - shift }));
-    const flagged = corrected.length ? standouts(scorableRows(aggregate(corrected)))
-                                     : { list: [], more: 0 };
+    parts.push(el("div", { class: "stats scroll" }, [
+      el("table", {}, [
+        el("thead", {}, [el("tr", {}, ["key", "runs", "notes", "accuracy", "spread"].map((k) =>
+          el("th", { text: t(`scales.col.${k}`) })))]),
+        el("tbody", {}, report.keys.map((k) => el("tr", { class: k === report.best ? "best" : "" }, [
+          el("td", { text: k.spellable ? k.label : t("scales.unspelled", k.label) }),
+          el("td", { class: "num", text: String(k.runCount) }),
+          el("td", { class: "num", text: String(k.noteCount) }),
+          el("td", { class: "num", text: k.score ? `${k.score.relative.toFixed(1)}¢` : "—" }),
+          el("td", { class: "num", text: k.score && k.score.repeatability !== null
+            ? `${k.score.repeatability.toFixed(1)}¢` : "—" }),
+        ]))),
+      ]),
+    ]));
+
+    /* Which notes were out, across everything played. Works after a single
+     * scale, which the cross-key table below cannot: it needs two keys. */
     parts.push(el("h2", { text: t("scales.notes") }));
-    if (!flagged.list.length) {
+    if (!report.standouts.list.length) {
       parts.push(el("p", { text: t("scales.notesAllClose", STANDOUT_CENTS) }));
     } else {
-      parts.push(el("p", { text: t("scales.notesLead", flagged.list.length) }));
+      parts.push(el("p", { text: t("scales.notesLead", report.standouts.list.length) }));
       parts.push(el("div", { class: "stats scroll" }, [
         el("table", {}, [
           el("thead", {}, [el("tr", {}, ["note", "n", "out", "spread"].map((k) =>
             el("th", { text: t(`scales.col.${k}`) })))]),
-          el("tbody", {}, flagged.list.map((n) => el("tr", {}, [
+          el("tbody", {}, report.standouts.list.map((n) => el("tr", {}, [
             el("th", { class: "temp-note", text: name(n.pitch, s) }),
             el("td", { class: "num", text: String(n.n) }),
             el("td", { class: `num ${bandClass(n.mean)}`,
@@ -454,60 +441,21 @@ export default {
           ]))),
         ]),
       ]));
-      if (flagged.more) {
-        parts.push(el("p", { class: "muted small", text: t("listen.standouts.more", flagged.more) }));
+      if (report.standouts.more) {
+        parts.push(el("p", { class: "muted small", text: t("listen.standouts.more", report.standouts.more) }));
       }
     }
 
-    /* The same note, key by key.
-     *
-     * This is what a scales session can say that nothing else in the app can.
-     * A note is not simply sharp or flat on a flute -- it is sharp in one key
-     * and fine in another, because the fingering, the neighbours it sits
-     * between and the harmony it belongs to all change with the key. Playing
-     * eight keys and never comparing them across would waste the whole point.
-     *
-     * Grouped by pitch class, so a D in the first octave and the second count
-     * as the same note: the question is about the note, not the register. The
-     * session-wide offset comes off first -- otherwise a reference set wrong
-     * shifts every cell equally and hides the differences it should reveal.
-     */
-    const shift = overall ? overall.offset : 0;
-    const byNote = new Map();
-    for (const bucket of scored) {
-      for (const n of bucket.notes) {
-        const label = nameClass(n.pitch, s);
-        if (!byNote.has(label)) byNote.set(label, new Map());
-        const perKey = byNote.get(label);
-        if (!perKey.has(bucket.label)) perKey.set(bucket.label, []);
-        perKey.get(bucket.label).push(n.primaryCents - shift);
-      }
-    }
-
-    const crossKey = [...byNote.entries()]
-      .filter(([, perKey]) => perKey.size >= 2)      // needs two keys to compare
-      .map(([label, perKey]) => {
-        const cells = [...perKey.entries()].map(([key, cents]) => ({
-          key, mean: cents.reduce((a, b) => a + b, 0) / cents.length, n: cents.length,
-        }));
-        const highs = cells.map((c) => c.mean);
-        return { label, cells, spread: Math.max(...highs) - Math.min(...highs) };
-      })
-      .sort((a, b) => b.spread - a.spread);
-
-    if (crossKey.length) {
-      const worst = crossKey[0];
+    if (report.crossKey.length) {
+      const worst = report.crossKey[0];
       const high = worst.cells.reduce((a, b) => (b.mean > a.mean ? b : a));
       const low = worst.cells.reduce((a, b) => (b.mean < a.mean ? b : a));
       parts.push(el("h2", { text: t("scales.sameNote") }));
-      if (worst.spread >= CROSS_KEY_NOTABLE_CENTS) {
-        parts.push(el("p", { text: t("scales.sameNoteLead", worst.label,
-          worst.spread.toFixed(0), high.key, low.key) }));
-      } else {
-        parts.push(el("p", { text: t("scales.sameNoteSteady", worst.spread.toFixed(0)) }));
-      }
+      parts.push(el("p", { text: worst.spread >= CROSS_KEY_NOTABLE_CENTS
+        ? t("scales.sameNoteLead", nameClass(worst.pitch, s), worst.spread.toFixed(0), high.key, low.key)
+        : t("scales.sameNoteSteady", worst.spread.toFixed(0)) }));
 
-      const keys = scored.map((b) => b.label);
+      const keys = report.keys.map((k) => k.label);
       parts.push(el("div", { class: "stats scroll" }, [
         el("table", {}, [
           el("thead", {}, [el("tr", {}, [
@@ -515,8 +463,8 @@ export default {
             ...keys.map((k) => el("th", { text: k })),
             el("th", { text: t("scales.col.across") }),
           ])]),
-          el("tbody", {}, crossKey.slice(0, CROSS_KEY_ROWS).map((row) => el("tr", {}, [
-            el("th", { class: "temp-note", text: row.label }),
+          el("tbody", {}, report.crossKey.slice(0, CROSS_KEY_ROWS).map((row) => el("tr", {}, [
+            el("th", { class: "temp-note", text: nameClass(row.pitch, s) }),
             ...keys.map((k) => {
               const cell = row.cells.find((c) => c.key === k);
               return el("td", { class: `num${cell ? " " + bandClass(cell.mean) : ""}`,
@@ -529,20 +477,14 @@ export default {
       parts.push(el("p", { class: "muted small", text: t("scales.sameNoteNote") }));
     }
 
-    // Keys not touched. An invitation, never a scolding.
-    const played = new Set(scored.map((b) => b.label));
-    const missed = GUIDED_KEYS.filter((k) => !played.has(k.key));
-    if (missed.length && missed.length < GUIDED_KEYS.length) {
-      parts.push(el("p", { class: "muted small",
-        text: t("scales.notYet", missed.map((k) => keyLabel(k, s)).join(", ")) }));
+    if (report.missed.length && report.missed.length < GUIDED_KEYS.length) {
+      parts.push(el("p", { class: "muted small", text: t("scales.notYet", report.missed.join(", ")) }));
     }
     parts.push(el("p", { class: "muted small", text: t("scales.pureNote") }));
-
-    run.ui.summary.replaceChildren(...parts);
-    await this.save(scored, timedOut);
+    return parts;
   },
 
-  async save(scored, stopped) {
+  async save(stopped) {
     const run = this.run;
     const s = run.settings;
     const r2 = (x) => (x === null || x === undefined ? null : Math.round(x * 100) / 100);
@@ -552,7 +494,7 @@ export default {
       mode: s.mode, temperament: s.temperament, root: s.root,
       reference_hz: s.referenceHz, naming: s.naming, stopped,
       scales_mode: run.mode,
-      notes: scored.flatMap((b) => b.notes.map((n) => ({
+      notes: (run.report?.keys ?? []).flatMap((b) => b.notes.map((n) => ({
         pitch: n.pitch.name, mean_cents: r2(n.primaryCents), stdev_cents: r2(n.stdev),
         target_hz: null, settle_s: null, frames: null, key: b.label,
       }))),
@@ -561,8 +503,8 @@ export default {
         octaves: r.octaves, shape: r.shape, fit: r2(r.fit),
         wrong: r.wrongNotes, missing: r.missingNotes, octave_errors: r.octaveErrors,
       })),
-      by_key: scored.map((b) => ({
-        key: b.label, runs: b.runs.length, notes: b.notes.length,
+      by_key: (run.report?.keys ?? []).map((b) => ({
+        key: b.label, runs: b.runCount, notes: b.noteCount,
         accuracy: r2(b.score?.accuracy ?? null),
         repeatability: r2(b.score?.repeatability ?? null),
       })),

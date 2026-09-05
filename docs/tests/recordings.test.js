@@ -17,7 +17,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { analyse } from "./wavpipe.js";
-import { scaleRuns } from "../core/scales.js";
+import { scaleRuns, recogniseSession } from "../core/scales.js";
+import { scaleReport } from "../core/scaleReport.js";
+import { SpelledPitch } from "../core/pitch.js";
+import { parseScala, TemperamentTuning, ReferencePitch, PureIntervalTuning } from "../core/tuning.js";
+import { TEMPERAMENTS } from "../core/temperaments.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const recording = (name) => path.join(root, "recordings", name);
@@ -146,4 +150,40 @@ test("the long-tones take is the two-octave D major scale it actually is", () =>
   assert.equal(runs[0].tonicName, "D");
   assert.equal(runs[0].octaves, 2);
   assert.equal(runs[0].shape, "up", "played up only, never brought back down");
+});
+
+test("a real scales session produces an actual report, not an empty one", () => {
+  // Three sessions were played before anyone could tell me the report was
+  // throwing: the failure was silent, inside an async method, and the live
+  // tally kept counting scales while the summary rendered nothing. This is
+  // the check that would have caught it on the first session.
+  if (!have("scales.wav")) return;
+  const tuning = new TemperamentTuning(
+    parseScala(TEMPERAMENTS.vallotti.scl), SpelledPitch.parse("C4"),
+    new ReferencePitch(SpelledPitch.parse("A4"), 415));
+  const notes = analyse(recording("scales.wav")).notes;
+  const runs = recogniseSession(notes, { expectTonic: 2 });
+
+  const report = scaleReport({
+    notes, runs, tuning, pure: new PureIntervalTuning(tuning),
+    frameSeconds: 512 / 44100,
+    expectedKeys: ["D", "G", "A", "E", "C", "F", "Bb", "Eb"],
+  });
+
+  assert.ok(report.scaleCount >= 10, `only ${report.scaleCount} scales`);
+  assert.ok(report.keys.length >= 5, `only ${report.keys.length} keys`);
+  assert.ok(report.measuredNotes > 100,
+    `only ${report.measuredNotes} notes measured -- the report would be empty`);
+  assert.ok(report.overall, "a session score");
+  assert.ok(report.best, "a key to lead with");
+  assert.ok(report.standouts.list.length > 0, "notes worth naming");
+  assert.ok(report.crossKey.length > 0, "and notes comparable across keys");
+  for (const row of report.crossKey) {
+    assert.ok(row.cells.length >= 2, "a cross-key row needs two keys by definition");
+    assert.ok(Number.isFinite(row.spread) && row.spread >= 0, "with a real spread");
+  }
+  for (const key of report.keys) {
+    assert.ok(key.runCount >= 1);
+    if (key.score) assert.ok(Number.isFinite(key.score.relative));
+  }
 });
