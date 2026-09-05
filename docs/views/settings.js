@@ -93,6 +93,14 @@ export default {
       },
     });
 
+    /* how long a note lasts in the drone exercises */
+    const droneNoteSeconds = el("select", { class: "select",
+      onchange: (e) => settings.set({ droneNoteSeconds: Number(e.target.value) }) },
+      [4, 5, 6, 8, 10, 12].map((sec) => el("option", {
+        value: String(sec), selected: Number(s.droneNoteSeconds ?? 6) === sec || null,
+        text: t("settings.seconds", sec),
+      })));
+
     /* how long Play scales runs before stopping itself */
     const scalesMinutes = el("select", { class: "select",
       onchange: (e) => settings.set({ scalesMinutes: Number(e.target.value) }) },
@@ -157,6 +165,8 @@ export default {
       el("h2", { text: t("settings.language") }), language,
       el("h2", { text: t("settings.mic") }), control.element, mic, micNote,
       el("h2", { text: t("settings.droneLevel") }), droneLevel,
+      el("div", { class: "row" }, [el("span", { text: t("settings.droneNoteSeconds") }), droneNoteSeconds]),
+      el("p", { class: "note-box", text: t("settings.droneNoteSecondsHelp") }),
       headphones,
       el("h2", { text: t("settings.history") }),
       el("div", { class: "controls left" }, [exportButton, clearButton]),

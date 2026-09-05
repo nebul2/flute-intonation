@@ -36,11 +36,16 @@ import { compareAdjustment } from "../core/adjust.js";
 import { el, append, needle, levelBar, bandClass, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
 
 /* The practice set. */
+/* Every drone exercise takes its note length from one setting, because they
+ * are all the same activity: sounding a note against a bass and listening to
+ * what happens between them. There is no reason to hurry any of them, and a
+ * player who wants longer wants longer everywhere. Seconds rather than beats,
+ * at 60bpm they are the same thing, and seconds is what a player means. */
 export const EXERCISES = {
-  calibration: { build: (tonic) => intervalDrill(tonic, { intervals: [0, 4, 7] }), feedback: "after" },
-  intervals: { build: (tonic) => intervalInContext(tonic), feedback: "after" },
-  enharmonic: { build: () => enharmonicPair(), feedback: "after" },
-  predict: { build: (tonic) => intervalDrill(tonic, { intervals: [0, 4, 7] }), feedback: "predict" },
+  calibration: { build: (t, q, k, o = {}) => intervalDrill(t, { intervals: [0, 4, 7], beats: o.seconds }), feedback: "after" },
+  intervals: { build: (t, q, k, o = {}) => intervalInContext(t, { beats: o.seconds }), feedback: "after" },
+  enharmonic: { build: (t, q, k, o = {}) => enharmonicPair({ beats: o.seconds }), feedback: "after" },
+  predict: { build: (t, q, k, o = {}) => intervalDrill(t, { intervals: [0, 4, 7], beats: o.seconds }), feedback: "predict" },
   /* Endless: random notes of the chosen scale over the tonic drone until the
    * player stops. The exercise starts with one note; the runner asks
    * `nextNote` for each further one, so it never runs out. */
@@ -53,8 +58,9 @@ export const EXERCISES = {
      * select offers -- that control cannot name a flat key at all, and the
      * widest and most instructive of these are B and Ab at a full comma. */
     keys: PRACTICE_KEYS,
-    build: (tonic, quality, chosen) =>
-      intervalAdjust(chosen ? chosen.tonic : tonic, { key: chosen ? chosen.key : "" }),
+    build: (tonic, quality, chosen, opts = {}) =>
+      intervalAdjust(chosen ? chosen.tonic : tonic,
+                     { key: chosen ? chosen.key : "", beats: opts.seconds }),
     feedback: "end", report: "adjust", help: "intervals",
     explain: ["practice.adjust.what", "practice.adjust.how", "practice.adjust.why"],
   },
@@ -63,20 +69,22 @@ export const EXERCISES = {
    * been used by someone other than the player it was calibrated on. */
   scales: { route: "scales", experimental: true },
   predictRandom: {
-    build: (tonic, quality = "major") => {
+    build: (tonic, quality = "major", chosen, opts = {}) => {
       const root = SpelledPitch.parse(`${tonic}4`);
       const pool = scalePool(tonic, quality, { octaves: 1 });
       const context = new HarmonicContext(root);
       return new Exercise({
         name: `random ${quality} scale notes over ${root}`,
-        notes: [new TargetNote(pickDifferent(pool), 4.0, context)],
+        notes: [new TargetNote(pickDifferent(pool), opts.seconds, context)],
         drone: root, tempoBpm: 60.0, key: scaleKeyFor(tonic, quality),
       });
     },
+    // Endless, so later notes must take the length the first one was given
+    // rather than a constant -- otherwise the exercise changes pace mid-run.
     nextNote: (run) => {
       const previous = run.notes[run.notes.length - 1];
       const pool = scalePool(run.tonic, run.quality, { octaves: 1 });
-      return new TargetNote(pickDifferent(pool, previous.pitch), 4.0, previous.context);
+      return new TargetNote(pickDifferent(pool, previous.pitch), previous.beats, previous.context);
     },
     feedback: "predict",
     endless: true,
@@ -162,8 +170,9 @@ export class ExerciseRun {
 
   mount(root) {
     this.root = root;
-    const built = this.spec.build(this.tonic, this.quality, this.chosenKey());
     const s = settings.get();
+    const built = this.spec.build(this.tonic, this.quality, this.chosenKey(),
+                                  { seconds: Number(s.droneNoteSeconds) || 6 });
     const tuning = currentTuning(s);
     this.run = {
       key: this.key, spec: this.spec, settings: s, tuning,

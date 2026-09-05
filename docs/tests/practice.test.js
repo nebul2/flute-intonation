@@ -12,8 +12,12 @@ const { scale, arpeggio, intervalDrill, intervalInContext, enharmonicPair, stopp
 const await_import_generator = () => generator;
 import { NoteResult, SessionSummary, analyseNote, judgeDirection, octavePairs } from "../core/scoring.js";
 import { NoteSegmenter, State, onsetThresholdFor } from "../audio/segmenter.js";
+import * as runModule from "../views/run.js";
 
 const P = (s) => SpelledPitch.parse(s);
+/* views/run.js pulls in the audio engine, so it is imported lazily and
+ * only by the tests that need the exercise registry. */
+const run_exercises = () => runModule;
 const approx = (got, want, abs, label = "") =>
   assert.ok(Math.abs(got - want) <= abs, `${label} expected ${want} ± ${abs}, got ${got}`);
 const vallotti = (root = "C") =>
@@ -363,4 +367,45 @@ test("two octaves does not fit every key, and the short ones are known", () => {
     assert.equal(ascending(tonic, key), got,
       `${key} major cannot reach two octaves within D4-A6, and is truncated to ${got}`);
   }
+});
+
+test("every drone exercise takes its note length from one setting", () => {
+  // Ear training rather than reflex training: a longer note is more time to
+  // hear what two pitches do together. They are all the same activity, so a
+  // player who wants longer wants longer everywhere -- one setting, not five.
+  const { EXERCISES } = run_exercises();
+  for (const [key, spec] of Object.entries(EXERCISES)) {
+    if (!spec.build) continue;                       // runs on its own page
+    for (const seconds of [4, 6, 12]) {
+      const built = spec.build("D", "major", spec.keys ? spec.keys[0] : null, { seconds });
+      for (const exercise of (Array.isArray(built) ? built : [built])) {
+        for (const note of exercise.notes) {
+          assert.ok(Math.abs(exercise.durationSeconds(note) - seconds) < 1e-9,
+            `${key}: asked for ${seconds}s, got ${exercise.durationSeconds(note)}s`);
+        }
+      }
+    }
+  }
+});
+
+test("an exercise built with no options still works", () => {
+  // Defensive on purpose: a caller that forgets the options bag should fall
+  // back to the generator's own default rather than throw on undefined.
+  const { EXERCISES } = run_exercises();
+  for (const [key, spec] of Object.entries(EXERCISES)) {
+    if (!spec.build) continue;
+    assert.doesNotThrow(() => spec.build("D", "major", spec.keys ? spec.keys[0] : null),
+      `${key} threw without options`);
+  }
+});
+
+test("an endless exercise keeps the length it started with", () => {
+  // Otherwise it changes pace mid-run, which for an ear-training drill is
+  // worse than being slow.
+  const { EXERCISES } = run_exercises();
+  const spec = EXERCISES.predictRandom;
+  const first = spec.build("D", "major", null, { seconds: 10 });
+  const run = { notes: [first.notes[0]], tonic: "D", quality: "major" };
+  const next = spec.nextNote(run);
+  assert.equal(next.beats, first.notes[0].beats, "the second note lasts as long as the first");
 });

@@ -16,6 +16,8 @@ export const DEFAULTS = Object.freeze({
   naming: "solfege",
   lang: null,            // null = follow the browser
   droneLevel: 0.15,
+  droneNoteSeconds: 6,   // how long a note lasts in the drone exercises;
+                         // ear training, so there is no hurry
   deviceId: null,
   headphones: false,
   listenLog: false,      // Listen to me: show the note-by-note log
