@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from flutetrainer.core.context import HarmonicContext
-from flutetrainer.core.generator import arpeggio, interval_drill, scale
+from flutetrainer.core.generator import KEY_SIGNATURES, arpeggio, interval_drill, scale
 from flutetrainer.core.pitch import SpelledPitch, cents_between, interval_between
 from flutetrainer.core.resolver import Mode, TargetNote, TargetResolver
 from flutetrainer.core.scoring import analyse_note, cents_deviation
@@ -483,3 +483,32 @@ def test_octave_pairs_respect_spelling():
         NoteResult(SpelledPitch.parse("D#5"), 587.33, 0.0, 0.0, None, 1),
     ]
     assert octave_pairs(results) == []
+
+
+def test_sharp_keys_reach_e_and_b() -> None:
+    """The guided scales sequence runs D G A E B; the palette stopped at A.
+
+    E needs D#, B needs A# as well. Both must be spelled by walking letters
+    through the signature, never by adding semitones, or E major comes out
+    with an Eb in it. Mirrors the web test of the same name.
+    """
+    e = [n.pitch.name for n in scale("E", octaves=1, descending=False).notes]
+    assert e == ["E4", "F#4", "G#4", "A4", "B4", "C#5", "D#5", "E5"]
+    b = [n.pitch.name for n in scale("B", octaves=1, descending=False).notes]
+    assert b == ["B4", "C#5", "D#5", "E5", "F#5", "G#5", "A#5", "B5"]
+
+
+def test_every_key_signature_spells_a_major_scale() -> None:
+    """Each letter exactly once, starting on its own tonic.
+
+    KEY_SIGNATURES is keyed by *signature name*: a flat key's name is not a
+    letter, so Bb major is tonic "B" under key "Bb". Passing the name as the
+    tonic raises, which is why the two are separate arguments here.
+    """
+    for key in KEY_SIGNATURES:
+        tonic = key[0]
+        notes = scale(tonic, key=key, octaves=1, descending=False).notes
+        letters = [n.pitch.letter for n in notes[:7]]
+        assert len(set(letters)) == 7, f"{key} major reuses a letter: {''.join(letters)}"
+        assert notes[0].pitch.letter == tonic
+        assert len(notes) == 8

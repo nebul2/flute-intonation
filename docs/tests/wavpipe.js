@@ -18,6 +18,10 @@ import { fileURLToPath } from "node:url";
 import { Detector } from "../audio/yin.js";
 import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
 import { postAttack } from "../core/scoring.js";
+import { tunerCandidates, nearestCandidate } from "../core/naming.js";
+import { SpelledPitch } from "../core/pitch.js";
+import { parseScala, TemperamentTuning, ReferencePitch } from "../core/tuning.js";
+import { TEMPERAMENTS } from "../core/temperaments.js";
 
 /* Minimal RIFF reader: 16-, 24- and 32-bit integer PCM and 32-bit float,
  * any channel count (mixed down). Enough for what tools/record.py writes. */
@@ -65,8 +69,17 @@ export function readWav(file) {
 
 /* Feed a file through detector and tracker, classifying every region exactly
  * as views/listen.js does: too short, a trill, a slur, or a measured note. */
-export function analyse(file, { hop = 512 } = {}) {
+export function analyse(file, { hop = 512, referenceHz = 415, temperament = "vallotti", root = "C" } = {}) {
   const { samples, sampleRate } = readWav(file);
+  // Naming needs a tuning, and the pipeline has to state which one rather
+  // than inherit a browser's settings. The reference matters: at 415 a
+  // recording of this flute names its notes as the player would.
+  const tuning = new TemperamentTuning(
+    parseScala(TEMPERAMENTS[temperament].scl),
+    SpelledPitch.parse(`${root}4`),
+    new ReferencePitch(SpelledPitch.parse("A4"), referenceHz),
+  );
+  const candidates = tunerCandidates(tuning);
   const detector = new Detector(sampleRate);
   const frameSeconds = hop / sampleRate;
   const tracker = new RegionTracker({ frameSeconds });
@@ -93,8 +106,15 @@ export function analyse(file, { hop = 512 } = {}) {
     else if (region.short) kind = "short";
     else if (isOscillating(region)) kind = "trill";
     else if (Math.abs(drift) >= GLIDE_CENTS) kind = "slur";
+    // The note as views/listen.js would have scored it, so anything that
+    // works on named notes can be run over a real recording.
+    const ordered = [...framesHz].sort((a, b) => a - b);
+    const medianHz = ordered.length ? ordered[ordered.length >> 1] : region.medianHz;
+    const near = nearestCandidate(candidates, medianHz);
     return {
       kind,
+      pitch: near.pitch,
+      cents: near.cents,
       atSeconds: region.startIndex * frameSeconds,
       seconds: region.seconds,
       medianHz: region.medianHz,
@@ -106,8 +126,15 @@ export function analyse(file, { hop = 512 } = {}) {
   });
 
   const counts = classified.reduce((tally, r) => ({ ...tally, [r.kind]: (tally[r.kind] ?? 0) + 1 }), {});
+  // What views/listen.js would have kept: the notes, in order, nothing else.
+  // Feed this to anything that reasons about melody -- never `regions`, which
+  // still holds the trills, and a trill alternating by a semitone or two is
+  // exactly the shape a stepwise matcher reads as a scale.
+  const notes = classified
+    .filter((r) => r.kind === "note")
+    .map((r, index) => ({ ...r, index }));
   return { file: path.basename(file), sampleRate, seconds: samples.length / sampleRate,
-           regions: classified, counts, trillRuns: runs.length };
+           regions: classified, notes, counts, trillRuns: runs.length };
 }
 
 /* CLI */

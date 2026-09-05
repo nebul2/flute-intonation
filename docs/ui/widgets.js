@@ -7,6 +7,7 @@ import { engine } from "../audio/engine.js";
 import { t } from "../i18n.js";
 import * as settings from "../settings.js";
 import { SpelledPitch } from "../core/pitch.js";
+import { tunerCandidates, nearestCandidate } from "../core/naming.js";
 import { ReferencePitch, TemperamentTuning, parseScala } from "../core/tuning.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
 import { noteName, REGISTER, DEFAULT_REGISTER_BREAK } from "./naming.js";
@@ -241,33 +242,13 @@ export function levelBar() {
   };
 }
 
-/* Every named pitch in a range with its frequency in `tuning`, and the one
- * nearest a heard frequency. Spellings as in the desktop tuner: flats where
- * the flute's keys prefer them; cosmetic in a 12-note temperament. */
-const SPELLINGS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
-
-export function tunerCandidates(tuning, low = 3, high = 7) {
-  const out = [];
-  for (let octave = low; octave <= high; octave++) {
-    for (const spelling of SPELLINGS) {
-      const pitch = SpelledPitch.parse(`${spelling}${octave}`);
-      out.push({ pitch, hz: tuning.targetHz(pitch) });
-    }
-  }
-  return out;
-}
-
-export function nearestCandidate(candidates, hz) {
-  let best = null;
-  for (const c of candidates) {
-    const cents = 1200 * Math.log2(hz / c.hz);
-    if (!best || Math.abs(cents) < Math.abs(best.cents)) best = { ...c, cents };
-  }
-  return best;
-}
-
 /* The band a deviation falls in, as a word: the same thresholds that colour
  * every number in the app, so a figure and its label can never disagree. */
+/* Re-exported: these moved to core/ so that anything without a browser --
+ * tests/wavpipe.js, running the shipped detector over a WAV -- can name what
+ * it hears. Callers here are unchanged. */
+export { tunerCandidates, nearestCandidate };
+
 export function bandLabel(cents) {
   const magnitude = Math.abs(cents);
   return magnitude <= 5 ? t("band.inTune") : magnitude <= 15 ? t("band.close") : t("band.far");

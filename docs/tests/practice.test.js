@@ -312,3 +312,55 @@ test("the shaded centre zone is inside the scale and worth having", () => {
   const g = octaveBarGeometry(BAR_TRUE_CENTS);
   assert.ok(g.percent > 50 && g.percent < 60, `five cents is a small nudge: ${g.percent}%`);
 });
+
+/* ---- the sharp keys the guided scales sequence needs ------------------- */
+
+test("E and B major are spelled, so the guided sequence can reach them", () => {
+  // The palette stopped at A (three sharps), so a sequence running D G A E
+  // died at its third step. E needs D#, B needs A# as well -- and both must
+  // be spelled by walking letters through the signature, never by adding
+  // semitones, or E major comes out with an Eb in it.
+  const { scalePool } = await_import_generator();
+  assert.deepEqual(scalePool("E", "major").map((p) => p.name),
+    ["E4", "F#4", "G#4", "A4", "B4", "C#5", "D#5", "E5"]);
+  assert.deepEqual(scalePool("B", "major").map((p) => p.name),
+    ["B4", "C#5", "D#5", "E5", "F#5", "G#5", "A#5", "B5"]);
+});
+
+test("every key signature spells a major scale with each letter once", () => {
+  // A signature that alters the same letter twice, or reaches for one the
+  // scale does not use, spells something that is not a major scale.
+  //
+  // Note the pairing: KEY_SIGNATURES is keyed by *signature name*, and a flat
+  // key's name is not a letter -- Bb major is tonic "B" under key "Bb". They
+  // are separate arguments, and scale() throws if the name is passed as the
+  // tonic. The guided scales sequence therefore has to carry both.
+  const { KEY_SIGNATURES, scale } = await_import_generator();
+  for (const key of Object.keys(KEY_SIGNATURES)) {
+    const tonic = key[0];
+    const notes = scale(tonic, { key, octaves: 1, descending: false }).notes;
+    const letters = notes.slice(0, 7).map((n) => n.pitch.letter);
+    assert.equal(new Set(letters).size, 7, `${key} major reuses a letter: ${letters.join("")}`);
+    assert.equal(notes[0].pitch.letter, tonic, `${key} major should start on ${tonic}`);
+    assert.equal(notes.length, 8, `${key} major should have eight notes`);
+  }
+});
+
+test("two octaves does not fit every key, and the short ones are known", () => {
+  // B, C and Bb run off the top: their second octave lies above A6. scale()
+  // truncates silently through inRange rather than refusing, so the caller
+  // gets a short scale and no complaint. This pins exactly which keys are
+  // affected, so the guided sequence can ask for one octave in those three.
+  const { scale } = await_import_generator();
+  const ascending = (tonic, key) =>
+    scale(tonic, { key, octaves: 2, descending: false }).notes.length;
+
+  for (const [tonic, key] of [["D", "D"], ["G", "G"], ["A", "A"], ["E", "E"],
+                              ["F", "F"], ["E", "Eb"], ["A", "Ab"]]) {
+    assert.equal(ascending(tonic, key), 15, `${key} major should fit two octaves`);
+  }
+  for (const [tonic, key, got] of [["B", "B", 13], ["C", "C", 13], ["B", "Bb", 14]]) {
+    assert.equal(ascending(tonic, key), got,
+      `${key} major cannot reach two octaves within D4-A6, and is truncated to ${got}`);
+  }
+});

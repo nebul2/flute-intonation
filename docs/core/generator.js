@@ -17,6 +17,8 @@ export const KEY_SIGNATURES = Object.freeze({
   G: { F: 1 },
   D: { F: 1, C: 1 },
   A: { F: 1, C: 1, G: 1 },
+  E: { F: 1, C: 1, G: 1, D: 1 },
+  B: { F: 1, C: 1, G: 1, D: 1, A: 1 },
   F: { B: -1 },
   Bb: { B: -1, E: -1 },
   Eb: { B: -1, E: -1, A: -1 },
