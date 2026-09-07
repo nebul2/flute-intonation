@@ -385,3 +385,20 @@ test("a major key gains no raised degrees from the option", () => {
   assert.equal(spellInKey(c, "D"), null);
   assert.equal(spellInKey(SpelledPitch.parse("D#5").chromaticIndex, "E").name, "D#5");
 });
+
+test("C minor spells both its ways: the signature going down, the raised degrees going up", () => {
+  // The player's own description of how it is played: Bb and Ab on the way
+  // down, B natural and A natural on the way up, especially before a C. The
+  // spelling does not need to know the direction -- it spells whichever note
+  // was played, and both sets are reachable.
+  const spell = (name) =>
+    spellInKey(SpelledPitch.parse(name).chromaticIndex, "Eb", { minorTonic: "C" })?.name ?? null;
+  // down: the signature's own notes
+  assert.equal(spell("Bb4"), "Bb4");
+  assert.equal(spell("Ab4"), "Ab4");
+  // up: the raised seventh and sixth
+  assert.equal(spell("B4"), "B4", "the leading note is B natural, raised from Bb");
+  assert.equal(spell("A4"), "A4", "the raised sixth is A natural, raised from Ab");
+  // and the tonic itself, for good measure
+  assert.equal(spell("C5"), "C5");
+});
