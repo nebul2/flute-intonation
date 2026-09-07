@@ -134,6 +134,7 @@ export default {
   /* ---- a session ------------------------------------------------------- */
 
   startSession({ grounding = "key", key = "D", quality = "major" } = {}) {
+    this.lastStart = { grounding, key, quality };
     this.teardown();
     const s = settings.get();
     const tuning = currentTuning(s);
@@ -169,7 +170,7 @@ export default {
       nav: runNav({
         stopLabel: t("listen.stop"),
         onStop: () => this.finish(),
-        onRedo: () => this.startSession(),
+        onRedo: () => this.startSession(this.lastStart),   // not the defaults: those are D major
         onBack: () => this.showStart(),
         extras: [logToggle],
       }),
