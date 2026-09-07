@@ -121,7 +121,7 @@ export default {
     const start = el("button", { class: "primary", text: t("listen.start"), disabled: !engine.listening,
                                  onclick: () => this.startSession({ grounding, key, quality: grounding === "key" ? quality : "major" }) });
     this.offState = engine.onState(() => { start.disabled = !engine.listening; });
-    root.append(
+    append(root, 
       explainer(t("listen.intro"), t("listen.introGrounding")),
       el("div", { class: "row" }, [el("label", { class: "field" }, [t("listen.groundingLabel"), groundingSelect])]),
       keyRow,

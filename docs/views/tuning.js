@@ -8,7 +8,7 @@ import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { TEMPERAMENTS, TEMPERAMENT_ORDER } from "../core/temperaments.js";
 import { lang } from "../i18n.js";
-import { el, currentTuning, temperamentLabel, nameClass, explainer } from "../ui/widgets.js";
+import { el, append, currentTuning, temperamentLabel, nameClass, explainer } from "../ui/widgets.js";
 
 const ROOTS = ["C", "D", "F", "G", "A", "Bb"];
 
@@ -59,7 +59,7 @@ export default {
     })));
 
     refreshExample();
-    root.append(
+    append(root, 
       el("h2", { text: t("tuning.modeQuestion") }),
       modes,
       el("h2", { text: t("tuning.whichTemperament") }),

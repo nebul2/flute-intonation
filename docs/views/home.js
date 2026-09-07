@@ -4,7 +4,7 @@
 import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import { navigate } from "../router.js";
-import { el } from "../ui/widgets.js";
+import { el, append } from "../ui/widgets.js";
 
 const SECTIONS = [
   { key: "tools", cards: [
@@ -70,7 +70,7 @@ export default {
     this.off = engine.onState(update);
     update();
 
-    root.append(
+    append(root, 
       el("p", { class: "tagline", text: t("app.tagline") }),
       el("div", { class: "audio-line" }, [chip]),
       ...SECTIONS.map(({ key, cards }) => el("section", { class: "home-section" }, [

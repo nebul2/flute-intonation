@@ -79,6 +79,20 @@ test("widgets that return a wrapper are appended by their element", () => {
   }
 });
 
+test("views mount through the append helper, never Node.append on the root", () => {
+  // Node.append renders a null child as the text "null". Twice now a view has
+  // shipped a conditional child that way -- the stopper page once, and the
+  // Listen key row in 6.4. The helper in ui/widgets.js skips null, false and
+  // undefined and is otherwise identical, so there is no reason to use the
+  // DOM method on the mount root at all.
+  const views = fs.readdirSync(path.join(here, "..", "views"));
+  for (const file of views) {
+    const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
+    assert.ok(!/\broot\.append\(/.test(src),
+      `${file}: use append(root, ...) from ui/widgets.js, which skips null`);
+  }
+});
+
 test("t() switches language and falls back to the key", () => {
   setLanguage("fr");
   assert.equal(t("nav.back"), "Retour");

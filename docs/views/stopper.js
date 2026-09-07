@@ -4,7 +4,7 @@
 import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import { back } from "../router.js";
-import { el, audioControl, labelField, explainer } from "../ui/widgets.js";
+import { el, append, audioControl, labelField, explainer } from "../ui/widgets.js";
 import { helpSection } from "../ui/help.js";
 import { STOPPER, ExerciseRun } from "./run.js";
 
@@ -38,7 +38,7 @@ export default {
     const start = el("button", { class: "primary", text: t("stopper.start"), disabled: !engine.listening,
                                  onclick: () => this.startRun() });
     this.offState = engine.onState(() => { start.disabled = !engine.listening; });
-    root.append(
+    append(root, 
       explainer(t("stopper.intro"), t("practice.stopper.protocol")),
       el("div", { class: "row" }, [control.element, start]),
       el("div", { class: "row" }, [label.element]),

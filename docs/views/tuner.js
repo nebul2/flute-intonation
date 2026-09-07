@@ -8,9 +8,7 @@ import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import { navigate } from "../router.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
-import {
-  el, audioControl, needle, levelBar, bandClass, currentTuning, temperamentLabel, name,
-} from "../ui/widgets.js";
+import { el, append, audioControl, needle, levelBar, bandClass, currentTuning, temperamentLabel, name } from "../ui/widgets.js";
 
 /* Spellings the tuner offers. In a 12-note temperament the enharmonics share a
  * frequency, so this choice is cosmetic; flats where the flute's keys prefer
@@ -140,7 +138,7 @@ export default {
     this.mounted = true;
     requestAnimationFrame(render);
 
-    root.append(
+    append(root, 
       intro,
       caution, link,
       el("div", { class: "card panel" }, [

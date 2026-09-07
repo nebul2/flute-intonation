@@ -5,7 +5,7 @@ import { t, setLanguage } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
-import { el, audioControl } from "../ui/widgets.js";
+import { el, append, audioControl } from "../ui/widgets.js";
 
 const REFERENCES = [392, 415, 430, 440, 442];
 
@@ -152,7 +152,7 @@ export default {
       historyNote.textContent = t("settings.cleared");
     } });
 
-    root.append(
+    append(root, 
       el("h2", { text: t("settings.reference") }),
       el("div", { class: "row" }, [refs, custom]),
       el("h2", { text: t("settings.naming") }), naming,
