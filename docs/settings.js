@@ -21,6 +21,9 @@ export const DEFAULTS = Object.freeze({
   deviceId: null,
   headphones: false,
   listenLog: false,      // Listen to me: show the note-by-note log
+  listenGrounding: "key",  // "key" (state it) | "tonic" (play it first) | "none"
+  listenKey: "D",
+  listenQuality: "major",
   analytics: true,       // anonymous audience counts (section names only)
   lastLabel: "",         // remembered session name, e.g. "flute 1"
   octaveStyle: "register",  // "register" (Ré grave) or "number" (Ré4)

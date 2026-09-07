@@ -17,7 +17,8 @@
  * Re-exported from ui/widgets.js, so no caller changed.
  */
 
-import { SpelledPitch } from "./pitch.js";
+import { SpelledPitch, mod } from "./pitch.js";
+import { KEY_SIGNATURES } from "./generator.js";
 
 /* Every named pitch in a range with its frequency in `tuning`, and the one
  * nearest a heard frequency. Spellings as in the desktop tuner: flats where
@@ -42,4 +43,30 @@ export function nearestCandidate(candidates, hz) {
     if (!best || Math.abs(cents) < Math.abs(best.cents)) best = { ...c, cents };
   }
   return best;
+}
+
+/* Semitones above C for each letter, so a chroma can be turned back into a
+ * spelling rather than merely a pitch class. */
+const LETTER_CHROMA = Object.freeze({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 });
+
+/**
+ * Spell a chromatic index the way a key would write it, or null.
+ *
+ * Proximity naming picks from a fixed list and so calls E major's D sharp
+ * "Eb". Once the key is known the spelling can be put right: the signature
+ * says which letter carries each of the key's seven pitch classes, and the
+ * chroma says which octave. A note outside the key -- a chromatic passing
+ * note, a wrong note -- comes back null, and the caller keeps whatever it
+ * had, because inventing a spelling would be worse than a proximity guess.
+ */
+export function spellInKey(chroma, keyName) {
+  const signature = KEY_SIGNATURES[keyName];
+  if (!signature) return null;
+  for (const letter of "CDEFGAB") {
+    const alter = signature[letter] ?? 0;
+    if (mod(LETTER_CHROMA[letter] + alter, 12) === mod(chroma, 12)) {
+      return new SpelledPitch(letter, alter, (chroma - LETTER_CHROMA[letter] - alter) / 12);
+    }
+  }
+  return null;
 }

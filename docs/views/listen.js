@@ -18,6 +18,8 @@ import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
+import { PRACTICE_KEYS, MINOR_RELATIVE, scaleKeyFor } from "../core/generator.js";
+import { spellInKey } from "../core/naming.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
@@ -28,7 +30,6 @@ import { invitation } from "../ui/feedback.js";
 import { postAttack } from "../core/scoring.js";
 import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
-const TONICS = ["D", "G", "A", "C", "F"];
 /* How long the tonic must be held to begin. Collected by the same state
  * machine the exercises use, so a brief dropout costs progress rather than
  * resetting it: counting *consecutive* frames meant one bad frame in forty
@@ -44,7 +45,6 @@ export default {
 
   mount(root) {
     this.root = root;
-    this.tonic = "D";
     this.showStart();
   },
 
@@ -63,36 +63,91 @@ export default {
     this.teardown();
     const root = this.root;
     root.replaceChildren();
+    const s0 = settings.get();
     const control = audioControl({ showGranted: false });
     this.control = control;
-    const tonicSelect = el("select", { class: "select", onchange: (e) => { this.tonic = e.target.value; } },
-      TONICS.map((k) => el("option", { value: k, selected: k === this.tonic || null,
-                                       text: nameClass(SpelledPitch.parse(`${k}4`)) })));
+
+    /* Three ways to ground a session, in order of how much the app then
+     * knows. Stating the key gives it a tonic AND a scale: every note can be
+     * read as a pure interval over the tonic, and spelled the way the key
+     * writes it rather than by proximity -- which is what turns an E major
+     * D sharp back from "Eb". Playing the tonic first gives it the tonic
+     * only. Neither gives it nothing, and the page says plainly what that
+     * costs, because it must still be possible to just play. */
+    let grounding = s0.listenGrounding ?? "key";
+    let quality = s0.listenQuality ?? "major";
+    let key = s0.listenKey ?? "D";
+
+    const keysFor = (q) => (q === "minor"
+      ? Object.keys(MINOR_RELATIVE).map((tonic) => ({ key: tonic, tonic }))
+      : PRACTICE_KEYS);
+    const keySelect = el("select", { class: "select", onchange: (e) => {
+      key = e.target.value; settings.set({ listenKey: key });
+    } });
+    const fillKeys = () => {
+      keySelect.replaceChildren(...keysFor(quality).map((entry) => el("option", {
+        value: entry.key, text: nameClass(SpelledPitch.parse(`${entry.key}4`), s0),
+      })));
+      if (!keysFor(quality).some((entry) => entry.key === key)) key = keysFor(quality)[0].key;
+      keySelect.value = key;
+    };
+    const qualitySelect = el("select", { class: "select", onchange: (e) => {
+      quality = e.target.value; settings.set({ listenQuality: quality }); fillKeys();
+    } }, ["major", "minor"].map((q) => el("option", {
+      value: q, selected: q === quality || null, text: t(`practice.quality.${q}`),
+    })));
+    fillKeys();
+
+    const keyRow = el("div", { class: "row" }, [
+      el("label", { class: "field" }, [t("listen.key"), keySelect]),
+      qualitySelect,
+    ]);
+    const hint = el("p", { class: "muted small" });
+    const groundingSelect = el("select", { class: "select", onchange: (e) => {
+      grounding = e.target.value; settings.set({ listenGrounding: grounding }); refresh();
+    } }, ["key", "tonic", "none"].map((g) => el("option", {
+      value: g, selected: g === grounding || null, text: t(`listen.grounding.${g}`),
+    })));
+    const refresh = () => {
+      keyRow.hidden = grounding === "none";
+      qualitySelect.hidden = grounding !== "key";      // the tonic gate needs a tonic, not a mode
+      hint.textContent = t(`listen.grounding.${grounding}.hint`);
+      hint.classList.toggle("warn", grounding === "none");
+    };
+    refresh();
+
     const label = labelField();
     this.label = label;
     const start = el("button", { class: "primary", text: t("listen.start"), disabled: !engine.listening,
-                                 onclick: () => this.startSession() });
+                                 onclick: () => this.startSession({ grounding, key, quality: grounding === "key" ? quality : "major" }) });
     this.offState = engine.onState(() => { start.disabled = !engine.listening; });
     root.append(
-      explainer(t("listen.intro")),
-      el("div", { class: "row" }, [control.element, el("span", { text: t("practice.tonic") }), tonicSelect, start]),
+      explainer(t("listen.intro"), t("listen.introGrounding")),
+      el("div", { class: "row" }, [el("label", { class: "field" }, [t("listen.groundingLabel"), groundingSelect])]),
+      keyRow,
+      hint,
+      el("div", { class: "row" }, [control.element, start]),
       el("div", { class: "row" }, [label.element]),
     );
   },
 
   /* ---- a session ------------------------------------------------------- */
 
-  startSession() {
+  startSession({ grounding = "key", key = "D", quality = "major" } = {}) {
     this.teardown();
     const s = settings.get();
     const tuning = currentTuning(s);
-    const tonicPitch = SpelledPitch.parse(`${this.tonic}4`);
+    const tonicPitch = grounding === "none" ? null : SpelledPitch.parse(`${key}4`);
+    // The signature to spell notes by. Minor keys borrow their relative major's.
+    let keyName = null;
+    if (grounding === "key") { try { keyName = scaleKeyFor(key, quality); } catch (_e) { keyName = null; } }
     this.run = {
-      settings: s, tuning, tonicPitch,
+      settings: s, tuning, tonicPitch, grounding, key, quality, keyName,
       pure: new PureIntervalTuning(tuning),
-      context: new HarmonicContext(tonicPitch),
+      context: tonicPitch ? new HarmonicContext(tonicPitch) : null,
       candidates: tunerCandidates(tuning),
-      phase: "tonic", tonicSegs: [], label: this.label ? this.label.value : "",
+      // Only the tonic gate waits; stating the key, or nothing, starts at once.
+      phase: grounding === "tonic" ? "tonic" : "free", tonicSegs: [], label: this.label ? this.label.value : "",
       tracker: new RegionTracker({ frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100 }),
       notes: [], regions: [], shortCount: 0, glideCount: 0, trillCount: 0, lastVoiced: null,
     };
@@ -107,7 +162,9 @@ export default {
     ]);
 
     this.ui = {
-      status: el("p", { class: "intro", text: t("listen.tonicPrompt", nameClass(tonicPitch, s)) }),
+      status: el("p", { class: "intro", text: grounding === "tonic"
+        ? t("listen.tonicPrompt", nameClass(tonicPitch, s))
+        : grounding === "key" ? t("listen.keyPrompt", nameClass(tonicPitch, s)) : t("listen.freePrompt") }),
       nav: runNav({
         stopLabel: t("listen.stop"),
         onStop: () => this.finish(),
@@ -129,7 +186,7 @@ export default {
     // The tonic may be played in any octave the flute has it in; whichever
     // lands first opens the session.
     const frameSeconds = engine.detector ? engine.detector.frameSeconds : 512 / 44100;
-    run.tonicSegs = run.candidates
+    run.tonicSegs = tonicPitch === null || grounding !== "tonic" ? [] : run.candidates
       .filter((c) => c.pitch.letter === tonicPitch.letter && c.pitch.alter === tonicPitch.alter
                      && c.pitch.octave >= 4 && c.pitch.octave <= 6)
       .map((c) => new NoteSegmenter({ targetHz: c.hz, frameSeconds, requiredSeconds: TONIC_SECONDS }));
@@ -178,19 +235,25 @@ export default {
     const meanDb = levelsDb.reduce((a, b) => a + b, 0) / levelsDb.length;
 
     const near = nearestCandidate(run.candidates, medianHz);
+    // Proximity named it; the key, when known, spells it. Same pitch class,
+    // so the temperament target is unchanged -- only the name is corrected,
+    // and only where the key actually contains the note.
+    const pitch = (run.keyName && spellInKey(near.pitch.chromaticIndex, run.keyName)) || near.pitch;
     const temperedCents = near.cents;
     let pureHz = null, pureCents = null;
-    try {
-      pureHz = run.pure.targetHz(near.pitch, run.context);
-      pureCents = centsBetween(pureHz, medianHz);
-    } catch (_e) { /* no ratio for this spelled interval */ }
+    if (run.context) {
+      try {
+        pureHz = run.pure.targetHz(pitch, run.context);
+        pureCents = centsBetween(pureHz, medianHz);
+      } catch (_e) { /* no ratio for this spelled interval */ }
+    }
     const usePure = run.settings.mode === "pure" && pureHz !== null;
     const primaryHz = usePure ? pureHz : near.hz;
     const deviations = framesHz.map((hz) => centsBetween(primaryHz, hz));
     const meanDev = deviations.reduce((a, b) => a + b, 0) / deviations.length;
     const stdev = Math.sqrt(deviations.reduce((a, d) => a + (d - meanDev) ** 2, 0) / deviations.length);
     return {
-      pitch: near.pitch, temperedHz: near.hz, temperedCents, pureHz, pureCents,
+      pitch, temperedHz: near.hz, temperedCents, pureHz, pureCents,
       primary: usePure ? "pure" : "tempered",
       primaryCents: usePure ? pureCents : temperedCents,
       primaryHz, stdev, seconds: region.seconds, medianHz,
@@ -258,7 +321,7 @@ export default {
 
   logRow(note) {
     const s = this.run.settings;
-    const tonicName = nameClass(this.run.tonicPitch, s);
+    const tonicName = this.run.tonicPitch ? nameClass(this.run.tonicPitch, s) : null;
     const primaryLabel = note.primary === "pure" ? t("listen.pureOver", tonicName) : t("listen.tempered");
     const secondary = note.primary === "pure"
       ? `${t("listen.tempered")} ${fmt(note.temperedCents)}¢`
@@ -393,6 +456,9 @@ export default {
              t(`listen.score.${action}`),
              score.relative.toFixed(1)) }));
       parts.push(el("p", { class: "muted small", text: t("listen.score.notSubtraction") }));
+      if (run.grounding === "none") {
+        parts.push(el("p", { class: "note-box warn", text: t("listen.ungrounded") }));
+      }
 
       /* Before naming anyone's faults, ask the instrument. A note the flute
        * cannot bring to its target was never the player's to fix, and saying
@@ -459,7 +525,8 @@ export default {
       const r2 = (x) => Math.round(x * 100) / 100;
       const record = {
         v: 1, exercise: "listen", mode: s.mode, temperament: s.temperament, root: s.root,
-        reference_hz: s.referenceHz, tonic: run.tonicPitch.name, lang: lang(),
+        reference_hz: s.referenceHz, tonic: run.tonicPitch ? run.tonicPitch.name : null, lang: lang(),
+        grounding: run.grounding, key: run.key, quality: run.quality,
         ...(run.label ? { label: run.label } : {}),
         notes: run.notes.map((n) => ({
           pitch: n.pitch.name, target_hz: Math.round(n.primaryHz * 1e4) / 1e4,

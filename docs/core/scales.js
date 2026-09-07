@@ -38,6 +38,7 @@
 
 import { SpelledPitch, mod } from "./pitch.js";
 import { KEY_SIGNATURES } from "./generator.js";
+import { spellInKey } from "./naming.js";
 
 /** Tone tone semitone, tone tone tone semitone. */
 export const MAJOR_STEPS = Object.freeze([2, 2, 1, 2, 2, 2, 1]);
@@ -253,32 +254,14 @@ function keyNameFor(pitchClass) {
   return null;
 }
 
-/* Semitones above C for each letter, so a chroma can be turned back into a
- * spelling rather than merely into a pitch class. */
-const LETTER_CHROMA = Object.freeze({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 });
-
-/**
- * Re-derive the spelling from the decided key. Never trust what arrived.
- *
- * Driven by each note's own chroma rather than by counting degrees upward,
- * because a template that comes back down would otherwise keep walking up the
- * alphabet and spell the descent as a second ascent. The key signature says
- * which letter carries each pitch class; the chroma says which octave.
- */
+/** Re-derive the spelling from the decided key. Never trust what arrived. */
 function spellRun(keyName, template) {
   if (!keyName) return null;
-  const signature = KEY_SIGNATURES[keyName];
-  const byPitchClass = new Map();
-  for (const letter of "CDEFGAB") {
-    const alter = signature[letter] ?? 0;
-    byPitchClass.set(mod(LETTER_CHROMA[letter] + alter, 12), { letter, alter });
-  }
   const out = [];
   for (const chroma of template) {
-    const spelling = byPitchClass.get(mod(chroma, 12));
-    if (!spelling) return null;            // a note the key cannot spell
-    const { letter, alter } = spelling;
-    out.push(new SpelledPitch(letter, alter, (chroma - LETTER_CHROMA[letter] - alter) / 12));
+    const spelled = spellInKey(chroma, keyName);
+    if (!spelled) return null;            // a note the key cannot spell
+    out.push(spelled);
   }
   return out;
 }

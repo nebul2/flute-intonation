@@ -331,3 +331,29 @@ test("a note played nowhere near any of them matches nothing", () => {
   assert.ok(wild.nearest !== null, "but the nearest is still named, so the miss can be measured");
   assert.ok(wild.nearestOff > INDISTINGUISHABLE_CENTS);
 });
+
+/* ---- spelling a heard note in a known key ------------------------------ */
+
+import { spellInKey } from "../core/naming.js";
+
+test("a known key puts the spelling right that proximity got wrong", () => {
+  // The trap, again: E major's D# arrives named Eb. Same chroma, two keys.
+  const dsharp = SpelledPitch.parse("D#5").chromaticIndex;
+  assert.equal(spellInKey(dsharp, "E").name, "D#5", "in E major it is D#");
+  assert.equal(spellInKey(dsharp, "Bb").name, "Eb5", "in Bb major it is Eb");
+  assert.equal(spellInKey(SpelledPitch.parse("F#4").chromaticIndex, "D").name, "F#4");
+  assert.equal(spellInKey(SpelledPitch.parse("Bb4").chromaticIndex, "F").name, "Bb4");
+});
+
+test("a note the key does not contain is left alone rather than invented", () => {
+  // C natural in D major: chromatic. Better a proximity guess than a lie.
+  assert.equal(spellInKey(SpelledPitch.parse("C5").chromaticIndex, "D"), null);
+  assert.equal(spellInKey(60, "nonsense"), null, "an unknown key spells nothing");
+});
+
+test("the octave comes from the chroma, so the descent of a scale spells down", () => {
+  const up = ["E4", "F#4", "G#4", "A4", "B4", "C#5", "D#5", "E5"];
+  const chromas = up.map((n) => SpelledPitch.parse(n).chromaticIndex);
+  const down = [...chromas].reverse().map((c) => spellInKey(c, "E").name);
+  assert.deepEqual(down, [...up].reverse());
+});
