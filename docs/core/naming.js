@@ -59,13 +59,28 @@ const LETTER_CHROMA = Object.freeze({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 
  * note, a wrong note -- comes back null, and the caller keeps whatever it
  * had, because inventing a spelling would be worse than a proximity guess.
  */
-export function spellInKey(chroma, keyName) {
+export function spellInKey(chroma, keyName, { minorTonic = null } = {}) {
   const signature = KEY_SIGNATURES[keyName];
   if (!signature) return null;
+  const pc = mod(chroma, 12);
+  const at = (letter, alter) => new SpelledPitch(letter, alter, (chroma - LETTER_CHROMA[letter] - alter) / 12);
   for (const letter of "CDEFGAB") {
     const alter = signature[letter] ?? 0;
-    if (mod(LETTER_CHROMA[letter] + alter, 12) === mod(chroma, 12)) {
-      return new SpelledPitch(letter, alter, (chroma - LETTER_CHROMA[letter] - alter) / 12);
+    if (mod(LETTER_CHROMA[letter] + alter, 12) === pc) return at(letter, alter);
+  }
+  /* A minor key is spelled through its relative major, and the relative
+   * major has no leading note: E minor's D sharp is not in G major. But a
+   * minor key raises its seventh almost always and its sixth often -- the
+   * harmonic and melodic minor -- so those two degrees, sharpened from what
+   * the signature gives, are spelled here as the key would write them. In E
+   * minor that is D sharp, not the E flat proximity offered. */
+  if (minorTonic) {
+    const letters = "CDEFGAB";
+    const tonicAt = letters.indexOf(minorTonic[0]);
+    for (const below of [1, 2]) {                 // the 7th is one letter below the tonic, the 6th two
+      const letter = letters[mod(tonicAt - below, 7)];
+      const raised = (signature[letter] ?? 0) + 1;
+      if (mod(LETTER_CHROMA[letter] + raised, 12) === pc) return at(letter, raised);
     }
   }
   return null;

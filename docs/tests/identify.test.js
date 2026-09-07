@@ -357,3 +357,28 @@ test("the octave comes from the chroma, so the descent of a scale spells down", 
   const down = [...chromas].reverse().map((c) => spellInKey(c, "E").name);
   assert.deepEqual(down, [...up].reverse());
 });
+
+test("a minor key spells its raised seventh and sixth, which the relative major cannot", () => {
+  // Reported from playing: in E minor the leading note came back as Eb. E
+  // minor is spelled through G major, and G major has no D sharp, so the
+  // note fell outside the key and proximity naming took over.
+  const spell = (name, key, tonic) => spellInKey(SpelledPitch.parse(name).chromaticIndex, key, { minorTonic: tonic })?.name;
+  assert.equal(spell("Eb5", "G", "E"), "D#5", "E minor: the leading note is D sharp");
+  assert.equal(spell("C#5", "G", "E"), "C#5", "E minor: the raised sixth");
+  assert.equal(spell("G#4", "C", "A"), "G#4", "A minor: G sharp");
+  assert.equal(spell("F#4", "C", "A"), "F#4", "A minor: the raised sixth");
+  assert.equal(spell("B4", "Eb", "C"), "B4", "C minor: B natural, not Cb");
+  assert.equal(spell("A#4", "D", "B"), "A#4", "B minor: A sharp");
+  assert.equal(spell("C#5", "F", "D"), "C#5", "D minor: C sharp");
+  // The rest of the key is unchanged, and a note in neither is still null.
+  assert.equal(spell("F#4", "G", "E"), "F#4");
+  assert.equal(spell("Bb4", "G", "E"), null, "Bb is in neither E minor nor its raised degrees");
+});
+
+test("a major key gains no raised degrees from the option", () => {
+  // Passing a minor tonic with a major key makes no sense and must not
+  // invent spellings; without the option, behaviour is exactly as before.
+  const c = SpelledPitch.parse("C5").chromaticIndex;
+  assert.equal(spellInKey(c, "D"), null);
+  assert.equal(spellInKey(SpelledPitch.parse("D#5").chromaticIndex, "E").name, "D#5");
+});

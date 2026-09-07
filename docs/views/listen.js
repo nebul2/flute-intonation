@@ -279,7 +279,8 @@ export default {
     // Proximity named it; the key, when known, spells it. Same pitch class,
     // so the temperament target is unchanged -- only the name is corrected,
     // and only where the key actually contains the note.
-    const pitch = (run.keyName && spellInKey(near.pitch.chromaticIndex, run.keyName)) || near.pitch;
+    const pitch = (run.keyName && spellInKey(near.pitch.chromaticIndex, run.keyName,
+      { minorTonic: run.quality === "minor" ? run.key : null })) || near.pitch;
     const temperedCents = near.cents;
     let pureHz = null, pureCents = null;
     if (run.context) {
