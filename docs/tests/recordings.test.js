@@ -187,3 +187,29 @@ test("a real scales session produces an actual report, not an empty one", () => 
     if (key.score) assert.ok(Number.isFinite(key.score.relative));
   }
 });
+
+/* ---- a whole piece against its score --------------------------------- */
+
+import { compareToScore } from "./score.js";
+
+test("the Telemann Grave is heard note for note, bar the notes the flute cannot manage", () => {
+  // Telemann, Fantasia No. 2 in A minor, first movement, played at A = 415
+  // with the tempo taken freely. Alignment is by order, so the rubato does
+  // not count. What was measured on the first real run:
+  //   61 of 83 notes matched where written, nothing invented at all;
+  //   four F naturals heard as F# -- the cross-fingered F sits 60-odd cents
+  //   sharp at speed on this flute, past the naming boundary;
+  //   the rest missing are the A/G# semiquaver alternations of bars 6-7 and
+  //   11, at the short-note floor.
+  // Below 70% would mean the pipeline had regressed on real music.
+  const wav = recording("telemann2.wav");
+  const midi = path.join(root, "flutetrainer", "data", "pieces", "telemann-fantasias",
+                         "telemann_TWV40-03_fantasia02_Amin_1-Grave.midi");
+  if (!have("telemann2.wav") || !fs.existsSync(midi)) return;
+
+  const { fit, expected } = compareToScore(wav, midi, { referenceHz: 415 });
+  const recall = fit.matched / expected.length;
+  assert.ok(recall >= 0.70, `recall ${(100 * recall).toFixed(0)}% -- was 73% when first measured`);
+  assert.equal(fit.extra, 0, "nothing should be invented that the score does not have");
+  assert.ok(fit.wrong <= 6, `${fit.wrong} wrong notes; four F naturals were expected to read sharp`);
+});
