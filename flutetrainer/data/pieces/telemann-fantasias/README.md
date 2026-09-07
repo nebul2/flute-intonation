@@ -30,3 +30,12 @@ scale recogniser does.
 Movement files for Nos. 2, 6 and 8 were cut at the second tempo marking, so
 only first movements are isolated; `*_all_repeats-unfolded.midi` is the whole
 of No. 8 as played.
+
+## A professional reference for the Grave
+
+François Lazarevitch plays the A minor Grave in the first fifty seconds of
+https://www.youtube.com/watch?v=qVQfkPMhfUw — slower, with a good deal of
+rubato. **Not downloaded and not to be used until he has given permission**,
+which the player is asking for; when it comes, this is the recording to line
+up against `telemann2.wav`, since the alignment is by order and the rubato
+will not count.
