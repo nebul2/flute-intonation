@@ -28,7 +28,7 @@ import { reviewSession, impossible } from "../core/bend.js";
 import * as profiles from "../profiles.js";
 import { invitation } from "../ui/feedback.js";
 import { postAttack } from "../core/scoring.js";
-import { el, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
+import { el, append, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
 /* How long the tonic must be held to begin. Collected by the same state
  * machine the exercises use, so a brief dropout costs progress rather than
@@ -228,7 +228,9 @@ export default {
         el("label", { class: "field" }, [t("listen.changeKey"), midKey]), midQuality,
       ]);
     }
-    root.append(u.status, keyRow, u.nav.top, u.panel, u.table, u.summary, u.rows, u.nav.bottom);
+    // The shared helper, not Node.append: an ungrounded session has no key
+    // row, and Node.append renders a null as the text "null".
+    append(root, u.status, keyRow, u.nav.top, u.panel, u.table, u.summary, u.rows, u.nav.bottom);
     this.renderTable();
 
     this.offFrame = engine.onFrame((frame) => this.onFrame(frame));
