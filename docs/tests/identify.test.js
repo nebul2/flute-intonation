@@ -362,7 +362,10 @@ test("a minor key spells its raised seventh and sixth, which the relative major 
   // Reported from playing: in E minor the leading note came back as Eb. E
   // minor is spelled through G major, and G major has no D sharp, so the
   // note fell outside the key and proximity naming took over.
-  const spell = (name, key, tonic) => spellInKey(SpelledPitch.parse(name).chromaticIndex, key, { minorTonic: tonic })?.name;
+  // `?? null`, not `?.name` alone: optional chaining turns a null result into
+  // undefined, and the test then failed on the one case that was right.
+  const spell = (name, key, tonic) =>
+    spellInKey(SpelledPitch.parse(name).chromaticIndex, key, { minorTonic: tonic })?.name ?? null;
   assert.equal(spell("Eb5", "G", "E"), "D#5", "E minor: the leading note is D sharp");
   assert.equal(spell("C#5", "G", "E"), "C#5", "E minor: the raised sixth");
   assert.equal(spell("G#4", "C", "A"), "G#4", "A minor: G sharp");
