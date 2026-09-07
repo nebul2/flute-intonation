@@ -39,3 +39,25 @@ rubato. **Not downloaded and not to be used until he has given permission**,
 which the player is asking for; when it comes, this is the recording to line
 up against `telemann2.wav`, since the alignment is by order and the rubato
 will not count.
+
+## Measured on the player's own recordings (A = 415)
+
+`node docs/tests/score.js recordings/<take>.wav <movement>.midi --ref 415`
+
+| take | movement | matched | wrong | missing | extra | recall |
+|---|---|---|---|---|---|---|
+| `telemann2.wav`, tempo free | No. 2 Grave, 83 notes | 61 | 4 | 18 | 0 | 73 % |
+| `telemann8.wav`, played slowly | No. 8 Largo, 234 notes | 229 | 1 | 4 | 5 | **98 %** |
+
+The Grave's failures were the flute, not the detector: its four wrong notes
+were F naturals sitting 60-odd cents sharp and named F♯ (Lazarevitch's, on
+the same movement, read +3 cents), and its missing notes were the G♯/A
+semiquaver alternations, lost by both players for different reasons.
+
+The Largo, played slowly so the semiquavers clear the short-note floor, was
+heard almost note for note. Its ten divergences match the three or four
+sight-reading fluffs the player reported -- a missing note beside an extra one
+at four places, and a B♭ read as B natural. Both written trills came out as
+exactly two ornament runs, at 80 s and 107 s, G5/F♯5, nine and eleven
+alternations; all fourteen notated slurs were heard as two notes each, and
+only one region in the whole take was set aside as a glide.

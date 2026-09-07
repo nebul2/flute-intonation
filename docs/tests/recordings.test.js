@@ -213,3 +213,22 @@ test("the Telemann Grave is heard note for note, bar the notes the flute cannot 
   assert.equal(fit.extra, 0, "nothing should be invented that the score does not have");
   assert.ok(fit.wrong <= 6, `${fit.wrong} wrong notes; four F naturals were expected to read sharp`);
 });
+
+test("the Telemann Largo, played slowly, is heard almost note for note", () => {
+  // Fantasia No. 8 in E minor, first movement, at A = 415, sight-read slowly
+  // with three or four fluffs. 234 notes, fourteen written slurred pairs, two
+  // written trills. First measured: 229 of 234 matched, one wrong, four
+  // missing, five extra -- 98%, with every notated slur heard as two notes.
+  // Played slowly, so the semiquavers clear the short-note floor; this is
+  // what the pipeline does on real music when speed is not the limit.
+  const wav = recording("telemann8.wav");
+  const midi = path.join(root, "flutetrainer", "data", "pieces", "telemann-fantasias",
+                         "telemann_TWV40-09_fantasia08_Emin_1-Largo.midi");
+  if (!have("telemann8.wav") || !fs.existsSync(midi)) return;
+
+  const { fit, expected } = compareToScore(wav, midi, { referenceHz: 415 });
+  const recall = fit.matched / expected.length;
+  assert.ok(recall >= 0.95, `recall ${(100 * recall).toFixed(0)}% -- was 98% when first measured`);
+  assert.ok(fit.extra <= 8, `${fit.extra} extra notes; a few fluffs were expected`);
+  assert.ok(fit.wrong <= 4, `${fit.wrong} wrong notes`);
+});
