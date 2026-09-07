@@ -143,6 +143,7 @@ export default {
     if (grounding === "key") { try { keyName = scaleKeyFor(key, quality); } catch (_e) { keyName = null; } }
     this.run = {
       settings: s, tuning, tonicPitch, grounding, key, quality, keyName,
+      keyChanges: [],            // [{atIndex, key, quality}] -- a piece modulates
       pure: new PureIntervalTuning(tuning),
       context: tonicPitch ? new HarmonicContext(tonicPitch) : null,
       candidates: tunerCandidates(tuning),
@@ -190,7 +191,44 @@ export default {
       .filter((c) => c.pitch.letter === tonicPitch.letter && c.pitch.alter === tonicPitch.alter
                      && c.pitch.octave >= 4 && c.pitch.octave <= 6)
       .map((c) => new NoteSegmenter({ targetHz: c.hz, frameSeconds, requiredSeconds: TONIC_SECONDS }));
-    root.append(u.status, u.nav.top, u.panel, u.table, u.summary, u.rows, u.nav.bottom);
+    /* A piece modulates, and a practice session moves between keys. Notes
+     * already scored keep the context they were scored in; only notes from
+     * here on take the new one, and the change is written into the record
+     * with the note it happened at. Not offered to an ungrounded session --
+     * there is no key to change. */
+    let keyRow = null;
+    if (grounding !== "none") {
+      const keysFor = (q) => (q === "minor"
+        ? Object.keys(MINOR_RELATIVE).map((tonic) => ({ key: tonic, tonic }))
+        : PRACTICE_KEYS);
+      const rekey = (nextKey, nextQuality) => {
+        run.key = nextKey; run.quality = nextQuality;
+        run.tonicPitch = SpelledPitch.parse(`${nextKey}4`);
+        run.context = new HarmonicContext(run.tonicPitch);
+        run.keyName = null;
+        if (grounding === "key") { try { run.keyName = scaleKeyFor(nextKey, nextQuality); } catch (_e) { /* unspelled */ } }
+        run.keyChanges.push({ atIndex: run.notes.length, key: nextKey, quality: nextQuality });
+        u.status.textContent = t("listen.keyChanged", nameClass(run.tonicPitch, s));
+      };
+      const midKey = el("select", { class: "select" });
+      const midQuality = el("select", { class: "select", hidden: grounding !== "key" || null },
+        ["major", "minor"].map((q) => el("option", { value: q, selected: q === run.quality || null,
+                                                     text: t(`practice.quality.${q}`) })));
+      const fillMid = () => {
+        midKey.replaceChildren(...keysFor(midQuality.value).map((entry) => el("option", {
+          value: entry.key, selected: entry.key === run.key || null,
+          text: nameClass(SpelledPitch.parse(`${entry.key}4`), s),
+        })));
+        if (!keysFor(midQuality.value).some((entry) => entry.key === midKey.value)) midKey.value = keysFor(midQuality.value)[0].key;
+      };
+      midQuality.addEventListener("change", () => { fillMid(); rekey(midKey.value, midQuality.value); });
+      midKey.addEventListener("change", () => rekey(midKey.value, midQuality.value));
+      fillMid();
+      keyRow = el("div", { class: "row keyrow" }, [
+        el("label", { class: "field" }, [t("listen.changeKey"), midKey]), midQuality,
+      ]);
+    }
+    root.append(u.status, keyRow, u.nav.top, u.panel, u.table, u.summary, u.rows, u.nav.bottom);
     this.renderTable();
 
     this.offFrame = engine.onFrame((frame) => this.onFrame(frame));
@@ -527,6 +565,7 @@ export default {
         v: 1, exercise: "listen", mode: s.mode, temperament: s.temperament, root: s.root,
         reference_hz: s.referenceHz, tonic: run.tonicPitch ? run.tonicPitch.name : null, lang: lang(),
         grounding: run.grounding, key: run.key, quality: run.quality,
+        key_changes: run.keyChanges,
         ...(run.label ? { label: run.label } : {}),
         notes: run.notes.map((n) => ({
           pitch: n.pitch.name, target_hz: Math.round(n.primaryHz * 1e4) / 1e4,
