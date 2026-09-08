@@ -22,10 +22,11 @@ import temperaments from "./views/temperaments.js";
 import bend from "./views/bend.js";
 import scales from "./views/scales.js";
 import feedbackView from "./views/feedback.js";
+import helpView from "./views/help.js";
 
 export { VERSION } from "./app-version.js";
 
-const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments, bend, scales, feedback: feedbackView };
+const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments, bend, scales, feedback: feedbackView, help: helpView };
 
 function $(id) { return document.getElementById(id); }
 
@@ -49,6 +50,7 @@ function renderChrome() {
   $("srclink").textContent = t("footer.source");
   $("privacy").textContent = t("footer.privacy");
   $("feedbacklink").textContent = t("footer.feedback");
+  $("helplink").textContent = t("footer.help");
   $("version").textContent = VERSION;
   renderOffline();
   document.querySelectorAll("[data-lang]").forEach((b) =>

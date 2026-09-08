@@ -27,6 +27,7 @@ import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionSc
 import { reviewSession, impossible } from "../core/bend.js";
 import * as profiles from "../profiles.js";
 import { invitation } from "../ui/feedback.js";
+import { helpSection } from "../ui/help.js";
 import { postAttack } from "../core/scoring.js";
 import { el, append, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
@@ -592,6 +593,7 @@ export default {
         glides: run.glideCount,
         trills: run.trillCount,
       };
+      u.summary.append(helpSection("numbers").element);
       try {
         await history.add(record);
         u.summary.append(el("p", { class: "muted", text: t("practice.saved") }));

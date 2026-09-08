@@ -501,7 +501,8 @@ export class ExerciseRun {
     }
     if (run.spec.report === "stopper") parts.push((await this.stopperReport(summary, s)).element);
     if (run.spec.report === "adjust") parts.push(this.adjustReport(summary, s));
-    u.summary.replaceChildren(el("h2", { text: t("practice.summary") }), ...parts);
+    u.summary.replaceChildren(el("h2", { text: t("practice.summary") }), ...parts,
+      helpSection("numbers").element);
 
     if (summary.results.length) {
       const record = {
