@@ -32,6 +32,13 @@ Rules:
 - Never compare frequencies, cents or durations with ==; use approx
   comparison with an explicit tolerance.
 - Pitches are spelled (letter/alter/octave), never MIDI numbers.
+- Controls that appear in more than one place live in docs/ui/controls.js; a
+  view never hand-builds a key, quality, temperament or toggle control. The
+  layers are dom.js -> fields.js -> controls.js -> views, each importing only
+  downward, and fields.js imports neither audio/ nor core/.
+- Every subscription a view makes is registered on its owner() from
+  docs/ui/owner.js, so a view has at most one disposable field. Named handles
+  collided once already and leaked a listener.
 - A note's figure comes from scoredWindow() in core/scoring.js (mirrored in
   scoring.py): after the attack, before the taper, from where the pitch
   settled. No view reduces frames to a pitch itself — use analyseNote() to

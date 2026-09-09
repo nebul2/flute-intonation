@@ -27,6 +27,20 @@ export const NUMBER = "number";
 export const REGISTER = "register";
 export const OCTAVE_STYLES = [REGISTER, NUMBER];
 
+/* Every setting a note's displayed name depends on. One list, so a control
+ * that relabels itself when naming changes keeps working when a fourth
+ * setting joins them -- and so no view has to remember which three they are. */
+export const NAMING_KEYS = Object.freeze(["naming", "octaveStyle", "registerBreak"]);
+
+/* The twelve pitch classes, spelled with flats: the traverso's own keys, and
+ * the spelling the tuner already uses. Two views carried private tables of
+ * these -- one spelling them with sharps, one hard-coding solfege so the page
+ * ignored the naming setting entirely. */
+export const CHROMATIC_SPELLINGS = Object.freeze([
+  ["C", 0], ["D", -1], ["D", 0], ["E", -1], ["E", 0], ["F", 0],
+  ["G", -1], ["G", 0], ["A", -1], ["A", 0], ["B", -1], ["B", 0],
+].map(([letter, alter]) => Object.freeze({ letter, alter })));
+
 const SYLLABLES = { C: "Do", D: "Ré", E: "Mi", F: "Fa", G: "Sol", A: "La", B: "Si" };
 const ACCIDENTALS = { "-2": "♭♭", "-1": "♭", "0": "", "1": "♯", "2": "♯♯" };
 
@@ -71,4 +85,24 @@ export function noteName(pitch, style = SOLFEGE, options = {}) {
 
 export function pitchClassName(letter, alter, style = SOLFEGE) {
   return noteName(new SpelledPitch(letter, alter, 4), style, { octave: false });
+}
+
+/* The name of a pitch class by its index from C, in the player's style. */
+export function pitchClassLabel(index, style = SOLFEGE) {
+  const { letter, alter } = CHROMATIC_SPELLINGS[((index % 12) + 12) % 12];
+  return pitchClassName(letter, alter, style);
+}
+
+/* The index from C of a key name -- "C", "Bb", "F#". Understands a trailing
+ * b or #, which the string-replace hack this replaces did not: it turned "Bb"
+ * into "B#" and landed a semitone out. */
+export function pitchClassIndexOf(name) {
+  const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[name[0]];
+  if (base === undefined) return 0;
+  let alter = 0;
+  for (const mark of name.slice(1)) {
+    if (mark === "b" || mark === "♭") alter -= 1;
+    else if (mark === "#" || mark === "♯") alter += 1;
+  }
+  return ((base + alter) % 12 + 12) % 12;
 }

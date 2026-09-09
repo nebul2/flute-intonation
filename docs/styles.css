@@ -147,6 +147,10 @@ button.secondary:disabled { border-color: var(--edge); color: var(--muted); curs
 .number { width: 6.5rem; }
 .diag { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); text-align: center; min-height: 1rem; width: 100%; }
 .row { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 0.9rem; }
+/* A label bound to its own control: tighter than the gap between two
+   fields, so a row of them reads as pairs rather than a queue. Used at nine
+   sites with no rule at all before the controls were factored. */
+.field { display: inline-flex; align-items: center; gap: 0.45rem; }
 
 .segmented { display: inline-flex; border: 1px solid var(--edge); border-radius: 7px; overflow: hidden; }
 .segmented button { background: none; border: 0; padding: 0.5rem 0.9rem; color: var(--muted); cursor: pointer; font-family: var(--mono); }

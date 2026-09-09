@@ -79,6 +79,17 @@ export function pickKey(keys, previous = null, rng = Math.random) {
 /* The relative major whose signature spells each natural minor scale. */
 export const MINOR_RELATIVE = Object.freeze({ C: "Eb", D: "F", E: "G", F: "Ab", G: "Bb", A: "C", B: "D" });
 
+/* The keys offered for a quality: every spelled major key, or the tonics a
+ * natural minor scale can be spelled from. Copy-pasted into views/listen.js
+ * twice -- once for the start screen and once for the mid-session change --
+ * which is exactly the kind of thing that drifts apart. Key vocabulary with no
+ * DOM in it, so it belongs here rather than in the control that shows it. */
+export function keysForQuality(quality = "major") {
+  return quality === "minor"
+    ? Object.keys(MINOR_RELATIVE).map((tonic) => Object.freeze({ key: tonic, tonic }))
+    : PRACTICE_KEYS;
+}
+
 export function scaleKeyFor(tonic, quality = "major") {
   if (quality === "minor") {
     const key = MINOR_RELATIVE[tonic];

@@ -51,6 +51,100 @@ test("the exercise list and its strings agree, in both directions", () => {
   assert.deepEqual(orphans, [], "strings for exercises that are not in EXERCISES");
 });
 
+/* ---- the shared control layer ----------------------------------------- */
+
+/* Views on this list still build their own controls. It may only ever shrink:
+ * the second assertion below fails if a listed file has been migrated and its
+ * name left behind, so the list cannot rot into a permanent exemption. Delete
+ * a name when you migrate the view; delete the list when it empties. */
+const HAND_BUILT_CONTROLS = new Set([
+  "bend.js", "listen.js", "practice.js", "run.js", "scales.js",
+  "sessions.js", "settings.js", "temperaments.js", "tuner.js", "tuning.js",
+]);
+const HAND_BUILT = /el\("select"|type:\s*"(?:checkbox|radio|range)"/;
+
+test("views take their controls from ui/controls.js", () => {
+  // Seven key selects in four shapes, offering four different key
+  // vocabularies, two of them in one file -- which is a UI a player cannot
+  // learn, and which cost a shipped bug when one path forgot to carry the key
+  // (b8452e1, "Redo restarts in the key you chose, not in D major").
+  const views = fs.readdirSync(path.join(here, "..", "views"));
+  for (const file of views) {
+    const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
+    const handBuilt = HAND_BUILT.test(src);
+    if (HAND_BUILT_CONTROLS.has(file)) {
+      assert.ok(handBuilt,
+        `${file}: migrated? then delete it from HAND_BUILT_CONTROLS -- the list may only shrink`);
+    } else {
+      assert.ok(!handBuilt,
+        `${file}: build controls with ui/controls.js, not by hand`);
+    }
+  }
+});
+
+test("note names live in ui/naming.js, not in a table in a view", () => {
+  // Three views carried their own. One hard-codes solfège, so a player who
+  // chose letters was shown "Do♯4" on that page whatever they had set; two
+  // more disagreed with each other on whether to spell with sharps or flats.
+  const KNOWN = new Set(["temperaments.js", "temperament.js", "check.js"]);
+  const views = fs.readdirSync(path.join(here, "..", "views"));
+  for (const file of views) {
+    const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
+    const table = /\[\s*"(?:Do|Ré|Mi|Fa|Sol|La|Si)[♯♭"]/.test(src);
+    if (KNOWN.has(file)) {
+      assert.ok(table, `${file}: table gone? then delete it from KNOWN here too`);
+    } else {
+      assert.ok(!table, `${file}: name notes through ui/naming.js`);
+    }
+  }
+});
+
+test("every bind: names a setting that actually exists", () => {
+  // The silent one: a typo writes a key nothing reads, the control looks like
+  // it works, and the choice is forgotten on reload with no error anywhere.
+  const known = new Set(Object.keys(settings.DEFAULTS));
+  for (const dir of ["views", "ui"]) {
+    for (const file of fs.readdirSync(path.join(here, "..", dir))) {
+      if (!file.endsWith(".js")) continue;
+      const src = fs.readFileSync(path.join(here, "..", dir, file), "utf8");
+      for (const [, key] of src.matchAll(/\bbind:\s*"([A-Za-z0-9_]+)"/g)) {
+        assert.ok(known.has(key), `${dir}/${file}: bind "${key}" is not in settings DEFAULTS`);
+      }
+    }
+  }
+});
+
+test("the control layer keeps its dependencies pointing one way", () => {
+  // fields.js is the generic half and must stay engine-free, or it cannot be
+  // tested without a browser and audio policy starts leaking into it. And
+  // widgets.js may not reach up into controls.js, which imports it.
+  // Import statements only: a first pass matched the comment in fields.js that
+  // states the rule, which is the false-positive these greps are prone to.
+  const imports = (file) =>
+    [...fs.readFileSync(path.join(here, "..", "ui", file), "utf8")
+      .matchAll(/^\s*(?:import|export)[^;]*?from\s+"([^"]+)"/gm)].map(([, from]) => from);
+  assert.ok(!imports("fields.js").some((from) => /audio\/|core\//.test(from)),
+    `ui/fields.js may not import audio/ or core/: ${imports("fields.js").join(", ")}`);
+  assert.ok(!imports("widgets.js").some((from) => from.includes("controls.js")),
+    "ui/widgets.js may not import ui/controls.js -- controls imports widgets");
+  assert.ok(!imports("controls.js").some((from) => from.includes("/views/")),
+    "ui/controls.js may not import a view");
+});
+
+test("a class the app puts on the page is a class the stylesheet knows", () => {
+  // `.field` was emitted at nine sites and had no rule at all: those rows laid
+  // out by inheritance, so the day someone added one, nine places would move.
+  const css = fs.readFileSync(path.join(here, "..", "styles.css"), "utf8");
+  for (const dir of ["views", "ui"]) {
+    for (const file of fs.readdirSync(path.join(here, "..", dir))) {
+      if (!file.endsWith(".js")) continue;
+      const src = fs.readFileSync(path.join(here, "..", dir, file), "utf8");
+      if (!/class:\s*"field"/.test(src)) continue;
+      assert.ok(new RegExp("\\.field\\s*\\{").test(css), `${file} uses .field; styles.css must define it`);
+    }
+  }
+});
+
 test("widgets that return a wrapper are appended by their element", () => {
   // audioControl, labelField, levelBar and needle all return objects, not
   // nodes. Appending one bare renders nothing and silently loses the control,

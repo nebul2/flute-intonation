@@ -4,6 +4,7 @@
  * them knows about routes. */
 
 import { engine } from "../audio/engine.js";
+import { el } from "./dom.js";
 import { t } from "../i18n.js";
 import * as settings from "../settings.js";
 import { SpelledPitch } from "../core/pitch.js";
@@ -12,35 +13,9 @@ import { ReferencePitch, TemperamentTuning, parseScala } from "../core/tuning.js
 import { TEMPERAMENTS } from "../core/temperaments.js";
 import { noteName, REGISTER, DEFAULT_REGISTER_BREAK } from "./naming.js";
 
-/* el("div", {class: "x", onclick: fn}, [children...]) */
-export function el(tag, attrs = {}, children = []) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs)) {
-    if (value === null || value === undefined || value === false) continue;
-    if (key === "class") node.className = value;
-    else if (key === "text") node.textContent = value;
-    else if (key === "html") node.innerHTML = value;
-    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
-    else if (value === true) node.setAttribute(key, "");
-    else node.setAttribute(key, value);
-  }
-  for (const child of [].concat(children)) {
-    if (child === null || child === undefined) continue;
-    node.append(typeof child === "string" ? document.createTextNode(child) : child);
-  }
-  return node;
-}
-
-/* Append children, skipping null/undefined. Node.append() would otherwise
- * render a null child as the text "null" -- seen live under the stopper
- * protocol note. Every view uses this for conditional children. */
-export function append(parent, ...children) {
-  for (const child of children.flat()) {
-    if (child === null || child === undefined || child === false) continue;
-    parent.append(child);
-  }
-  return parent;
-}
+/* The DOM primitives live in dom.js so the control layer can have them
+ * without this file's engine import. Re-exported: every caller is unchanged. */
+export { el, append } from "./dom.js";
 
 /* ---- the current tuning, from settings ----------------------------- */
 

@@ -343,6 +343,52 @@ Still to build: routines by length.
 
 ## Findings
 
+### The UI had no vocabulary, and it cost two bugs
+
+Sixteen views, 4,259 lines, and every one built its own controls. **Seven
+key/tonic/root selects in four shapes**, two of them in `views/listen.js`
+alone — the start screen and the mid-session change, each with its own copy of
+the same helper. Four different key vocabularies were on offer (`TONICS`, five
+letters; `PRACTICE_KEYS`, ten spelled keys; `GUIDED_KEYS`; `ROOTS`), two
+carrying an index and two a key name. Three note-name tables lived outside
+`ui/naming.js`, one of them hard-coding solfège — so a player who chose letters
+was shown "Do♯4" on the hardware-check page whatever they had set. Three label
+conventions coexisted, and `.field`, on nine controls, had **no CSS rule at
+all**.
+
+Two defects came out of it, which is why this was worth doing:
+
+- **Stale note names.** Only 4 of 16 views subscribed to settings changes, so
+  switching Do-Ré-Mi to C-D-E left every other open page showing the old names
+  until it was navigated away from and back.
+- **Key state carried by hand** — `b8452e1`, "Redo restarts in the key you
+  chose, not in D major": the key lived in a local variable and one path
+  forgot to pass it on.
+
+Four tiers now, each importing only downward: `ui/dom.js` (the two DOM
+primitives, moved out of `widgets.js` because that file imports the audio
+engine at load) → `ui/fields.js` (generic controls that own a setting) →
+`ui/controls.js` (the musical vocabulary: key, quality, temperament, root) →
+views. A control declares the settings key it binds to, writes it on input and
+re-renders when it changes — which needed no new machinery at all, because
+`settings.set()` already notified subscribers synchronously and only five
+places had ever used it. That single subscription inside `keyControl` is the
+whole fix for stale names: one control subscribes rather than twelve views
+remembering to.
+
+It also makes a rule structural that was only a convention. CLAUDE.md says note
+naming is display-only and must never reach tuning; a `keyControl` that takes
+and returns spelled keys and names them only on the way to the screen leaves
+one place that could get it wrong instead of seven. The trap it guards is real
+and already shipped once: a key's tonic is its *letter*, so B♭ major has tonic
+`"B"`, and `views/scales.js` records the bug where guided mode expected B and
+the player had been asked for B♭, so the flat keys never advanced.
+
+Enforced by `docs/tests/ui.test.js` in the same source-reading style as the
+existing conventions, with a migration allowlist that **may only shrink**: a
+listed view that no longer builds its own controls fails the suite until its
+name is deleted, so the list cannot rot into a permanent exemption.
+
 ### A note is scored where it settled (supersedes DESIGN.md §6)
 
 DESIGN.md §6 specified "per-note statistics over the post-attack voiced

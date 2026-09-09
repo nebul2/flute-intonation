@@ -387,6 +387,19 @@ export const STRINGS = {
     "settings.export": "Export as file",
     "settings.clear": "Clear history",
 
+    /* The musical vocabulary, shared by every control that offers it. Neutral
+       namespace on purpose: practice.quality.* was being used by Listen to me
+       and practice.tonic by Sessions, which is how a label drifts. */
+    "music.key": "Key",
+    "music.inKey": (k) => `${k} major`,
+    "music.tonic": "tonic",
+    "music.quality": "scale",
+    "music.quality.major": "major",
+    "music.quality.minor": "minor",
+    "music.root": "rooted on",
+    "music.temperament": "temperament",
+    "music.octave": "octave",
+
     "practice.title": "Practice",
     "practice.intro": "Guided exercises. No needle while you play — only progress; the reading appears when the note ends.",
     "practice.needMic": "Start the microphone to enable the exercises.",
@@ -940,6 +953,16 @@ export const STRINGS = {
     "settings.history": "Historique des exercices",
     "settings.export": "Exporter en fichier",
     "settings.clear": "Effacer l'historique",
+
+    "music.key": "Tonalité",
+    "music.inKey": (k) => `${k} majeur`,
+    "music.tonic": "tonique",
+    "music.quality": "gamme",
+    "music.quality.major": "majeure",
+    "music.quality.minor": "mineure",
+    "music.root": "fondée sur",
+    "music.temperament": "tempérament",
+    "music.octave": "octave",
 
     "practice.title": "Exercices",
     "practice.intro": "Exercices guidés. Pas d'aiguille pendant que tu joues — seulement la progression ; la mesure s'affiche quand la note se termine.",
