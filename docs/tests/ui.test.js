@@ -58,7 +58,7 @@ test("the exercise list and its strings agree, in both directions", () => {
  * name left behind, so the list cannot rot into a permanent exemption. Delete
  * a name when you migrate the view; delete the list when it empties. */
 const HAND_BUILT_CONTROLS = new Set([
-  "bend.js", "listen.js", "practice.js", "run.js", "scales.js",
+  "bend.js", "listen.js", "practice.js", "run.js",
   "sessions.js", "settings.js",
 ]);
 const HAND_BUILT = /el\("select"|type:\s*"(?:checkbox|radio|range)"/;

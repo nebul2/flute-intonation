@@ -2,10 +2,11 @@
  * page. The run itself is the shared ExerciseRun with the stopper spec. */
 
 import { t } from "../i18n.js";
-import { engine } from "../audio/engine.js";
 import { back } from "../router.js";
-import { el, append, audioControl, labelField, explainer } from "../ui/widgets.js";
+import { el, append, labelField, explainer } from "../ui/widgets.js";
 import { helpSection } from "../ui/help.js";
+import { startRow } from "../ui/controls.js";
+import { owner } from "../ui/owner.js";
 import { STOPPER, ExerciseRun } from "./run.js";
 
 export default {
@@ -19,9 +20,10 @@ export default {
   unmount() { this.teardown(); },
 
   teardown() {
-    if (this.help) { this.help.dispose(); this.help = null; }
-    if (this.offState) { this.offState(); this.offState = null; }
-    if (this.control) { this.control.dispose(); this.control = null; }
+    if (this.own) this.own.dispose();
+    this.own = owner();
+    // Not on the owner: a run is a mounted view, not a subscription, and
+    // unmounting it is a different act from releasing a listener.
     if (this.active) { this.active.unmount(); this.active = null; }
   },
 
@@ -29,18 +31,15 @@ export default {
     this.teardown();
     const root = this.root;
     root.replaceChildren();
-    const control = audioControl({ showGranted: false });
-    this.control = control;
     const label = labelField();
     this.label = label;
-    const help = helpSection("stopper");
-    this.help = help;
-    const start = el("button", { class: "primary", text: t("stopper.start"), disabled: !engine.listening,
-                                 onclick: () => this.startRun() });
-    this.offState = engine.onState(() => { start.disabled = !engine.listening; });
-    append(root, 
+    const help = this.own.add(helpSection("stopper"));
+    const row = this.own.add(startRow({
+      label: t("stopper.start"), onStart: () => this.startRun(), needMicNote: false,
+    }));
+    append(root,
       explainer(t("stopper.intro"), t("practice.stopper.protocol")),
-      el("div", { class: "row" }, [control.element, start]),
+      row.element,
       el("div", { class: "row" }, [label.element]),
       help.element,
     );

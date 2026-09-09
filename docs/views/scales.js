@@ -35,8 +35,11 @@ import { PureIntervalTuning } from "../core/tuning.js";
 import { STANDOUT_CENTS } from "../core/stats.js";
 import { tunerCandidates, nearestCandidate } from "../core/naming.js";
 import { helpSection } from "../ui/help.js";
+import { selectField } from "../ui/fields.js";
+import { keyControl, startRow } from "../ui/controls.js";
+import { owner } from "../ui/owner.js";
 import {
-  el, append, audioControl, levelBar, runNav, currentTuning, name, nameClass, bandClass, explainer,
+  el, append, levelBar, runNav, currentTuning, name, nameClass, bandClass, explainer,
 } from "../ui/widgets.js";
 
 /* The order the player asked for: the traverso's home key first, then outward
@@ -80,8 +83,14 @@ export default {
 
   unmount() { this.teardown(); },
 
+  /* One owner, emptied and refilled. The start screen and the session each
+   * subscribe, and this used to be a set of named fields -- `this.offFrame`
+   * held the start screen's engine.onState unsubscribe and was overwritten by
+   * the session's engine.onFrame, leaking a listener. It survived only
+   * because startSession() happened to call teardown() first. */
   teardown() {
-    if (this.offFrame) { this.offFrame(); this.offFrame = null; }
+    if (this.own) this.own.dispose();
+    this.own = owner();
     if (this.control) { this.control.dispose(); this.control = null; }
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
     this.run = null;
@@ -93,51 +102,38 @@ export default {
     this.teardown();
     const root = this.root;
     root.replaceChildren();
-    const s = settings.get();
-    let mode = s.scalesMode ?? "guided";
-    let keyIndex = Math.min(s.scalesKeyIndex ?? 0, GUIDED_KEYS.length - 1);
+    const own = this.own;
 
-    const control = audioControl({ showGranted: false });
-    this.control = control;
+    // Both bound, so the choices survive leaving the page -- which they
+    // already did, through two hand-written settings.set() calls.
+    const modeField = own.add(selectField({
+      label: t("scales.mode"), bind: "scalesMode",
+      options: () => ["guided", "key", "free"].map((m) => ({ value: m, label: t(`scales.mode.${m}`) })),
+      hint: (mode) => t(`scales.mode.${mode}.hint`),
+      onChange: (mode) => { keyField.element.hidden = mode !== "key"; },
+    }));
+    // GUIDED_KEYS carries maxOctaves alongside the key, so the vocabulary is
+    // narrowed here rather than shared: these are the keys a traverso player
+    // works through, in the order they asked for, and the octave limit is
+    // part of the entry.
+    const keyField = own.add(keyControl({
+      keys: GUIDED_KEYS, store: "index", bind: "scalesKeyIndex", labelKey: "music.inKey",
+    }));
+    keyField.element.hidden = modeField.value !== "key";
 
-    const modeSelect = el("select", { class: "select", onchange: (e) => {
-      mode = e.target.value;
-      settings.set({ scalesMode: mode });
-      keyRow.hidden = mode !== "key";
-      hint.textContent = t(`scales.mode.${mode}.hint`);
-    } }, ["guided", "key", "free"].map((m) => el("option", {
-      value: m, selected: m === mode || null, text: t(`scales.mode.${m}`),
-    })));
-
-    const keySelect = el("select", { class: "select", onchange: (e) => {
-      keyIndex = Number(e.target.value);
-      settings.set({ scalesKeyIndex: keyIndex });
-    } }, GUIDED_KEYS.map((entry, i) => el("option", {
-      value: String(i), selected: i === keyIndex || null,
-      text: t("scales.keyName", keyLabel(entry, s)),
-    })));
-    const keyRow = el("div", { class: "row" }, [
-      el("label", { class: "field" }, [t("scales.whichKey"), keySelect]),
-    ]);
-    keyRow.hidden = mode !== "key";
-
-    const hint = el("p", { class: "muted small", text: t(`scales.mode.${mode}.hint`) });
-    const start = el("button", {
-      class: "primary", text: t("scales.start"), disabled: !engine.listening,
-      onclick: () => this.startSession(mode, keyIndex),
+    const row = startRow({
+      label: t("scales.start"),
+      onStart: () => this.startSession(modeField.value, Number(keyField.value)),
     });
-    this.offFrame = engine.onState(() => { start.disabled = !engine.listening; });
+    own.add(row);
+    this.control = row.control;
 
     append(root,
       el("p", { class: "note-box warn", text: t("scales.experimental") }),
       explainer(t("scales.intro"), t("scales.protocol"), t("scales.why")),
-      el("div", { class: "row" }, [
-        el("label", { class: "field" }, [t("scales.mode"), modeSelect]),
-      ]),
-      keyRow,
-      hint,
-      el("div", { class: "row" }, [control.element, start]),
-      engine.listening ? null : el("p", { class: "note-box", text: t("practice.needMic") }),
+      modeField.element,
+      keyField.element,
+      row.element,
     );
   },
 
@@ -189,7 +185,11 @@ export default {
       nav.bottom,
     );
 
-    this.offFrame = engine.onFrame((frame) => this.onFrame(frame));
+    // On the run rather than on `this`: the session stops listening when it
+    // finishes but stays on screen to show its report, so this one handle has
+    // a shorter life than the view. It is on the owner as well, so leaving
+    // the page mid-session still releases it.
+    run.stopListening = this.own.add(engine.onFrame((frame) => this.onFrame(frame)));
     this.timer = setInterval(() => this.tick(), 1000);
     this.askNext();
     this.retally();
@@ -211,7 +211,7 @@ export default {
     const entry = GUIDED_KEYS[run.keyIndex];
     run.ui.asked.append(
       el("div", { class: "scales-key" }, [
-        el("div", { class: "scales-key-name", text: t("scales.keyName", keyLabel(entry, s)) }),
+        el("div", { class: "scales-key-name", text: t("music.inKey", keyLabel(entry, s)) }),
         el("div", { class: "scales-key-note", text: entry.maxOctaves === 2
           ? t("scales.oneOrTwo") : t("scales.oneOnly") }),
       ]),
@@ -350,7 +350,7 @@ export default {
     if (!run) return;
     const last = run.tracker.flush();
     if (last) this.addRegion(last);
-    if (this.offFrame) { this.offFrame(); this.offFrame = null; }
+    if (run.stopListening) { run.stopListening(); run.stopListening = null; }
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
 
     run.ui.nav.finish();
