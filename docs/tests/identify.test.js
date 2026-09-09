@@ -130,6 +130,7 @@ test("contention is judged on distance, so a clear winner stands alone", () => {
 
 import { classifyHz, classifyNote, CLASS_MIN_SECONDS } from "../core/identify.js";
 import { SETTLE_BODY_SECONDS } from "../core/scoring.js";
+
 import { parseScala, TemperamentTuning, ReferencePitch } from "../core/tuning.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
 import { SpelledPitch } from "../core/pitch.js";
@@ -413,7 +414,7 @@ test("C minor spells both its ways: the signature going down, the raised degrees
  * 12 ms, and 38% of notes in real fast playing are that short. */
 
 test("a note too short to measure is named but not counted", () => {
-  const short = classifyNote(554.6, 415, 0.20);
+  const short = classifyNote(554.6, 415, 0.18);
   assert.equal(short.usable, false);
   assert.equal(short.why, "short");
   // Named all the same: the caller may still want to say what it heard.
@@ -427,8 +428,14 @@ test("a note long enough to measure is counted", () => {
   assert.equal(held.why, null);
 });
 
-test("the threshold is the scoring policy's own, not a second opinion", () => {
-  assert.equal(CLASS_MIN_SECONDS, SETTLE_BODY_SECONDS);
+test("the threshold is a played note, not a held one", () => {
+  // It was SETTLE_BODY_SECONDS, which is the length below which looking for a
+  // settled end stops paying -- a different question, and borrowing it made
+  // the page demand a held note. Measured (see CLASS_MIN_SECONDS) the noise
+  // has already levelled off by a quarter second.
+  assert.ok(CLASS_MIN_SECONDS < SETTLE_BODY_SECONDS,
+    "a note can be worth counting before it is worth scanning for a settled end");
+  assert.equal(CLASS_MIN_SECONDS, 0.25);
   // Exactly at the threshold counts: the comparison must not be strict, or a
   // note of precisely the minimum length would fall through the floor.
   assert.equal(classifyNote(554.6, 415, CLASS_MIN_SECONDS).usable, true);

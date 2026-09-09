@@ -37,7 +37,6 @@
 import { parseScala, TemperamentTuning, ReferencePitch } from "./tuning.js";
 import { SpelledPitch } from "./pitch.js";
 import { TEMPERAMENTS, TEMPERAMENT_ORDER } from "./temperaments.js";
-import { SETTLE_BODY_SECONDS } from "./scoring.js";
 
 /** Chromatic pitch classes, indexed as SpelledPitch.chromaticIndex is. */
 export const PITCH_CLASSES = Object.freeze(
@@ -242,15 +241,30 @@ export function classifyHz(hz, referenceHz) {
 
 /* Shorter than this and there is nothing to read.
  *
- * The same threshold the scoring policy uses for "long enough to look for a
- * settled end", and for the same reason. Measured over 945 real notes with
- * docs/tests/abscore.js: a note of 6 to 14 frames swings up to 46 cents when
- * the region's edges move by 12 ms -- a boundary the level gate places, not
- * the player. Four of those 945 swing more than 20 cents and three are
- * shorter than a quarter second. Fast playing is 38% such notes, and folding
- * them into a pitch class alongside a held note gives them equal weight.
+ * Deliberately *not* SETTLE_BODY_SECONDS, though it was at first. That is the
+ * length below which looking for a settled end stops being worthwhile, which
+ * is a different question from the length below which a reading is too noisy
+ * to put in a table -- and borrowing one for the other made the page need a
+ * held note where a played one would do. Measured instead, over 945 real
+ * notes, as the swing when the region's edges move by 12 ms (a boundary the
+ * level gate places, not the player):
+ *
+ *     length        n   median    p90    p99
+ *     0.12-0.20s  109     1.2c   7.4c  22.3c
+ *     0.20-0.25s   78     0.6c   3.3c  12.6c
+ *     0.25-0.30s   89     0.5c   2.9c   9.9c
+ *     0.35-0.50s  211     0.5c   2.6c   8.5c
+ *
+ * There is no cliff at a third of a second. The cliff is below a fifth, where
+ * the ninetieth percentile doubles; by a quarter second the noise is already
+ * what it will be for a two-second note. So a quarter second, which is a
+ * played note rather than a held one.
+ *
+ * It is measured in *voiced* frames, not wall clock: a breathy onset is not
+ * yet a pitch, so a note has to be played somewhat longer than this to yield
+ * this much of it.
  */
-export const CLASS_MIN_SECONDS = SETTLE_BODY_SECONDS;
+export const CLASS_MIN_SECONDS = 0.25;
 
 /* And further than this from a pitch class, which row it belongs to is a
  * coin toss: 40 cents from one name is 60 from the next, and 4% of real
