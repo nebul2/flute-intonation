@@ -53,13 +53,14 @@ test("the exercise list and its strings agree, in both directions", () => {
 
 /* ---- the shared control layer ----------------------------------------- */
 
-/* Views on this list still build their own controls. It may only ever shrink:
- * the second assertion below fails if a listed file has been migrated and its
- * name left behind, so the list cannot rot into a permanent exemption. Delete
- * a name when you migrate the view; delete the list when it empties. */
-const HAND_BUILT_CONTROLS = new Set([
-  "bend.js", "sessions.js", "settings.js",
-]);
+/* The migration allowlist is gone: it emptied, which was the point of writing
+ * it so it could only shrink. Sixteen views, no hand-built controls left.
+ *
+ * A `<input type="number">` and a `<input type="text">` are still built by
+ * hand in two places -- a custom reference pitch and a flute's name -- and
+ * that is deliberate: a free-text field with its own validation is not one of
+ * the app's recurring musical controls, and hoisting it would be inventing a
+ * shared thing from a single instance. */
 const HAND_BUILT = /el\("select"|type:\s*"(?:checkbox|radio|range)"/;
 
 test("views take their controls from ui/controls.js", () => {
@@ -67,34 +68,22 @@ test("views take their controls from ui/controls.js", () => {
   // vocabularies, two of them in one file -- which is a UI a player cannot
   // learn, and which cost a shipped bug when one path forgot to carry the key
   // (b8452e1, "Redo restarts in the key you chose, not in D major").
-  const views = fs.readdirSync(path.join(here, "..", "views"));
-  for (const file of views) {
+  for (const file of fs.readdirSync(path.join(here, "..", "views"))) {
     const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
-    const handBuilt = HAND_BUILT.test(src);
-    if (HAND_BUILT_CONTROLS.has(file)) {
-      assert.ok(handBuilt,
-        `${file}: migrated? then delete it from HAND_BUILT_CONTROLS -- the list may only shrink`);
-    } else {
-      assert.ok(!handBuilt,
-        `${file}: build controls with ui/controls.js, not by hand`);
-    }
+    assert.ok(!HAND_BUILT.test(src),
+      `${file}: build controls with ui/controls.js, not by hand`);
   }
 });
 
 test("note names live in ui/naming.js, not in a table in a view", () => {
-  // Three views carried their own. One hard-codes solfège, so a player who
+  // Three views carried their own. One hard-coded solfège, so a player who
   // chose letters was shown "Do♯4" on that page whatever they had set; two
   // more disagreed with each other on whether to spell with sharps or flats.
-  const KNOWN = new Set(["temperament.js"]);
-  const views = fs.readdirSync(path.join(here, "..", "views"));
-  for (const file of views) {
+  // All three are gone, so this no longer has an exception list either.
+  for (const file of fs.readdirSync(path.join(here, "..", "views"))) {
     const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
     const table = /\[\s*"(?:Do|Ré|Mi|Fa|Sol|La|Si)[♯♭"]/.test(src);
-    if (KNOWN.has(file)) {
-      assert.ok(table, `${file}: table gone? then delete it from KNOWN here too`);
-    } else {
-      assert.ok(!table, `${file}: name notes through ui/naming.js`);
-    }
+    assert.ok(!table, `${file}: name notes through ui/naming.js`);
   }
 });
 
@@ -169,9 +158,11 @@ test("widgets that return a wrapper are appended by their element", () => {
 
     for (const factory of ["audioControl", "labelField"]) {
       if (!src.includes(`${factory}(`)) continue;
-      // Assigned to a const in every current caller; an object property would
-      // need widening here rather than dropping the check.
-      const assigned = src.match(new RegExp(`const (\\w+) = ${factory}\\(`));
+      // Assigned to a const in every current caller, now usually through
+      // own.add() -- which returns what it was given, so the shape is the
+      // same. An object property would need widening here rather than
+      // dropping the check.
+      const assigned = src.match(new RegExp(`const (\\w+) = (?:own\\.add\\()?${factory}\\(`));
       assert.ok(assigned, `${file}: ${factory}() result is not held in a const`);
       const holder = assigned[1];
       assert.ok(src.includes(`${holder}.element`),
@@ -338,5 +329,31 @@ test("a view that measures a note imports a reducer rather than writing one", ()
     assert.ok(SANCTIONED.test(src),
       `${file}: holds a note's frames but reduces them with neither `
       + `scoredWindow(), notePitch(), analyseNote() nor postAttack()`);
+  }
+});
+
+/* CLAUDE.md: every subscription a view makes is registered on its owner(), so
+ * a view has at most one disposable field.
+ *
+ * This was the third rule enforced by nothing. It had already been broken
+ * once: scales.js stored an engine.onState unsubscribe in `this.offFrame` and
+ * overwrote it with an engine.onFrame unsubscribe, leaking a listener --
+ * survivable only because the one path that did it happened to tear down
+ * first. A named handle per subscription is how that happens, and counting
+ * them is how it stops happening.
+ */
+test("a view keeps at most one disposable field", () => {
+  for (const file of fs.readdirSync(path.join(here, "..", "views"))) {
+    const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    // What counts is what a view *assigns* to itself and later disposes;
+    // `this.root`, `this.run` and the like are state, not subscriptions.
+    const held = new Set([...src.matchAll(/this\.(off[A-Za-z]*|own|control|help)\s*=/g)].map((m) => m[1]));
+    assert.ok(held.size <= 1,
+      `${file}: holds ${[...held].join(", ")}; register them on an owner() instead`);
+    if (held.size === 1) {
+      assert.ok(held.has("own"),
+        `${file}: the one disposable field should be the owner, not ${[...held][0]}`);
+    }
   }
 });

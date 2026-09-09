@@ -64,7 +64,7 @@ export default {
     const held = el("div", { class: "held" });
     const gauge = needle();
     const level = levelBar();
-    const control = audioControl({ showGranted: false });
+    const control = own.add(audioControl({ showGranted: false }));
 
     // Unlabelled: it sits in a button row, where a label would read as a
     // heading for the whole row. It still relabels itself when the naming
@@ -161,12 +161,10 @@ export default {
         el("div", { class: "controls" }, [control.element, droneSelect.element, droneButton]),
       ]),
     );
-    this.control = control;
   },
 
   unmount() {
     this.mounted = false;
     if (this.own) { this.own.dispose(); this.own = null; }
-    if (this.control) this.control.dispose();
   },
 };

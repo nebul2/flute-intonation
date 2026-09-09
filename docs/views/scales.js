@@ -91,7 +91,6 @@ export default {
   teardown() {
     if (this.own) this.own.dispose();
     this.own = owner();
-    if (this.control) { this.control.dispose(); this.control = null; }
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
     this.run = null;
   },
@@ -121,12 +120,10 @@ export default {
     }));
     keyField.element.hidden = modeField.value !== "key";
 
-    const row = startRow({
+    const row = own.add(startRow({
       label: t("scales.start"),
       onStart: () => this.startSession(modeField.value, Number(keyField.value)),
-    });
-    own.add(row);
-    this.control = row.control;
+    }));
 
     append(root,
       el("p", { class: "note-box warn", text: t("scales.experimental") }),

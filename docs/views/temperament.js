@@ -20,12 +20,18 @@ import { postAttack, notePitch } from "../core/scoring.js";
 import { identify, classifyNote, predictedCents, expectedHz, bestByTemperament,
          PITCH_CLASSES, MIN_CLASSES, FULL_CLASSES } from "../core/identify.js";
 import { el, append, audioControl, levelBar, temperamentLabel, explainer } from "../ui/widgets.js";
+import { owner } from "../ui/owner.js";
+import { pitchClassLabel } from "../ui/naming.js";
 
-/* Display names per pitch class, in the naming the player has chosen. The
- * spelling is arbitrary here -- a temperament has twelve pitch classes, not
- * twelve spellings -- so the sharp side is used throughout and said plainly. */
-const SOLFEGE = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "La♯", "Si"];
-const className = (i, s) => (s.naming === "solfege" ? SOLFEGE[i] : PITCH_CLASSES[i]);
+/* Display names per pitch class, in the naming the player has chosen.
+ *
+ * The spelling is arbitrary here -- a temperament has twelve pitch classes,
+ * not twelve spellings -- and the shared table spells the black notes flat,
+ * so this page reads Mi flat where it once read Re sharp. That is a change of
+ * spelling, not of meaning, and it is worth it: this file carried its own
+ * table, disagreed with Compare temperaments about which side to spell on,
+ * and quietly ignored the naming setting's octave conventions. */
+const className = (i, s) => pitchClassLabel(i, s.naming);
 
 /* How near a note must sit to a candidate's prediction to be shown agreeing.
  * Generous on purpose: it reports agreement, it does not decide anything. */
@@ -40,6 +46,8 @@ export default {
   title: () => t("temperament.title"),
 
   mount(root) {
+    const own = owner();
+    this.own = own;
     const s0 = settings.get();
     const ref = Number(s0.referenceHz) || 415;
     // Readings per pitch class, one entry per note played.
@@ -57,8 +65,7 @@ export default {
     });
     const status = el("p", { class: "status", text: t("temperament.waiting") });
     const level = levelBar();
-    const control = audioControl({ showGranted: false });
-    this.control = control;
+    const control = own.add(audioControl({ showGranted: false }));
     const board = el("div", { class: "board-wrap" });
     const result = el("div", { class: "result" });
 
@@ -186,7 +193,7 @@ export default {
     const tracker = new RegionTracker({
       frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
     });
-    this.offFrame = engine.onFrame((frame) => {
+    own.add(engine.onFrame((frame) => {
       level.set(frame.levelDb);
       const region = tracker.push(frame);
       if (!region || region.short) return;
@@ -196,7 +203,7 @@ export default {
       // also throws out the pluck itself, which bends before it settles.
       if (Math.abs(driftCents(framesHz)) >= GLIDE_CENTS) return;
       record(notePitch(framesHz, tracker.frameSeconds).hz, region.seconds);
-    });
+    }));
 
     const reset = () => {
       heard.forEach((xs) => { xs.length = 0; });
@@ -209,12 +216,12 @@ export default {
       update();
     };
 
-    this.offSettings = settings.subscribe(() => {
+    own.add(settings.subscribe(() => {
       cells.forEach((cell, i) => {
         cell.querySelector(".pc-name").textContent = className(i, settings.get());
       });
       show();
-    });
+    }));
 
     append(root,
       el("p", { class: "note-box warn", text: t("temperament.experimental") }),
@@ -232,9 +239,5 @@ export default {
     update();
   },
 
-  unmount() {
-    if (this.offFrame) this.offFrame();
-    if (this.offSettings) this.offSettings();
-    if (this.control) this.control.dispose();
-  },
+  unmount() { if (this.own) { this.own.dispose(); this.own = null; } },
 };

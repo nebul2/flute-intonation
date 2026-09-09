@@ -95,8 +95,7 @@ export default {
     const table = el("table", { class: "temp-table" });
     const skipped = el("p", { class: "muted small" });
     const copied = el("div", { class: "muted small" });
-    const control = audioControl({ showGranted: false });
-    this.control = control;
+    const control = own.add(audioControl({ showGranted: false }));
     const level = levelBar();
 
     // Unbound on purpose: this page compares temperaments from a root of its
@@ -162,7 +161,7 @@ export default {
     const tracker = new RegionTracker({
       frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
     });
-    this.offFrame = engine.onFrame((frame) => {
+    own.add(engine.onFrame((frame) => {
       level.set(frame.levelDb);
       const region = tracker.push(frame);
       if (!region || region.short) return;
@@ -174,7 +173,7 @@ export default {
       if (usable) played[index].push(cents);
       else ignored[why] += 1;
       draw();
-    });
+    }));
 
     // The table's own note names still follow the setting; the two controls
     // now relabel themselves.
@@ -220,9 +219,5 @@ export default {
     draw();
   },
 
-  unmount() {
-    if (this.offFrame) this.offFrame();
-    if (this.own) { this.own.dispose(); this.own = null; }
-    if (this.control) this.control.dispose();
-  },
+  unmount() { if (this.own) { this.own.dispose(); this.own = null; } },
 };

@@ -389,6 +389,35 @@ existing conventions, with a migration allowlist that **may only shrink**: a
 listed view that no longer builds its own controls fails the suite until its
 name is deleted, so the list cannot rot into a permanent exemption.
 
+**The allowlist is now empty and deleted.** All sixteen views take their
+controls from `ui/controls.js`, no view carries a note-name table, and every
+view holds exactly one disposable field — its `owner()`. Three rules that had
+been stated in CLAUDE.md and enforced by nothing now have tests, which is the
+change that matters: the migration was finishable, but convention is what let
+seven key selects appear in the first place.
+
+What the migration itself turned up, none of which was the point of it:
+
+- **Practice's tonic reset to D major on every visit** — a plain field on the
+  view object — while the key-choosing exercises next door had remembered
+  their key across sessions since phase 6. Two halves of one page disagreeing
+  about whether a choice is worth keeping. Bound now, and remembered.
+- **`temperamentControl`'s radio shape froze its labels** in whichever
+  language it was built in, because `radioGroup` renders text into markup it
+  already has and was being handed strings.
+- **A `.field-lead` class invented mid-migration with no CSS rule behind it**
+  — the exact defect the `.field` test was written for, one file outside where
+  it was looking. That test now checks every class the shared layer emits.
+- **`bend.js` referenced a `const` from inside a control's options function**
+  that was declared thirty lines below it. Harmless while the options were
+  built lazily; a temporal dead zone error the moment a field rendered on
+  construction.
+
+Retired with the migration: `practice.quality.*` (used by Listen to me),
+`listen.key`, `scales.whichKey` and `scales.keyName` — the last two said
+exactly what `music.key` and `music.inKey` say. `practice.tonic` stays: it is
+read by Sessions from a saved record, not from a control.
+
 ### The whole chain measures to a cent, verified device to device
 
 Playing `recordings/probes/ladder.wav` from a laptop speaker into the iPad

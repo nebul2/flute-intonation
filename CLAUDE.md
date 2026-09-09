@@ -35,10 +35,17 @@ Rules:
 - Controls that appear in more than one place live in docs/ui/controls.js; a
   view never hand-builds a key, quality, temperament or toggle control. The
   layers are dom.js -> fields.js -> controls.js -> views, each importing only
-  downward, and fields.js imports neither audio/ nor core/.
+  downward, and fields.js imports neither audio/ nor core/. All sixteen views
+  are migrated and docs/tests/ui.test.js enforces it -- there is no allowlist
+  left to add a name to.
+- A control that persists a choice declares `bind: "<settings key>"` and owns
+  it: it writes on input and re-renders when anything else writes. A control
+  inside a run takes `source: () => run.settings` instead, so a naming change
+  mid-run cannot relabel a session already half scored.
 - Every subscription a view makes is registered on its owner() from
-  docs/ui/owner.js, so a view has at most one disposable field. Named handles
-  collided once already and leaked a listener.
+  docs/ui/owner.js, so a view has at most one disposable field, and that field
+  is the owner. Enforced by test. Named handles collided once already and
+  leaked a listener.
 - A note's figure comes from scoredWindow() in core/scoring.js (mirrored in
   scoring.py): after the attack, before the taper, from where the pitch
   settled. No view reduces frames to a pitch itself — use analyseNote() to

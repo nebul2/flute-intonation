@@ -392,8 +392,10 @@ export const STRINGS = {
     "settings.clear": "Clear history",
 
     /* The musical vocabulary, shared by every control that offers it. Neutral
-       namespace on purpose: practice.quality.* was being used by Listen to me
-       and practice.tonic by Sessions, which is how a label drifts. */
+       namespace on purpose: practice.quality.* was being used by Listen to me,
+       which is how a label drifts. Those are retired; practice.tonic stays,
+       because Sessions genuinely means "the tonic this session was in" and
+       reads it from a saved record, not from a control. */
     "music.key": "Key",
     "music.inKey": (k) => `${k} major`,
     "music.tonic": "tonic",
@@ -435,9 +437,6 @@ export const STRINGS = {
     "practice.ex.enharmonic.desc": "D♯ over B, then E♭ over C — one fingering, two targets, 39 cents apart.",
     "practice.ex.predict.title": "Predict, then see",
     "practice.ex.predict.desc": "The tonic, then every other interval over the drone — you call sharp / flat / in tune before the number appears. Then the same again in the next key: D, G, C, A, E, F, B♭, E♭, round and round until you finish. Tick Random inside for a harder version.",
-    "practice.quality": "scale",
-    "practice.quality.major": "major",
-    "practice.quality.minor": "minor",
     "practice.stop": "Stop the exercise",
     "practice.finish": "Finish and see how I did",
     "practice.random": "Random (harder) — any key, any order",
@@ -540,7 +539,6 @@ export const STRINGS = {
     "listen.grounding.none.hint": "Less reliable, and honestly so: no tonic means no pure intervals, and no key means D♯ and E♭ cannot be told apart. Fine for a quick check; for a reading you would act on, state the key.",
     "listen.changeKey": "Key from here",
     "listen.keyChanged": (tonic) => `${tonic} from here on. Notes already played keep the key they were played in.`,
-    "listen.key": "Key",
     "listen.keyPrompt": (tonic) => `${tonic} it is. Play freely; press Finish when done.`,
     "listen.freePrompt": "Play freely; press Finish when done. Nothing is grounding this session.",
     "listen.ungrounded": "This session had no key, so every note was measured against the temperament only and spelled by nearest pitch. State the key next time and the same playing reads as pure intervals over the tonic.",
@@ -1004,9 +1002,6 @@ export const STRINGS = {
     "practice.ex.enharmonic.desc": "Ré♯ sur si, puis mi♭ sur do — un doigté, deux cibles, 39 cents d'écart.",
     "practice.ex.predict.title": "Devine, puis vois",
     "practice.ex.predict.desc": "La tonique, puis tous les autres intervalles sur le bourdon — tu annonces haut / bas / juste avant de voir le chiffre. Puis on recommence dans la tonalité suivante : ré, sol, do, la, mi, fa, si♭, mi♭, en boucle jusqu'à ce que tu termines. Coche « au hasard » à l'intérieur pour une version plus difficile.",
-    "practice.quality": "gamme",
-    "practice.quality.major": "majeure",
-    "practice.quality.minor": "mineure",
     "practice.stop": "Arrêter l'exercice",
     "practice.finish": "Terminer et voir mon résultat",
     "practice.random": "Au hasard (difficile) — n'importe quelle tonalité, n'importe quel ordre",
@@ -1109,7 +1104,6 @@ export const STRINGS = {
     "listen.grounding.none.hint": "Moins fiable, et franchement : sans tonique, pas d'intervalles purs ; sans tonalité, ré♯ et mi♭ sont indistinguables. Bien pour un coup d'œil ; pour une lecture sur laquelle agir, indique la tonalité.",
     "listen.changeKey": "Tonalité à partir d'ici",
     "listen.keyChanged": (tonic) => `${tonic} à partir d'ici. Les notes déjà jouées gardent leur tonalité.`,
-    "listen.key": "Tonalité",
     "listen.keyPrompt": (tonic) => `Va pour ${tonic}. Joue librement ; appuie sur Terminer quand tu as fini.`,
     "listen.freePrompt": "Joue librement ; appuie sur Terminer quand tu as fini. Rien n'ancre cette séance.",
     "listen.ungrounded": "Cette séance n'avait pas de tonalité : chaque note a été mesurée dans le seul tempérament et écrite par hauteur la plus proche. Indique la tonalité la prochaine fois, et le même jeu se lira en intervalles purs sur la tonique.",

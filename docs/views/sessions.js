@@ -13,6 +13,7 @@ import { SpelledPitch } from "../core/pitch.js";
 import { compare, perNote, MAX_COMPARE } from "../core/compare.js";
 import { sessionScore } from "../core/stats.js";
 import { el, append, name, bandClass, explainer } from "../ui/widgets.js";
+import { checkboxField } from "../ui/fields.js";
 
 const fmt = (c, digits = 1) => `${c >= 0 ? "+" : ""}${c.toFixed(digits)}`;
 
@@ -89,10 +90,12 @@ export default {
       tuningLabel(record),
     ].filter(Boolean).join(" · ");
 
-    const box = el("input", {
-      type: "checkbox", checked: selected || null,
-      "aria-label": record.label || t("sessions.unnamed"),
-      onchange: () => this.toggle(record.id),
+    /* A naked box in a table row -- the third checkbox convention this app
+     * had, and the reason `look` exists. Unbound: what is selected is this
+     * page's own state, not a preference, and it is rebuilt on every draw. */
+    const box = checkboxField({
+      look: "bare", value: selected, ariaLabel: record.label || t("sessions.unnamed"),
+      onChange: () => this.toggle(record.id),
     });
     const body = el("div", { class: "session-body", onclick: () => this.toggle(record.id) }, [
       el("div", { class: "session-head" }, [
@@ -105,7 +108,7 @@ export default {
       class: "link-button", text: t("sessions.delete"),
       onclick: (e) => { e.stopPropagation(); this.remove(record.id); },
     });
-    return el("div", { class: `session${selected ? " selected" : ""}` }, [box, body, remove]);
+    return el("div", { class: `session${selected ? " selected" : ""}` }, [box.element, body, remove]);
   },
 
   render() {

@@ -1,21 +1,41 @@
 /* Settings. Everything writes through settings.set(), so the status strip
- * and any mounted view re-render immediately. */
+ * and any mounted view re-render immediately.
+ *
+ * This page is now almost entirely declarations: a bound field per setting,
+ * and side effects hung off onChange where a setting is not enough on its own
+ * -- restarting a playing drone at the new level, switching the microphone,
+ * telling i18n the language changed. It was the longest hand-written list of
+ * controls in the app, and it is the page where the two checkbox conventions
+ * and the three label shapes were most visible next to each other. */
 
 import { t, setLanguage } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { el, append, audioControl } from "../ui/widgets.js";
+import { selectField, checkboxField, radioGroup, rangeField, segmentedField } from "../ui/fields.js";
+import { owner } from "../ui/owner.js";
 
 const REFERENCES = [392, 415, 430, 440, 442];
+const DRONE_SECONDS = [4, 5, 6, 8, 10, 12];
+const SCALES_MINUTES = [5, 10, 15, 20, 30, 45];
 
 export default {
   title: () => t("settings.title"),
 
   mount(root) {
+    const own = owner();
+    this.own = own;
     const s = settings.get();
 
-    /* reference pitch */
+    /* reference pitch: the common ones as a pill group, anything else typed.
+     * The group marks nothing as active when the value is not one of its own,
+     * which is what a custom pitch should look like -- and is now the control's
+     * behaviour rather than a querySelectorAll in this file. */
+    const refs = own.add(segmentedField({
+      bind: "referenceHz", options: REFERENCES.map((hz) => ({ value: hz, label: String(hz) })),
+      onChange: () => { custom.value = ""; },
+    }));
     const custom = el("input", {
       type: "number", class: "number", min: "380", max: "470", step: "0.1",
       value: REFERENCES.includes(Number(s.referenceHz)) ? "" : s.referenceHz,
@@ -25,119 +45,81 @@ export default {
         if (hz >= 380 && hz <= 470) settings.set({ referenceHz: hz });
       },
     });
-    const refs = el("div", { class: "segmented" }, REFERENCES.map((hz) =>
-      el("button", {
-        class: Number(s.referenceHz) === hz ? "active" : "",
-        text: String(hz),
-        onclick: (e) => {
-          settings.set({ referenceHz: hz });
-          refs.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === e.target));
-          custom.value = "";
-        },
-      })));
 
-    /* naming */
-    const naming = el("div", { class: "options" }, ["solfege", "letters"].map((style) =>
-      el("label", { class: "option" }, [
-        el("input", { type: "radio", name: "naming", value: style, checked: s.naming === style || null,
-                      onchange: () => settings.set({ naming: style }) }),
-        el("span", { class: "option-label", text: t(`settings.naming.${style}`) }),
-      ])));
+    const naming = own.add(radioGroup({
+      name: "naming", bind: "naming",
+      options: ["solfege", "letters"].map((style) => ({
+        value: style, label: () => t(`settings.naming.${style}`),
+      })),
+    }));
 
-    /* octave style */
-    const octaveStyle = el("div", { class: "options" }, ["register", "number"].map((style) =>
-      el("label", { class: "option" }, [
-        el("input", { type: "radio", name: "octaveStyle", value: style,
-                      checked: (s.octaveStyle ?? "register") === style || null,
-                      onchange: () => settings.set({ octaveStyle: style }) }),
-        el("span", { class: "option-label", text: t(`settings.octaveStyle.${style}`) }),
-      ])));
+    const octaveStyle = own.add(radioGroup({
+      name: "octaveStyle", bind: "octaveStyle",
+      options: ["register", "number"].map((style) => ({
+        value: style, label: () => t(`settings.octaveStyle.${style}`),
+      })),
+    }));
 
-    /* where the registers break */
-    const registerBreak = el("select", { class: "select", onchange: (e) => settings.set({ registerBreak: e.target.value }) },
-      ["D", "C"].map((letter) => el("option", {
-        value: letter, selected: (s.registerBreak ?? "D") === letter || null,
-        text: t(`settings.registerBreak.${letter}`),
-      })));
+    const registerBreak = own.add(selectField({
+      label: t("settings.registerBreak"), bind: "registerBreak",
+      options: () => ["D", "C"].map((letter) => ({
+        value: letter, label: t(`settings.registerBreak.${letter}`),
+      })),
+    }));
 
-    /* language */
-    const language = el("div", { class: "segmented" }, ["fr", "en"].map((code) =>
-      el("button", {
-        class: (s.lang ?? document.documentElement.lang) === code ? "active" : "",
-        text: code.toUpperCase(),
-        onclick: () => { settings.set({ lang: code }); setLanguage(code); },
-      })));
+    /* Language is the one control that is deliberately not bound. The setting
+     * is null by default, meaning "follow the browser", and a bound group
+     * would show nothing chosen rather than the language actually in use. */
+    const language = own.add(segmentedField({
+      value: s.lang ?? document.documentElement.lang,
+      options: ["fr", "en"].map((code) => ({ value: code, label: code.toUpperCase() })),
+      onChange: (code) => { settings.set({ lang: code }); setLanguage(code); },
+    }));
 
-    /* microphone */
-    const mic = el("select", { class: "select", onchange: (e) => {
-      settings.set({ deviceId: e.target.value || null });
-      if (engine.listening) { engine.stop(); engine.start({ deviceId: e.target.value || null }); }
-    } }, [el("option", { value: "", text: t("settings.micDefault") })]);
-    const micNote = el("div", { class: "diag", text: engine.listening ? "" : t("settings.micNeedsStart") });
-    engine.inputDevices().then((devices) => {
-      for (const d of devices) {
-        mic.append(el("option", {
-          value: d.deviceId, selected: s.deviceId === d.deviceId || null,
-          text: d.label || `${t("settings.mic")} ${mic.children.length}`,
-        }));
-      }
-    });
-
-    /* drone level */
-    const droneLevel = el("input", {
-      type: "range", min: "0.02", max: "0.5", step: "0.01", value: String(s.droneLevel),
-      oninput: (e) => {
-        const level = Number(e.target.value);
-        settings.set({ droneLevel: level });
-        if (engine.drone.playing) engine.drone.start(engine.drone.hz, level);
+    /* The device list arrives later, so the options are a function over a
+     * list this fills in, and the control is refreshed once it has. */
+    let devices = [];
+    const mic = own.add(selectField({
+      label: t("settings.mic"), bind: "deviceId", parse: (v) => v || null,
+      options: () => [{ value: "", label: t("settings.micDefault") },
+                      ...devices.map((d, i) => ({
+                        value: d.deviceId, label: d.label || `${t("settings.mic")} ${i + 1}`,
+                      }))],
+      onChange: (deviceId) => {
+        if (engine.listening) { engine.stop(); engine.start({ deviceId }); }
       },
-    });
+    }));
+    const micNote = el("div", { class: "diag", text: engine.listening ? "" : t("settings.micNeedsStart") });
+    engine.inputDevices().then((list) => { devices = list; mic.refresh(); }).catch(() => {});
 
-    /* how long a note lasts in the drone exercises */
-    const droneNoteSeconds = el("select", { class: "select",
-      onchange: (e) => settings.set({ droneNoteSeconds: Number(e.target.value) }) },
-      [4, 5, 6, 8, 10, 12].map((sec) => el("option", {
-        value: String(sec), selected: Number(s.droneNoteSeconds ?? 6) === sec || null,
-        text: t("settings.seconds", sec),
-      })));
+    const droneLevel = own.add(rangeField({
+      bind: "droneLevel", min: 0.02, max: 0.5, step: 0.01,
+      onChange: (level) => { if (engine.drone.playing) engine.drone.start(engine.drone.hz, level); },
+    }));
 
-    /* how long Play scales runs before stopping itself */
-    const scalesMinutes = el("select", { class: "select",
-      onchange: (e) => settings.set({ scalesMinutes: Number(e.target.value) }) },
-      [5, 10, 15, 20, 30, 45].map((m) => el("option", {
-        value: String(m), selected: Number(s.scalesMinutes ?? 15) === m || null,
-        text: t("settings.minutes", m),
-      })));
+    const droneNoteSeconds = own.add(selectField({
+      label: t("settings.droneNoteSeconds"), bind: "droneNoteSeconds", parse: Number,
+      options: () => DRONE_SECONDS.map((sec) => ({ value: sec, label: t("settings.seconds", sec) })),
+    }));
 
-    /* page explanations: folded away by default, once you know the app */
-    const explainToggle = el("label", { class: "option" }, [
-      el("input", { type: "checkbox", checked: s.explainOpen === true || null,
-                    onchange: (e) => settings.set({ explainOpen: e.target.checked }) }),
-      el("span", { class: "option-body" }, [
-        el("span", { class: "option-label", text: t("settings.explainOpen") }),
-        el("span", { class: "option-help", text: t("settings.explainOpenHelp") }),
-      ]),
-    ]);
+    const scalesMinutes = own.add(selectField({
+      label: t("settings.scalesMinutes"), bind: "scalesMinutes", parse: Number,
+      options: () => SCALES_MINUTES.map((m) => ({ value: m, label: t("settings.minutes", m) })),
+    }));
 
-    /* headphones */
-    const headphones = el("label", { class: "option" }, [
-      el("input", { type: "checkbox", checked: s.headphones || null,
-                    onchange: (e) => settings.set({ headphones: e.target.checked }) }),
-      el("span", { class: "option-label", text: t("settings.headphones") }),
-    ]);
+    const explainToggle = own.add(checkboxField({
+      look: "option", bind: "explainOpen",
+      label: t("settings.explainOpen"), help: t("settings.explainOpenHelp"),
+    }));
+    const headphones = own.add(checkboxField({
+      look: "option", bind: "headphones", label: t("settings.headphones"),
+    }));
+    const analyticsToggle = own.add(checkboxField({
+      look: "option", bind: "analytics",
+      label: t("settings.analytics"), help: t("settings.analyticsHelp"),
+    }));
 
-    const control = audioControl();
-    this.control = control;
-
-    /* anonymous usage counts */
-    const analyticsToggle = el("label", { class: "option" }, [
-      el("input", { type: "checkbox", checked: s.analytics !== false || null,
-                    onchange: (e) => settings.set({ analytics: e.target.checked }) }),
-      el("span", { class: "option-body" }, [
-        el("span", { class: "option-label", text: t("settings.analytics") }),
-        el("span", { class: "option-help", text: t("settings.analyticsHelp") }),
-      ]),
-    ]);
+    const control = own.add(audioControl());
 
     /* history */
     const historyNote = el("div", { class: "diag" });
@@ -152,29 +134,29 @@ export default {
       historyNote.textContent = t("settings.cleared");
     } });
 
-    append(root, 
+    append(root,
       el("h2", { text: t("settings.reference") }),
-      el("div", { class: "row" }, [refs, custom]),
-      el("h2", { text: t("settings.naming") }), naming,
-      el("h2", { text: t("settings.reading") }), explainToggle,
-      el("div", { class: "row" }, [el("span", { text: t("settings.scalesMinutes") }), scalesMinutes]),
-      el("h2", { text: t("settings.octaveStyle") }), octaveStyle,
+      el("div", { class: "row" }, [refs.element, custom]),
+      el("h2", { text: t("settings.naming") }), naming.element,
+      el("h2", { text: t("settings.reading") }), explainToggle.element,
+      scalesMinutes.element,
+      el("h2", { text: t("settings.octaveStyle") }), octaveStyle.element,
       el("p", { class: "note-box", text: t("settings.octaveStyleHelp") }),
-      el("div", { class: "row" }, [el("span", { text: t("settings.registerBreak") }), registerBreak]),
+      registerBreak.element,
       el("p", { class: "note-box", text: t("settings.registerBreakHelp") }),
-      el("h2", { text: t("settings.language") }), language,
-      el("h2", { text: t("settings.mic") }), control.element, mic, micNote,
-      el("h2", { text: t("settings.droneLevel") }), droneLevel,
-      el("div", { class: "row" }, [el("span", { text: t("settings.droneNoteSeconds") }), droneNoteSeconds]),
+      el("h2", { text: t("settings.language") }), language.element,
+      el("h2", { text: t("settings.mic") }), control.element, mic.element, micNote,
+      el("h2", { text: t("settings.droneLevel") }), droneLevel.element,
+      droneNoteSeconds.element,
       el("p", { class: "note-box", text: t("settings.droneNoteSecondsHelp") }),
-      headphones,
+      headphones.element,
       el("h2", { text: t("settings.history") }),
       el("div", { class: "controls left" }, [exportButton, clearButton]),
       historyNote,
       el("h2", { text: t("settings.privacy") }),
-      analyticsToggle,
+      analyticsToggle.element,
     );
   },
 
-  unmount() { if (this.control) this.control.dispose(); },
+  unmount() { if (this.own) { this.own.dispose(); this.own = null; } },
 };

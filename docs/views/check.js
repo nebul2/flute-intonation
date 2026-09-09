@@ -48,7 +48,7 @@ export default {
     // context is suspended), frames of digital silence (the input iPadOS
     // chose is not the one in the room), or a level bar that is simply low.
     const diag = el("div", { class: "diag" });
-    const control = audioControl();
+    const control = own.add(audioControl());
     const drone = el("button", { class: "secondary", text: t("check.drone"), disabled: true });
 
     const updateDrone = () => {
@@ -107,12 +107,10 @@ export default {
         el("div", { class: "controls" }, [control.element, drone]),
       ]),
     );
-    this.control = control;
   },
 
   unmount() {
     this.mounted = false;
     if (this.own) { this.own.dispose(); this.own = null; }
-    if (this.control) this.control.dispose();
   },
 };

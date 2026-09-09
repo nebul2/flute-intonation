@@ -22,6 +22,8 @@ import * as profiles from "../profiles.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { postAttack } from "../core/scoring.js";
 import { RegionTracker } from "../audio/regions.js";
+import { selectField } from "../ui/fields.js";
+import { owner } from "../ui/owner.js";
 import { reach, isRigid, bestOffset, profileStats, wasForced, bendCost,
          validEntry, RIGID_CENTS, FORCED_DROP_DB } from "../core/bend.js";
 import {
@@ -63,13 +65,13 @@ export default {
   unmount() { this.teardown(); },
 
   teardown() {
-    if (this.offFrame) { this.offFrame(); this.offFrame = null; }
-    if (this.offSettings) { this.offSettings(); this.offSettings = null; }
-    if (this.control) { this.control.dispose(); this.control = null; }
+    if (this.own) this.own.dispose();
+    this.own = owner();
   },
 
   render() {
     this.teardown();
+    const own = this.own;
     const root = this.root;
     root.replaceChildren();
     const s = settings.get();
@@ -95,22 +97,37 @@ export default {
      * the list before it has been measured. Without that the picker is asked
      * to select an option that does not exist yet, and quietly shows blank.
      */
+    // Declared before the chooser: selectField renders as it is built, so its
+    // options function runs immediately and a const declared further down is
+    // still in its temporal dead zone.
+    const NEW = "\u0000new";
     let current = profiles.names()[0] ?? "";
     profiles.ensure(current);
-    const chooser = el("select", { class: "select" });
+    // Unbound: which flute is being profiled lives in profiles.js, not in
+    // settings, and the list changes as flutes are named. The options are a
+    // function over that list and the control is refreshed when it moves.
+    const chooser = own.add(selectField({
+      label: t("bend.flute"), value: current,
+      options: () => [
+        ...profiles.names().map((flute) => ({ value: flute, label: flute || t("bend.unnamed") })),
+        { value: NEW, label: t("bend.newFlute") },
+      ],
+      onChange: (chosen) => {
+        if (chosen === NEW) { beginEdit("new"); return; }
+        nameInput.hidden = true;
+        nameNote.textContent = "";
+        current = chosen;
+        target = null; readings = [];
+        drawGrid(); drawPrompt(); drawSummary();
+      },
+    }));
     const nameInput = el("input", { class: "text", type: "text", hidden: true });
     const renameButton = el("button", { class: "secondary", text: t("bend.rename") });
     const nameNote = el("p", { class: "muted small" });
-    const NEW = "\u0000new";
     let mode = null;                       // "rename" | "new" while editing
 
     const fillChooser = () => {
-      chooser.replaceChildren();
-      for (const flute of profiles.names()) {
-        chooser.append(el("option", { value: flute, text: flute || t("bend.unnamed") }));
-      }
-      chooser.append(el("option", { value: NEW, text: t("bend.newFlute") }));
-      chooser.value = current;
+      chooser.set(current);
       renameButton.hidden = false;
     };
 
@@ -153,20 +170,11 @@ export default {
       fillChooser(); drawGrid(); drawPrompt(); drawSummary();
     };
 
-    chooser.addEventListener("change", () => {
-      if (chooser.value === NEW) { beginEdit("new"); return; }
-      nameInput.hidden = true;
-      nameNote.textContent = "";
-      current = chooser.value;
-      target = null; readings = [];
-      drawGrid(); drawPrompt(); drawSummary();
-    });
     renameButton.addEventListener("click", () => beginEdit("rename"));
     nameInput.addEventListener("change", endEdit);
     nameInput.addEventListener("blur", () => { if (!nameInput.hidden) endEdit(); });
 
-    const control = audioControl({ showGranted: false });
-    this.control = control;
+    const control = own.add(audioControl({ showGranted: false }));
     const level = levelBar();
     const status = el("p", { class: "status", text: t("bend.pick") });
     const prompt = el("div", { class: "bend-prompt" });
@@ -223,7 +231,7 @@ export default {
     const tracker = new RegionTracker({
       frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
     });
-    this.offFrame = engine.onFrame((frame) => {
+    own.add(engine.onFrame((frame) => {
       level.set(frame.levelDb);
       const region = tracker.push(frame);
       if (!region || !target || readings.length >= 3) return;
@@ -245,7 +253,7 @@ export default {
       });
       if (readings.length === 3) finish();
       drawPrompt();
-    });
+    }));
 
     const finish = () => {
       const [n, f, c] = readings;
@@ -343,12 +351,12 @@ export default {
       append(summary, ...parts);
     };
 
-    this.offSettings = settings.subscribe(() => { drawGrid(); drawPrompt(); drawSummary(); });
+    own.add(settings.subscribe(() => { drawGrid(); drawPrompt(); drawSummary(); }));
 
     append(root,
       explainer(t("bend.intro"), t("bend.protocol"), t("bend.why")),
       el("div", { class: "row" }, [
-        el("label", { class: "field" }, [t("bend.flute"), chooser]),
+        chooser.element,
         renameButton, nameInput,
       ]),
       nameNote,
