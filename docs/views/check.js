@@ -76,7 +76,8 @@ export default {
         gauge.set(null);
       }
       const last = engine.lastFrame;
-      diag.textContent = t("check.diag", frames, engine.contextState,
+      diag.textContent = t("check.diag", frames,
+        `${engine.contextState} ${engine.sampleRate || "?"} Hz`, engine.trackInfo,
         last && Number.isFinite(last.levelDb) ? last.levelDb.toFixed(1) : "—");
       requestAnimationFrame(render);
     };

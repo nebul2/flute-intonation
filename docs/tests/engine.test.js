@@ -31,6 +31,85 @@ function stubMedia(failWith) {
   return asked;
 }
 
+/* A fake Web Audio graph that records how it was built. Enough of one to walk
+ * the whole of start(): what the context was asked for, and what got wired to
+ * what -- which is the only way to pin a connection whose entire purpose is
+ * to exist. */
+function stubGraph({ trackRate = 48000 } = {}) {
+  const log = { contexts: [], wires: [] };
+  const node = (name) => ({ name, connect(to) { log.wires.push(`${name} -> ${to.name}`); } });
+  class FakeContext {
+    constructor(options) {
+      log.contexts.push(options ?? null);
+      if (options && options.sampleRate === 0) throw new Error("unsupported rate");
+      this.state = "suspended";
+      this.sampleRate = options?.sampleRate ?? 44100;
+      this.currentTime = 0;
+      this.destination = node("destination");
+      this.audioWorklet = { addModule: async () => {} };
+    }
+    resume() { this.state = "running"; return Promise.resolve(); }
+    close() { this.state = "closed"; return Promise.resolve(); }
+    createMediaStreamSource() { return node("source"); }
+    createBiquadFilter() { return Object.assign(node("notch"), { type: "", frequency: { value: 0 }, Q: { value: 0 } }); }
+    createGain() { return Object.assign(node("gain"), { gain: { value: 1 } }); }
+  }
+  globalThis.navigator ??= {};
+  navigator.mediaDevices = {
+    getUserMedia: async () => ({
+      getAudioTracks: () => [{ getSettings: () => (trackRate ? { sampleRate: trackRate } : {}), muted: false, enabled: true }],
+      getTracks: () => [{ stop() {} }],
+    }),
+  };
+  globalThis.window = { AudioContext: FakeContext };
+  globalThis.AudioWorkletNode = function () { return Object.assign(node("capture"), { port: {} }); };
+  return log;
+}
+
+test("the microphone chain is given a path to the destination", async () => {
+  // A worklet with no outputs is a terminal node: Safari calls its process()
+  // on schedule whether or not anything pulls the chain above it, so frames
+  // arrive at exactly the right rate carrying nothing but zeros. Observed on
+  // an iPad as -120 dBFS, which is rmsDb()'s floor for literal silence. The
+  // gain is zero, so the path is inaudible; it exists to be pulled.
+  reset();
+  const log = stubGraph();
+  await engine.start();
+  assert.equal(engine.state, "listening");
+  assert.ok(log.wires.includes("notch -> gain"), `chain reaches a gain: ${log.wires.join(", ")}`);
+  assert.ok(log.wires.includes("gain -> destination"), "and the gain reaches the destination");
+  assert.ok(log.wires.includes("notch -> capture"), "the detector is still fed from the same chain");
+  engine.stop();
+});
+
+test("the context is opened at the capture track's own sample rate", async () => {
+  // iOS switches to its record route when the microphone opens; a context
+  // left at the playback rate feeds the source node across a rate change,
+  // and Safari answers that with silence rather than resampling.
+  reset();
+  const log = stubGraph({ trackRate: 48000 });
+  await engine.start();
+  assert.equal(log.contexts[0].sampleRate, 48000);
+  assert.equal(engine.sampleRate, 48000);
+  engine.stop();
+
+  // A track that reports no rate leaves the choice to the browser.
+  reset();
+  const plain = stubGraph({ trackRate: 0 });
+  await engine.start();
+  assert.equal(plain.contexts[0], null, "no options rather than a made-up rate");
+  engine.stop();
+});
+
+test("the input track reports itself for diagnosis", async () => {
+  reset();
+  stubGraph({ trackRate: 48000 });
+  await engine.start();
+  assert.match(engine.trackInfo, /48000 Hz, unmuted, enabled/);
+  engine.stop();
+  assert.equal(engine.trackInfo, "none", "and says so once there is no stream");
+});
+
 const reset = () => { engine.state = "idle"; engine.stream = null; engine.context = null; };
 
 test("an expired microphone id falls back to the default device", async () => {
