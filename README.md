@@ -389,6 +389,38 @@ existing conventions, with a migration allowlist that **may only shrink**: a
 listed view that no longer builds its own controls fails the suite until its
 name is deleted, so the list cannot rot into a permanent exemption.
 
+### The whole chain measures to a cent, verified device to device
+
+Playing `recordings/probes/ladder.wav` from a laptop speaker into the iPad
+running the app, and copying the readings off the page rather than reading
+them aloud:
+
+```
+uniform offset                     1.03 ¢   playback clock vs capture clock
+residual after removing it         0.60 ¢ rms, worst 0.97 ¢
+fit                                vallotti on D, 0.64 ¢ rms
+```
+
+That covers WAV file, DAC, speaker, room, microphone, AGC, YIN, segmenter,
+settled window, pitch class and table. The only systematic term is about a
+cent of clock difference between two devices that share no word clock, and it
+is uniform — subtract it from anything measured this way.
+
+Two traps were found by doing it, both of which look exactly like defects:
+
+**The probe's tuning must match the listening app's.** The first run was built
+on Vallotti rooted on C and read by an app rooted on D. Nine notes disagreed,
+C read +7.7 ¢ against a column expecting +2.0 ¢, and every disagreement looked
+like a bug. `make_probe_tones` now takes `--root` and writes `tuning.json`
+beside the files; `abscore.js` reads it rather than assuming.
+
+**Readings must be captured, not transcribed.** Twelve numbers read off a
+screen and retyped acquire a typo, and a typo in a tuning measurement is
+indistinguishable from a finding. Compare temperaments has a *Copy these
+readings* button that writes out the figures, the note count behind each,
+which columns lit, and what was ignored. Its header line is what exposed the
+root mismatch above — no amount of reading numbers aloud would have.
+
 ### Two scoring rules can be compared, not argued about
 
 The settled-window rule above landed to a fair complaint: *"better when it
