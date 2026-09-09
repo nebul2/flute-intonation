@@ -9,6 +9,27 @@ export const SETTLE_CENTS = 10.0;
  * rather than the note. Every path that reduces frames to statistics discards
  * them -- the exercises through analyseNote, free play in views/listen.js. */
 export const ATTACK_SKIP_SECONDS = 0.060;
+/* And flute notes fall as they die. The last moments of a held note are the
+ * player letting go, not the player playing, and averaging them in reports
+ * every corrected note as flatter than it was played. Measured on real takes:
+ * a note held 26 cents flat and corrected to nothing over two seconds read
+ * -13.7 cents whole-note and -6.6 from where it settled. */
+export const TAPER_SKIP_SECONDS = 0.100;
+/* How much note must survive both trims before the taper is worth removing,
+ * and before looking for a settled end is worth doing at all. Below these the
+ * policy steps down a rung rather than measuring noise: the floor is real
+ * (~46 ms to fill the detector window plus the 60 ms attack skip) and a short
+ * note has no end to speak of. */
+export const TAPER_BODY_SECONDS = 0.150;
+export const SETTLE_BODY_SECONDS = 0.350;
+/* The tail the settled pitch is read from, and the shortest run that may call
+ * itself settled. Both, deliberately: measured against recordings/arpeggio.wav
+ * a single stray frame 120 ms from the end of a note that drifted +13 to +25
+ * cents would otherwise have scored that note at -0.4 cents -- "in tune", off
+ * one glitched frame. A median over this probe ignores the stray, and
+ * requiring the window to be at least this long stops the scan calling two
+ * frames a settled note. */
+export const SETTLE_PROBE_SECONDS = 0.150;
 
 export function centsDeviation(detectedHz, targetHz) {
   if (!(detectedHz > 0) || !(targetHz > 0)) throw new Error("frequencies must be positive");
@@ -83,6 +104,7 @@ export class NoteResult {
 }
 
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const median = (xs) => { const o = [...xs].sort((a, b) => a - b); return o[o.length >> 1]; };
 
 /* The frames of a note that describe the note rather than its attack, with
  * any parallel series (levels) trimmed to match. At least one frame always
@@ -93,28 +115,73 @@ export function postAttack(framesHz, frameSeconds, ...parallel) {
   return [framesHz.slice(skip), ...parallel.map((series) => series.slice(skip))];
 }
 
-/* Reduce a note's voiced frames to statistics. The first `skipAttackSeconds`
- * are discarded: flute attacks scoop, and including them would bias every
- * note flat. */
+/* The part of a held note that is the note.
+ *
+ * A player asked which pitch a two-second note reports, having spent the first
+ * second arriving at it, is asking this question. The answer is: after the
+ * attack, before the taper, from the point the pitch settled -- and the app
+ * reports how long that took, so a correction is visible as a correction
+ * rather than averaged into the figure that provoked it.
+ *
+ * `framesHz` must already be post-attack and voiced. Stability is measured
+ * against the note's own tail, not against a target, so the window is a
+ * property of the note alone: a note held steadily thirty cents sharp settled
+ * immediately, and the cents figure is what says it was sharp.
+ *
+ * `settleSeconds` is null when no settled run was found. That is a finding,
+ * not a failure -- it means the pitch never stopped moving -- and the whole
+ * body is scored instead, so a wandering note still reports something.
+ */
+export function scoredWindow(framesHz, frameSeconds) {
+  const unsettled = (frames) => ({ frames, settleSeconds: null, settled: false });
+  if (!framesHz.length || !(frameSeconds > 0)) return unsettled(framesHz);
+  const inFrames = (seconds) => Math.max(1, Math.round(seconds / frameSeconds));
+  const seconds = framesHz.length * frameSeconds;
+
+  const body = seconds - TAPER_SKIP_SECONDS >= TAPER_BODY_SECONDS
+    ? framesHz.slice(0, -inFrames(TAPER_SKIP_SECONDS))
+    : framesHz;
+
+  const probe = inFrames(SETTLE_PROBE_SECONDS);
+  if (body.length * frameSeconds < SETTLE_BODY_SECONDS || body.length <= probe) return unsettled(body);
+
+  const anchor = median(body.slice(-probe));
+  let i = body.length - 1;
+  while (i > 0 && Math.abs(centsDeviation(body[i - 1], anchor)) < SETTLE_CENTS) i--;
+  if (body.length - i < probe) return unsettled(body);
+  return { frames: body.slice(i), settleSeconds: i * frameSeconds, settled: true };
+}
+
+/* Reduce a note's voiced frames to statistics, over the window above. The
+ * first `skipAttackSeconds` are discarded: flute attacks scoop, and including
+ * them would bias every note flat. */
 export function analyseNote(pitch, targetHz, framesHz, frameSeconds, skipAttackSeconds = ATTACK_SKIP_SECONDS) {
-  const skip = frameSeconds > 0 ? Math.round(skipAttackSeconds / frameSeconds) : 0;
+  // Clamped like postAttack(): a note barely longer than the skip keeps a
+  // frame rather than vanishing. These two disagreed until now.
+  const skip = frameSeconds > 0
+    ? Math.min(Math.max(framesHz.length - 1, 0), Math.round(skipAttackSeconds / frameSeconds)) : 0;
   const usable = framesHz.slice(skip).filter((hz) => hz > 0);
   if (!usable.length) return null;
 
-  const deviations = usable.map((hz) => centsDeviation(hz, targetHz));
+  const window = scoredWindow(usable, frameSeconds);
+  const scored = window.frames.length ? window.frames : usable;
+  const deviations = scored.map((hz) => centsDeviation(hz, targetHz));
   const avg = mean(deviations);
   const stdev = deviations.length > 1
     ? Math.sqrt(mean(deviations.map((d) => (d - avg) ** 2))) : 0.0;
 
-  let settle = null;
-  for (let i = 0; i < deviations.length; i++) {
-    if (Math.abs(deviations[i]) < SETTLE_CENTS
-        && deviations.slice(i).every((d) => Math.abs(d) < SETTLE_CENTS)) {
-      settle = i * frameSeconds;
-      break;
-    }
-  }
-  return new NoteResult(pitch, targetHz, avg, stdev, settle, usable.length);
+  return new NoteResult(pitch, targetHz, avg, stdev, window.settleSeconds, scored.length);
+}
+
+/* The pitch a note was played at, for the paths that name a note rather than
+ * score it against a target. Median of the same window, because naming wants
+ * the typical frame and one octave-halved frame should not move it. */
+export function notePitch(framesHz, frameSeconds) {
+  const voiced = framesHz.filter((hz) => hz > 0);
+  if (!voiced.length) return { hz: 0, settleSeconds: null, frameCount: 0 };
+  const window = scoredWindow(voiced, frameSeconds);
+  const scored = window.frames.length ? window.frames : voiced;
+  return { hz: median(scored), settleSeconds: window.settleSeconds, frameCount: scored.length };
 }
 
 /* The frequency the player actually produced. */

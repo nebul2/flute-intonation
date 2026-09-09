@@ -12,6 +12,8 @@ const { scale, arpeggio, intervalDrill, intervalInContext, enharmonicPair, stopp
 const await_import_generator = () => generator;
 import { NoteResult, SessionSummary, analyseNote, judgeDirection, judgementTally, encouragement,
          octavePairs } from "../core/scoring.js";
+import * as scoring from "../core/scoring.js";
+const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 import { NoteSegmenter, State, onsetThresholdFor } from "../audio/segmenter.js";
 import * as runModule from "../views/run.js";
 
@@ -114,16 +116,80 @@ test("Exercise durations follow the tempo", () => {
 
 /* ---- scoring --------------------------------------------------------- */
 
+const FRAME_S = 512 / 44100;
+const held = (cents, count, target = 415.0) => new Array(count).fill(target * Math.pow(2, cents / 1200));
+/* A run of `count` frames gliding from `from` to `to` cents. */
+const glide = (from, to, count, target = 415.0) =>
+  Array.from({ length: count }, (_, i) =>
+    target * Math.pow(2, (from + ((to - from) * i) / (count - 1)) / 1200));
+
 test("analyseNote skips the attack and reports mean and stdev", () => {
   const target = 415.0;
-  const frameSeconds = 512 / 44100;
-  const attack = new Array(5).fill(target * Math.pow(2, -40 / 1200));   // a scoop
-  const body = new Array(40).fill(target * Math.pow(2, 6 / 1200));
-  const r = analyseNote(P("A4"), target, [...attack, ...body], frameSeconds);
+  const attack = held(-40, 5);                       // a scoop
+  const r = analyseNote(P("A4"), target, [...attack, ...held(6, 40)], FRAME_S);
   approx(r.meanCents, 6.0, 0.05);
   approx(r.stdevCents, 0.0, 1e-6);
-  assert.equal(r.frameCount, 40);
-  assert.equal(analyseNote(P("A4"), target, [], frameSeconds), null);
+  // 40 body frames less the 100 ms taper: the tail of a note is the player
+  // letting go, and it is not scored.
+  assert.equal(r.frameCount, 31);
+  assert.equal(analyseNote(P("A4"), target, [], FRAME_S), null);
+});
+
+test("a note corrected part-way is scored where it arrived, not on the approach", () => {
+  // The reported case: two seconds held, corrected only toward the end. The
+  // whole-note mean answers a question nobody asked.
+  const target = 415.0;
+  const frames = [...glide(-26, -8, 90), ...held(-1, 80)];
+  const r = analyseNote(P("A4"), target, frames, FRAME_S);
+  assert.ok(r.meanCents > -3, `scored where it arrived, got ${r.meanCents.toFixed(1)}`);
+  assert.ok(mean(frames.map((hz) => 1200 * Math.log2(hz / target))) < -8, "the whole-note mean would have said flat");
+  assert.ok(r.settleSeconds > 0.5, `and says how long arriving took, got ${r.settleSeconds}`);
+});
+
+test("the taper at the end of a note is not the note", () => {
+  // 100 ms of droop on an otherwise steady note. Without the trim it drags
+  // the figure flat; with it the note reads as played.
+  const target = 415.0;
+  const r = analyseNote(P("A4"), target, [...held(2, 100), ...glide(2, -60, 9)], FRAME_S);
+  approx(r.meanCents, 2.0, 1.0);
+});
+
+test("one stray frame near the end cannot rename a drifting note", () => {
+  // recordings/arpeggio.wav @5.43s: a note drifting +13 to +25 cents with a
+  // single frame reading -0.4 about 120 ms from the end. Scoring the settled
+  // end naively called that note in tune off one glitched frame.
+  const target = 415.0;
+  const frames = [...glide(13, 25, 120), ...held(0, 1), ...held(16, 9)];
+  const r = analyseNote(P("A4"), target, frames, FRAME_S);
+  assert.ok(r.meanCents > 12, `the stray frame does not win, got ${r.meanCents.toFixed(1)}`);
+});
+
+test("a note that never settles says so rather than inventing a moment", () => {
+  // A wobble, not a glide: a slow enough glide is locally flat and does settle
+  // somewhere, which is right -- and a fast one is a slur, rejected upstream
+  // by GLIDE_CENTS before anything scores it.
+  const target = 415.0;
+  const wobble = Array.from({ length: 160 }, (_, i) =>
+    target * Math.pow(2, (i % 6 < 3 ? -18 : 18) / 1200));
+  const r = analyseNote(P("A4"), target, wobble, FRAME_S);
+  assert.equal(r.settleSeconds, null, "no settled run to report");
+  assert.ok(r.frameCount > 100, "and the body is still scored");
+});
+
+test("the policy steps down rather than measuring noise on a short note", () => {
+  const { scoredWindow } = scoring;
+  const target = 415.0;
+  // Long enough to trim and scan.
+  assert.equal(scoredWindow(held(0, 60, target), FRAME_S).settled, true);
+  // Long enough to trim (348 ms), too short after it to look for a settled end.
+  const middling = scoredWindow(held(0, 30, target), FRAME_S);
+  assert.equal(middling.settled, false);
+  assert.equal(middling.frames.length, 30 - 9, "the taper still goes");
+  // 232 ms: trimming 100 would leave 132, under the floor. Nothing is taken.
+  assert.equal(scoredWindow(held(0, 20, target), FRAME_S).frames.length, 20);
+  const brief = scoredWindow(held(0, 8, target), FRAME_S);
+  assert.equal(brief.frames.length, 8, "nothing is taken from a note this short");
+  assert.equal(scoredWindow([], FRAME_S).frames.length, 0);
 });
 
 test("judgeDirection matches the display bands", () => {
