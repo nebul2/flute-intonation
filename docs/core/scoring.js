@@ -24,6 +24,46 @@ export function judgeDirection(meanCents, inTuneCents = IN_TUNE_CENTS) {
   return "in tune";
 }
 
+/* ---- predict-then-see: what the calls were worth ---------------------- */
+
+/* The three calls a player can make, in the order the buttons offer them. */
+export const CALL_DIRECTIONS = Object.freeze(["sharp", "flat", "in tune"]);
+
+/* Reduce a run of {called, actual, agreed} judgements to a score.
+ *
+ * Split by what the measurement actually said, not by what the player called:
+ * "I never hear myself flat" is a specific, fixable blind spot, and an overall
+ * percentage hides it completely. `played` is how many notes really came out
+ * that way; `agreed` is how many of those the ear named correctly. */
+export function judgementTally(judgements) {
+  const byActual = {};
+  for (const direction of CALL_DIRECTIONS) byActual[direction] = { played: 0, agreed: 0 };
+  let agreed = 0;
+  for (const j of judgements) {
+    if (j.agreed) agreed += 1;
+    const bucket = byActual[j.actual];
+    if (!bucket) continue;
+    bucket.played += 1;
+    if (j.agreed) bucket.agreed += 1;
+  }
+  return { total: judgements.length, agreed, byActual };
+}
+
+/* Which closing line a run has earned.
+ *
+ * Generous at the bottom on purpose. Calling a note before seeing the number
+ * is genuinely hard -- chance alone is around a third -- and an ear-training
+ * drill that scolds is a drill that gets closed. The thresholds are on the
+ * share of notes where ear and measurement agreed. */
+export function encouragement({ total, agreed }) {
+  if (!total) return null;
+  const share = agreed / total;
+  if (share >= 0.9) return "excellent";
+  if (share >= 0.7) return "good";
+  if (share >= 0.5) return "progress";
+  return "keepGoing";
+}
+
 export function band(meanCents) {
   const m = Math.abs(meanCents);
   return m <= IN_TUNE_CENTS ? "in tune" : m <= CLOSE_CENTS ? "close" : "off";

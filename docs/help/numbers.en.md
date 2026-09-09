@@ -56,6 +56,23 @@ Both soundings can each read "in tune" against a tuner while the move is
 double what was asked: a third 3 cents low and a fifth 6 cents high are small
 errors on opposite sides, and the *difference* between them adds them up.
 
+## Predict, then see
+
+Calling *sharp*, *flat* or *in tune* before the number appears is the whole
+exercise: the reading only confirms or corrects a judgement your ear has
+already made. Two figures come out of it.
+
+- **Overall** — on how many notes your call matched the measurement. Chance
+  alone is about a third, since there are three calls.
+- **By what the note actually did** — the same score split into the notes
+  that really came out sharp, the ones that came out flat, and the ones that
+  landed in tune. This is the half you can act on: an ear that catches every
+  sharp note and misses every flat one scores fifty per cent overall and has
+  one specific thing to practise.
+
+The call is compared against the same 5-cent band the colours use, so the
+verdict never disagrees with the number shown beside it.
+
 ## Notes that stand out
 
 A note is listed when its average sits **15 cents** or more from target. It

@@ -61,6 +61,23 @@ que le mouvement est le double du demandé : une tierce 3 cents basse et une
 quinte 6 cents haute sont deux petites erreurs de côtés opposés, et l'*écart*
 entre elles les additionne.
 
+## Devine, puis vois
+
+Annoncer *haut*, *bas* ou *juste* avant de voir le chiffre, c'est tout
+l'exercice : la mesure ne fait que confirmer ou corriger un jugement que
+l'oreille a déjà porté. Il en sort deux chiffres.
+
+- **Au total** — sur combien de notes ton annonce correspondait à la mesure.
+  Le hasard seul donne environ un tiers, puisqu'il y a trois annonces.
+- **Selon ce que la note a vraiment fait** — le même score réparti entre les
+  notes vraiment hautes, les notes vraiment basses et celles qui étaient
+  justes. C'est la moitié sur laquelle on peut agir : une oreille qui repère
+  toutes les notes hautes et manque toutes les basses obtient cinquante pour
+  cent au total et a une chose précise à travailler.
+
+L'annonce est comparée à la même bande de 5 cents que les couleurs, donc le
+verdict ne contredit jamais le chiffre affiché à côté.
+
 ## Les notes qui ressortent
 
 Une note est citée quand sa moyenne se tient à **15 cents** ou plus de la

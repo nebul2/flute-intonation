@@ -70,6 +70,7 @@ a { color: var(--brass); }
 
 .tagline { color: var(--muted); font-size: 0.9rem; }
 .intro { color: var(--muted); font-size: 0.9rem; max-width: 40rem; }
+.key-now { color: var(--ink); font-weight: 600; }
 .link { font-size: 0.85rem; }
 h2 { font-size: 0.95rem; font-weight: 600; color: var(--ink); margin-top: 0.4rem; }
 
@@ -180,6 +181,7 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .summary { display: flex; flex-direction: column; gap: 0.5rem; }
 .summary p { max-width: 40rem; }
 .stopper { display: flex; flex-direction: column; gap: 0.3rem; }
+.judgement { display: flex; flex-direction: column; gap: 0.4rem; }
 .controls.left { justify-content: flex-start; }
 .controls.top { justify-content: space-between; }
 .runnav-buttons { display: flex; gap: 0.6rem; flex-wrap: wrap; }

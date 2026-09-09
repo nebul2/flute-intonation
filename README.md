@@ -183,8 +183,7 @@ carries every real-audio fix and reads within ±0.9 cents across D4–A6 at both
 not equal temperament.
 
 The practice exercises run in the browser too — calibration, interval in
-context, D♯/E♭, predict-then-see, and an endless variant that draws random
-notes of the chosen major or minor scale over the tonic drone until you stop — on ports of the
+context, D♯/E♭, and predict-then-see in two forms — on ports of the
 segmenter, generator and scoring (`docs/audio/segmenter.js`, `docs/core/`),
 with the desktop rules intact: no needle while playing, duration the only
 route to a completed note, the drone-unison guard calibrated from 1.5 s of
@@ -192,6 +191,24 @@ measured background, and the stopper report comparing against the previous
 run. Practice history lives on the device (IndexedDB), in the desktop session
 schema, with export to a JSON file from Settings. The PWA manifest and icon
 set make *Add to Home Screen* install it as an app.
+
+Predict-then-see is the web's own shape, and longer than the desktop's three
+notes. One pass is the tonic and then every other degree over that key's
+drone — unison, third, fifth, octave, sixth, fourth, second, seventh, the
+plainest intervals first — and when the pass ends the key changes and the
+same pass begins again: D, G, C, A, E, F, B♭, E♭, round and round until the
+player presses Finish. Three notes in one key settled nothing, and it taught
+D major only; an ear that hears a third over D and nowhere else has learned
+the note, not the interval. The second form randomises both — a key drawn at
+random (never the one just played) and its intervals shuffled — which is the
+interleaving Stambaugh (2011) and Carter & Grahn (2016) support at retention,
+and which players reliably like less than blocked practice while doing better
+on it. The key is drawn per *pass*, not per note: a drone that changed every
+note would give the ear nothing to measure against, and each change costs a
+fresh 1.5 s background measurement. Finishing reports how often ear and
+measurement agreed, split by what the note actually did — hearing yourself
+sharp and hearing yourself flat are separate skills, and an overall
+percentage hides a blind spot in one of them.
 
 Listen to me is free play with feedback: it asks for the tonic first, which
 sets the harmonic context, so every note that follows is read both against the

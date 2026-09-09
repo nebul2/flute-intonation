@@ -36,6 +36,46 @@ export const PRACTICE_KEYS = Object.freeze(
   ["D", "G", "A", "E", "B", "C", "F", "Bb", "Eb", "Ab"]
     .map((key) => Object.freeze({ key, tonic: key[0] })));
 
+/* The keys "Predict, then see" walks, and the order it walks them in: the
+ * home key first, then outward a step at a time, sharps and flats alternating
+ * so no two neighbours feel alike. Eight keys and no more -- B and Ab are
+ * spellable but their tonics sit where a traverso is least willing, and a
+ * drill that ends in a fight teaches nothing about hearing.
+ *
+ * A pair rather than a letter, for the reason PRACTICE_KEYS gives: Bb major
+ * is tonic "B" under the signature "Bb".
+ */
+export const CYCLE_KEYS = Object.freeze(
+  ["D", "G", "C", "A", "E", "F", "Bb", "Eb"]
+    .map((key) => Object.freeze({ key, tonic: key[0] })));
+
+/* Diatonic distances above the drone, in the order one pass takes them.
+ *
+ * The tonic first, always: the ear needs the unison to know where it is
+ * before it can judge anything else. Then the intervals whose beating is
+ * plainest -- third, fifth, octave -- and only then the ones that are harder
+ * to place: sixth, fourth, second, seventh. */
+export const CYCLE_INTERVALS = Object.freeze([0, 2, 4, 7, 5, 3, 1, 6]);
+
+/* A copy of `items` in random order. `rng` is injectable for tests. */
+export function shuffled(items, rng = Math.random) {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.min(i, Math.floor(rng() * (i + 1)));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/* A random entry of `keys` other than the one named `previous`, so a random
+ * walk never asks for the same key twice running -- the drone would not even
+ * change, and the pass would read as a repeat rather than a new key. */
+export function pickKey(keys, previous = null, rng = Math.random) {
+  const choices = keys.filter((entry) => entry.key !== previous);
+  const pool = choices.length ? choices : keys;
+  return pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))];
+}
+
 /* The relative major whose signature spells each natural minor scale. */
 export const MINOR_RELATIVE = Object.freeze({ C: "Eb", D: "F", E: "G", F: "Ab", G: "Bb", A: "C", B: "D" });
 

@@ -24,16 +24,28 @@ import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { Mode, TargetResolver } from "../core/resolver.js";
-import { intervalDrill, intervalInContext, enharmonicPair, intervalAdjust, stopperCheck, scalePool, scaleKeyFor, pickDifferent, PRACTICE_KEYS } from "../core/generator.js";
-import { HarmonicContext } from "../core/tuning.js";
-import { Exercise, TargetNote } from "../core/resolver.js";
-import { SessionSummary, analyseNote, judgeDirection, octavePairs, octaveBarGeometry, BAR_SPAN_CENTS, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
+import { intervalDrill, intervalInContext, enharmonicPair, intervalAdjust, stopperCheck,
+         shuffled, pickKey, PRACTICE_KEYS, CYCLE_KEYS, CYCLE_INTERVALS } from "../core/generator.js";
+import { SessionSummary, analyseNote, judgeDirection, judgementTally, encouragement, CALL_DIRECTIONS,
+         octavePairs, octaveBarGeometry, BAR_SPAN_CENTS, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
 import { NoteSegmenter, onsetThresholdFor } from "../audio/segmenter.js";
 import { highestFirst } from "../core/pitch.js";
 import { invitation } from "../ui/feedback.js";
 import { helpSection } from "../ui/help.js";
 import { compareAdjustment } from "../core/adjust.js";
 import { el, append, needle, levelBar, bandClass, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
+
+/* One pass of "Predict, then see": the given intervals over one key's own
+ * drone. The shape belongs to this exercise rather than to the generator --
+ * the generator already offers the pass, this only says which key it is in. */
+function predictPass(entry, intervals, seconds) {
+  return intervalDrill(entry.tonic, { key: entry.key, intervals, beats: seconds });
+}
+
+/* The note length a run started with. An endless run must keep it when the
+ * key changes, or the exercise quietly changes pace mid-session. Seconds and
+ * beats are the same thing at the 60 bpm these exercises all run at. */
+const runNoteSeconds = (run) => run.exercises[0].notes[0].beats;
 
 /* The practice set. */
 /* Every drone exercise takes its note length from one setting, because they
@@ -45,10 +57,19 @@ export const EXERCISES = {
   calibration: { build: (t, q, k, o = {}) => intervalDrill(t, { intervals: [0, 4, 7], beats: o.seconds }), feedback: "after" },
   intervals: { build: (t, q, k, o = {}) => intervalInContext(t, { beats: o.seconds }), feedback: "after" },
   enharmonic: { build: (t, q, k, o = {}) => enharmonicPair({ beats: o.seconds }), feedback: "after" },
-  predict: { build: (t, q, k, o = {}) => intervalDrill(t, { intervals: [0, 4, 7], beats: o.seconds }), feedback: "predict" },
-  /* Endless: random notes of the chosen scale over the tonic drone until the
-   * player stops. The exercise starts with one note; the runner asks
-   * `nextNote` for each further one, so it never runs out. */
+  /* Predict, then see. One pass is the tonic and then every other degree
+   * over that key's drone; when the pass ends the key changes and the same
+   * pass begins again, round CYCLE_KEYS and round again until the player
+   * finishes. Three notes in one key was not enough to settle an ear, and it
+   * taught D major only -- an ear that hears a third over D and nowhere else
+   * has learned the note, not the interval. It ignores the tonic chosen on
+   * the list page: this exercise walks its own keys. */
+  predict: {
+    build: (tonic, quality, chosen, opts = {}) => predictPass(CYCLE_KEYS[0], CYCLE_INTERVALS, opts.seconds),
+    nextExercise: (run) => predictPass(CYCLE_KEYS[run.exercises.length % CYCLE_KEYS.length],
+                                       CYCLE_INTERVALS, runNoteSeconds(run)),
+    feedback: "predict", endless: true,
+  },
   /* The same written note over two basses: a third, then a fifth. Two
    * Exercises so each carries its own drone, which the runner already walks.
    * `feedback: "end"` on purpose -- a needle during would teach exactly the
@@ -68,24 +89,18 @@ export const EXERCISES = {
    * note-by-note runner here cannot express. Experimental until it has
    * been used by someone other than the player it was calibrated on. */
   scales: { route: "scales", experimental: true },
+  /* The same drill with nothing to anticipate: a random key, and its
+   * intervals in random order. Randomising the key per *note* was the other
+   * option and is worse -- a drone that changes every note gives the ear
+   * nothing to measure against, and each change costs a fresh background
+   * measurement. So the key holds for one pass, and both what key and what
+   * interval comes next are unguessable. */
   predictRandom: {
-    build: (tonic, quality = "major", chosen, opts = {}) => {
-      const root = SpelledPitch.parse(`${tonic}4`);
-      const pool = scalePool(tonic, quality, { octaves: 1 });
-      const context = new HarmonicContext(root);
-      return new Exercise({
-        name: `random ${quality} scale notes over ${root}`,
-        notes: [new TargetNote(pickDifferent(pool), opts.seconds, context)],
-        drone: root, tempoBpm: 60.0, key: scaleKeyFor(tonic, quality),
-      });
-    },
-    // Endless, so later notes must take the length the first one was given
-    // rather than a constant -- otherwise the exercise changes pace mid-run.
-    nextNote: (run) => {
-      const previous = run.notes[run.notes.length - 1];
-      const pool = scalePool(run.tonic, run.quality, { octaves: 1 });
-      return new TargetNote(pickDifferent(pool, previous.pitch), previous.beats, previous.context);
-    },
+    build: (tonic, quality, chosen, opts = {}) =>
+      predictPass(pickKey(CYCLE_KEYS), shuffled(CYCLE_INTERVALS), opts.seconds),
+    nextExercise: (run) =>
+      predictPass(pickKey(CYCLE_KEYS, run.exercises[run.exercises.length - 1].key),
+                  shuffled(CYCLE_INTERVALS), runNoteSeconds(run)),
     feedback: "predict",
     endless: true,
   },
@@ -231,6 +246,9 @@ export class ExerciseRun {
         value: String(i), selected: entry === this.chosenKey() || null,
         text: t("practice.inKey", nameClass(SpelledPitch.parse(`${entry.key}4`), run.settings)),
       }))) : null,
+      // Which key we are in now. Only exercises that change key on their own
+      // show it -- everywhere else the player chose the key and knows.
+      keyLine: run.spec.nextExercise ? el("p", { class: "intro key-now" }) : null,
       status: el("p", { class: "intro" }),
       noteLabel: el("div", { class: "big-note", text: "—" }),
       target: el("div", { class: "target" }),
@@ -242,7 +260,9 @@ export class ExerciseRun {
       rows: el("div", { class: "rows" }),
       summary: el("div", { class: "summary" }),
       nav: runNav({
-        stopLabel: t("practice.stop"),
+        // An endless exercise has no natural end, so the button is not an
+        // escape from it -- it is how you finish, and it is where the score is.
+        stopLabel: run.spec.endless ? t("practice.finish") : t("practice.stop"),
         backLabel: this.backLabel,
         onStop: () => this.finish(true),
         onRedo: () => this.restart(),
@@ -256,6 +276,7 @@ export class ExerciseRun {
       u.keyPicker ? el("div", { class: "row" }, [
         el("label", { class: "field" }, [t("practice.key"), u.keyPicker]),
       ]) : null,
+      u.keyLine,
       // Short version folded away, sources behind it. The page stays clean and
       // nothing that explains WHY this exercise exists is more than a tap
       // away -- which for an exercise about harmonic intonation matters more
@@ -285,9 +306,20 @@ export class ExerciseRun {
   nextSegment() {
     const run = this.run;
     if (!run) return;
+    // An exercise that changes key never runs out: a new key is a new drone,
+    // so it cannot be one more note in the current Exercise -- it is a whole
+    // new one, built when the previous one is used up. Finishing is the
+    // player's Finish button, never the end of the list.
+    if (!run.exercises[run.exIdx] && run.spec.nextExercise) {
+      run.exercises.push(run.spec.nextExercise(run));
+    }
     const exercise = run.exercises[run.exIdx];
     if (!exercise) { this.finish(false); return; }
     run.exercise = exercise;
+    if (this.ui.keyLine && exercise.key) {
+      this.ui.keyLine.textContent =
+        t("practice.nowInKey", nameClass(SpelledPitch.parse(`${exercise.key}4`), run.settings));
+    }
     run.notes = [...exercise.notes];
     run.noteIdx = -1;
     run.droneHz = null;
@@ -330,8 +362,8 @@ export class ExerciseRun {
     run.noteIdx += 1;
     const exercise = run.exercise;
     if (run.noteIdx >= run.notes.length) {
-      if (run.spec.endless) {
-        run.notes.push(run.spec.nextNote(run));    // never runs out; Stop ends it
+      if (run.spec.nextNote) {
+        run.notes.push(run.spec.nextNote(run));    // never runs out; Finish ends it
       } else {
         engine.drone.stop();
         engine.setNotches([]);
@@ -418,7 +450,7 @@ export class ExerciseRun {
       if (called) {
         const actual = judgeDirection(result.meanCents);
         const agreed = called === actual;
-        run.judgements.push(agreed);
+        run.judgements.push({ called, actual, agreed });
         children.push(el("div", { class: `muted ${agreed ? "good" : ""}`,
           text: `${t("practice.youSaid", t(`practice.call.${called}`))} — ` +
                 (agreed ? t("practice.agreed") : t("practice.measured", t(`practice.call.${actual}`))) }));
@@ -483,9 +515,7 @@ export class ExerciseRun {
       parts.push(el("p", { class: "mono", text: `${t("practice.byNote")} ` + Object.entries(byClass).map(([k, v]) =>
         `${nameClass(SpelledPitch.parse(`${k}4`), s)} ${v >= 0 ? "+" : ""}${v.toFixed(1)}`).join("  ") }));
     }
-    if (run.judgements.length) {
-      parts.push(el("p", { text: t("practice.judgement", run.judgements.filter(Boolean).length, run.judgements.length) }));
-    }
+    if (run.judgements.length) parts.push(this.judgementReport(run.judgements));
     // The reveal for mixed exercises: what the two targets were.
     for (const exercise of run.exercises) {
       for (let i = 0; i + 1 < exercise.notes.length; i++) {
@@ -513,7 +543,8 @@ export class ExerciseRun {
         ...(this.label ? { label: this.label } : {}),
       };
       if (run.judgements.length) {
-        record.judgement = { agreed: run.judgements.filter(Boolean).length, total: run.judgements.length };
+        const tally = judgementTally(run.judgements);
+        record.judgement = { agreed: tally.agreed, total: tally.total, by_actual: tally.byActual };
       }
       try {
         await history.add(record);
@@ -525,6 +556,33 @@ export class ExerciseRun {
         if (invite) u.summary.append(invite);
       } catch (_e) { /* storage unavailable: the session still displayed */ }
     }
+  }
+
+  /* How the calls went.
+   *
+   * Overall first, because that is the number a player comes back for, and
+   * then the split by what the note actually did -- which is the half that
+   * can be acted on. An ear that catches every sharp note and misses every
+   * flat one scores fifty per cent and has one specific thing to practise;
+   * the overall figure alone would never say so. */
+  judgementReport(judgements) {
+    const tally = judgementTally(judgements);
+    const box = el("div", { class: "judgement" });
+    box.append(el("p", { class: "headline", text: t(`practice.score.${encouragement(tally)}`) }));
+    box.append(el("p", { text: t("practice.judgement", tally.agreed, tally.total) }));
+    const rows = CALL_DIRECTIONS
+      .filter((direction) => tally.byActual[direction].played > 0)
+      .map((direction) => {
+        const { played, agreed } = tally.byActual[direction];
+        return el("tr", {}, [
+          el("td", { text: t("practice.score.whenYouWere", t(`practice.call.${direction}`)) }),
+          el("td", { class: "num", text: `${agreed} / ${played}` }),
+          el("td", { class: "muted", text: `${Math.round((100 * agreed) / played)}%` }),
+        ]);
+      });
+    if (rows.length) box.append(el("div", { class: "stats scroll" }, [el("table", {}, [el("tbody", {}, rows)])]));
+    box.append(el("p", { class: "muted small", text: t("practice.score.note") }));
+    return box;
   }
 
   /* Did the note move when the bass did?

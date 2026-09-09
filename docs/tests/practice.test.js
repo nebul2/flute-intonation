@@ -10,7 +10,8 @@ import { Mode, TargetNote, TargetResolver } from "../core/resolver.js";
 import * as generator from "../core/generator.js";
 const { scale, arpeggio, intervalDrill, intervalInContext, enharmonicPair, stopperCheck } = generator;
 const await_import_generator = () => generator;
-import { NoteResult, SessionSummary, analyseNote, judgeDirection, octavePairs } from "../core/scoring.js";
+import { NoteResult, SessionSummary, analyseNote, judgeDirection, judgementTally, encouragement,
+         octavePairs } from "../core/scoring.js";
 import { NoteSegmenter, State, onsetThresholdFor } from "../audio/segmenter.js";
 import * as runModule from "../views/run.js";
 
@@ -401,11 +402,120 @@ test("an exercise built with no options still works", () => {
 
 test("an endless exercise keeps the length it started with", () => {
   // Otherwise it changes pace mid-run, which for an ear-training drill is
-  // worse than being slow.
+  // worse than being slow. The key changes; the note length must not.
+  const { EXERCISES } = run_exercises();
+  for (const key of ["predict", "predictRandom"]) {
+    const spec = EXERCISES[key];
+    const first = spec.build("D", "major", null, { seconds: 10 });
+    const run = { exercises: [first] };
+    const next = spec.nextExercise(run);
+    for (const note of next.notes) {
+      assert.equal(note.beats, first.notes[0].beats, `${key}: the next key keeps the note length`);
+    }
+  }
+});
+
+/* ---- predict, then see: the key cycle ---------------------------------- */
+
+/* Walk an endless exercise the way the runner does: build, then ask for the
+ * next exercise once the previous one is used up. */
+const cycle = (spec, passes, seconds = 6) => {
+  const exercises = [spec.build("D", "major", null, { seconds })];
+  while (exercises.length < passes) exercises.push(spec.nextExercise({ exercises }));
+  return exercises;
+};
+
+test("the cycle offers the keys asked for, in the order asked for", () => {
+  assert.deepEqual(generator.CYCLE_KEYS.map((e) => e.key), ["D", "G", "C", "A", "E", "F", "Bb", "Eb"]);
+  // A flat key's tonic is its letter, not its name -- Bb major is tonic B
+  // under the signature Bb, and the exercise passes them separately.
+  for (const entry of generator.CYCLE_KEYS) {
+    assert.equal(entry.tonic, entry.key[0]);
+    assert.ok(generator.KEY_SIGNATURES[entry.key], `${entry.key} is a key this app can spell`);
+  }
+});
+
+test("predict walks the keys in order and comes round again", () => {
+  const { EXERCISES } = run_exercises();
+  const keys = generator.CYCLE_KEYS.map((e) => e.key);
+  const walked = cycle(EXERCISES.predict, keys.length + 3).map((ex) => ex.key);
+  assert.deepEqual(walked, [...keys, ...keys.slice(0, 3)], "round the cycle, then round again");
+});
+
+test("every pass starts on the tonic and asks each interval once", () => {
+  const { EXERCISES } = run_exercises();
+  for (const exercise of cycle(EXERCISES.predict, generator.CYCLE_KEYS.length)) {
+    const root = exercise.drone;
+    assert.ok(root, `${exercise.key}: a pass sounds over its own drone`);
+    assert.equal(exercise.notes.length, generator.CYCLE_INTERVALS.length,
+      `${exercise.key}: no note fell outside the flute's range`);
+    assert.ok(exercise.notes[0].pitch.equals(root), `${exercise.key}: the tonic comes first`);
+    // Every note carries the drone as its context: this is harmonic tuning,
+    // not a walk through a temperament.
+    for (const note of exercise.notes) {
+      assert.ok(note.context, `${exercise.key}: ${note.pitch.name} knows what it is sounding over`);
+      assert.ok(generator.inRange(note.pitch), `${exercise.key}: ${note.pitch.name} is playable`);
+    }
+    const letters = exercise.notes.map((n) => n.pitch.letter);
+    assert.equal(new Set(letters).size, 7, `${exercise.key}: seven different letters, the octave repeating the tonic`);
+  }
+});
+
+test("the random cycle changes key every pass and still covers every interval", () => {
   const { EXERCISES } = run_exercises();
   const spec = EXERCISES.predictRandom;
-  const first = spec.build("D", "major", null, { seconds: 10 });
-  const run = { notes: [first.notes[0]], tonic: "D", quality: "major" };
-  const next = spec.nextNote(run);
-  assert.equal(next.beats, first.notes[0].beats, "the second note lasts as long as the first");
+  const walked = cycle(spec, 24);
+  for (let i = 1; i < walked.length; i++) {
+    assert.notEqual(walked[i].key, walked[i - 1].key, "a random key is never the key just played");
+  }
+  assert.ok(new Set(walked.map((ex) => ex.key)).size > 1, "and it does move around");
+  for (const exercise of walked) {
+    assert.equal(exercise.notes.length, generator.CYCLE_INTERVALS.length);
+    assert.equal(new Set(exercise.notes.map((n) => n.pitch.letter)).size, 7,
+      "a shuffled pass is the same intervals in another order, not another set");
+  }
+});
+
+test("shuffled keeps every item and pickKey avoids the previous key", () => {
+  const { shuffled, pickKey, CYCLE_KEYS, CYCLE_INTERVALS } = generator;
+  const rng = (() => { let i = 0; const xs = [0.0, 0.99, 0.5, 0.2, 0.7, 0.1, 0.9, 0.3]; return () => xs[i++ % xs.length]; })();
+  const out = shuffled(CYCLE_INTERVALS, rng);
+  assert.deepEqual([...out].sort((a, b) => a - b), [...CYCLE_INTERVALS].sort((a, b) => a - b));
+  assert.equal(shuffled([], rng).length, 0, "and it survives nothing to shuffle");
+  // rng pinned at 1 would index past the end without the clamp.
+  assert.ok(CYCLE_KEYS.includes(pickKey(CYCLE_KEYS, null, () => 1)));
+  for (const previous of CYCLE_KEYS.map((e) => e.key)) {
+    assert.notEqual(pickKey(CYCLE_KEYS, previous, rng).key, previous);
+  }
+  const only = [CYCLE_KEYS[0]];
+  assert.equal(pickKey(only, only[0].key, rng), only[0], "with nowhere else to go it repeats rather than throwing");
+});
+
+/* ---- predict, then see: the score -------------------------------------- */
+
+test("the score splits by what the note actually did", () => {
+  const j = (called, actual) => ({ called, actual, agreed: called === actual });
+  const tally = judgementTally([
+    j("sharp", "sharp"), j("in tune", "sharp"), j("flat", "flat"),
+    j("in tune", "in tune"), j("sharp", "in tune"),
+  ]);
+  assert.equal(tally.total, 5);
+  assert.equal(tally.agreed, 3);
+  assert.deepEqual(tally.byActual.sharp, { played: 2, agreed: 1 });
+  assert.deepEqual(tally.byActual.flat, { played: 1, agreed: 1 });
+  assert.deepEqual(tally.byActual["in tune"], { played: 2, agreed: 1 });
+  // A direction never played is still reported, as nought of nought rather
+  // than missing: the display filters it, the tally does not invent it.
+  assert.deepEqual(judgementTally([]).byActual.flat, { played: 0, agreed: 0 });
+});
+
+test("the closing line is earned, and generous at the bottom", () => {
+  const at = (agreed, total) => encouragement({ agreed, total });
+  assert.equal(at(0, 0), null, "nothing called, nothing to say");
+  assert.equal(at(10, 10), "excellent");
+  assert.equal(at(9, 10), "excellent");
+  assert.equal(at(7, 10), "good");
+  assert.equal(at(5, 10), "progress");
+  assert.equal(at(4, 10), "keepGoing");
+  assert.equal(at(0, 10), "keepGoing", "and it still does not scold");
 });
