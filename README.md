@@ -389,6 +389,69 @@ existing conventions, with a migration allowlist that **may only shrink**: a
 listed view that no longer builds its own controls fails the suite until its
 name is deleted, so the list cannot rot into a permanent exemption.
 
+### Two scoring rules can be compared, not argued about
+
+The settled-window rule above landed to a fair complaint: *"better when it
+works but more fragile. It got some note completely wrong. I have no way of
+A/B testing to determine if we're getting better or worse, it's very
+subjective."* That is a tooling gap, not a taste question, and it had two
+halves worth separating.
+
+**Where the rules disagree** — `node docs/tests/abscore.js recordings/*.wav`
+runs every candidate rule over the same real notes and prints how far each
+moves the reading, how close each lands to what the note actually ended on,
+and how much each swings when the region's edges are nudged by one or two
+frames (~12 ms) — a boundary the level gate places, not the player. That last
+column is what "fragile" means in a number. Over 945 real notes:
+
+| rule | shift vs whole (p90) | distance from what you ended on (p90) | 12 ms nudge (p90) |
+|---|---|---|---|
+| whole  | — | 4.3¢ | 2.6¢ |
+| taper  | 2.6¢ | 2.2¢ | 3.3¢ |
+| settled | 3.6¢ | **1.6¢** | 3.4¢ |
+
+**Which one is right** — real recordings cannot say: they carry no record of
+what the player meant. So `flutetrainer/tools/make_probe_tones.py` synthesises
+notes to a *stated* shape — held sharp, corrected late, drooping as it dies,
+wide vibrato, and the twelve pitch classes exactly in tune — and the same tool
+checks every rule against the answer:
+
+```
+  probe               want      whole    taper  settled     tail
+  steady               +0c       +0.1     +0.1     +0.1     +0.1
+  sharp20             +20c       +0.1     +0.1     +0.1     +0.1
+  corrected            +0c       -2.6     -6.0     +0.1     +0.1
+  late-sharp          +25c      -24.8    -24.9     +0.1     +0.1
+  droop                +0c       +0.0     +0.0     +0.0     +0.0
+  vibrato              +0c       -0.7     +1.9     +1.9     +3.4
+```
+
+The verdict is not close. On the one shape the feature exists for — a note
+pushed sharp late and held — the old whole-note rule misses by the entire
+correction (24.8¢ of a 25¢ move) and the settled rule is right to a tenth of a
+cent. Two robustness variants were built and measured before being discarded:
+tolerating stray frames during the settle scan (`settled3`) walked back past
+real corrections, and a fixed half-second tail (`tail`) was worse on vibrato.
+Both stay in the harness as documented losers, because "we tried that" is only
+worth anything if the numbers are still there.
+
+Wide vibrato is the shape that would expose a rule scoring a fragment, and it
+does not: ±25¢ at 5.5 Hz reads its centre to 1.9¢. The fragility the settled
+rule really has is narrower than it feels — the window can collapse to its
+150 ms floor on a note that genuinely moved, which is correct behaviour that
+*looks* like a glitch, because a 19¢ jump on a note that sounded steady is
+indistinguishable from a bug without the tooling above.
+
+Probes are played out loud, device to device, as often as they are analysed:
+laptop speaker into the iPad running the app exercises speaker, room,
+microphone, AGC, detector, segmenter and scoring rule together. A reading that
+is right in `abscore.js` and wrong on the iPad is not a scoring problem.
+
+This does not overturn the standing lesson that synthetic tones failed to
+reveal detector defects. That lesson is about *finding* defects in pitch
+detection, which needs real audio. This is the opposite job — pinning down
+what the answer should be — and the two are used together.
+
 ### A note is scored where it settled (supersedes DESIGN.md §6)
 
 DESIGN.md §6 specified "per-note statistics over the post-attack voiced
