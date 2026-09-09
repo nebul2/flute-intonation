@@ -44,6 +44,9 @@
  * find where the rules disagree on real playing; probes say who was correct.
  */
 
+import fs from "node:fs";
+import path from "node:path";
+
 import { analyse } from "./wavpipe.js";
 import {
   TAPER_SKIP_SECONDS, TAPER_BODY_SECONDS, SETTLE_CENTS, scoredWindow,
@@ -160,8 +163,11 @@ export const TRUTH = Object.freeze({
 });
 
 /* How near each rule comes to the answer the file was built to have. */
-export function verify(files, { hop = 512, referenceHz = 415 } = {}) {
-  const candidates = probeCandidates(referenceHz);
+export function verify(files, { hop = 512 } = {}) {
+  if (!files.length) return [];
+  const built = probeTuning(path.dirname(files[0]));
+  const referenceHz = built.referenceHz;
+  const candidates = probeCandidates(built);
   const out = [];
   for (const file of files) {
     const name = file.split("/").pop().replace(/\.wav$/, "");
@@ -181,16 +187,28 @@ export function verify(files, { hop = 512, referenceHz = 415 } = {}) {
         const near = nearestCandidate(candidates, hz);
         readings[rule] = { error: near.cents - expected, pitch: near.pitch.toString() };
       }
-      out.push({ file: name, at: note.atSeconds, expected, readings });
+      out.push({ file: name, at: note.atSeconds, expected, readings, built });
     }
   }
   return out;
 }
 
-function probeCandidates(referenceHz) {
+/* The tuning the probes were built in, as the generator recorded it.
+ *
+ * Not assumed. Naming a note by proximity within the wrong tuning shifts every
+ * answer by up to ten cents and looks entirely plausible while doing it --
+ * which is exactly how a Vallotti-on-C probe read by a D-rooted app produced
+ * nine disagreements that all looked like defects. */
+export function probeTuning(dir) {
+  const manifest = path.join(dir, "tuning.json");
+  if (!fs.existsSync(manifest)) return { temperament: "vallotti", root: "C", referenceHz: 415 };
+  return JSON.parse(fs.readFileSync(manifest, "utf8"));
+}
+
+function probeCandidates({ temperament, root, referenceHz }) {
   const tuning = new TemperamentTuning(
-    parseScala(TEMPERAMENTS.vallotti.scl),
-    SpelledPitch.parse("C4"),
+    parseScala(TEMPERAMENTS[temperament].scl),
+    SpelledPitch.parse(`${root}4`),
     new ReferencePitch(SpelledPitch.parse("A4"), referenceHz),
   );
   return tunerCandidates(tuning);
@@ -255,7 +273,12 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
 
   if (probes.length) {
     const checked = verify(probes);
-    console.log(`\nAgainst the known answer -- ${checked.length} probe notes, error in cents\n`);
+    const built = checked.length ? checked[0].built : null;
+    console.log(`\nAgainst the known answer -- ${checked.length} probe notes, error in cents`);
+    if (built) {
+      console.log(`built on ${built.temperament} rooted on ${built.root}, `
+        + `A = ${built.referenceHz} Hz -- the listening app must be set the same way\n`);
+    }
     console.log("  probe                        want   " + RULE_NAMES.map((r) => r.padStart(9)).join(""));
     for (const row of checked) {
       console.log(`  ${(row.file + " " + row.at.toFixed(2) + "s").padEnd(26)} `
