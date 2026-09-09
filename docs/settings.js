@@ -34,6 +34,7 @@ export const DEFAULTS = Object.freeze({
   scalesMode: "guided",  // "guided" (app names a key) | "key" | "free"
   scalesKeyIndex: 0,     // where the guided sequence had got to
   practiceKeyIndex: 0,   // which key the key-choosing exercises are in
+  practiceRandom: false, // predict-then-see: random keys and intervals
 });
 
 let state = null;

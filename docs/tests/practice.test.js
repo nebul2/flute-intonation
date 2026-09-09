@@ -404,13 +404,12 @@ test("an endless exercise keeps the length it started with", () => {
   // Otherwise it changes pace mid-run, which for an ear-training drill is
   // worse than being slow. The key changes; the note length must not.
   const { EXERCISES } = run_exercises();
-  for (const key of ["predict", "predictRandom"]) {
-    const spec = EXERCISES[key];
-    const first = spec.build("D", "major", null, { seconds: 10 });
-    const run = { exercises: [first] };
-    const next = spec.nextExercise(run);
+  const spec = EXERCISES.predict;
+  for (const random of [false, true]) {
+    const first = spec.build("D", "major", null, { seconds: 10, random });
+    const next = spec.nextExercise({ exercises: [first], random });
     for (const note of next.notes) {
-      assert.equal(note.beats, first.notes[0].beats, `${key}: the next key keeps the note length`);
+      assert.equal(note.beats, first.notes[0].beats, `random=${random}: the next key keeps the note length`);
     }
   }
 });
@@ -419,9 +418,10 @@ test("an endless exercise keeps the length it started with", () => {
 
 /* Walk an endless exercise the way the runner does: build, then ask for the
  * next exercise once the previous one is used up. */
-const cycle = (spec, passes, seconds = 6) => {
-  const exercises = [spec.build("D", "major", null, { seconds })];
-  while (exercises.length < passes) exercises.push(spec.nextExercise({ exercises }));
+const cycle = (spec, passes, { seconds = 6, random = false } = {}) => {
+  const exercises = [spec.build("D", "major", null, { seconds, random })];
+  const run = { exercises, random };
+  while (exercises.length < passes) exercises.push(spec.nextExercise(run));
   return exercises;
 };
 
@@ -463,8 +463,7 @@ test("every pass starts on the tonic and asks each interval once", () => {
 
 test("the random cycle changes key every pass and still covers every interval", () => {
   const { EXERCISES } = run_exercises();
-  const spec = EXERCISES.predictRandom;
-  const walked = cycle(spec, 24);
+  const walked = cycle(EXERCISES.predict, 24, { random: true });
   for (let i = 1; i < walked.length; i++) {
     assert.notEqual(walked[i].key, walked[i - 1].key, "a random key is never the key just played");
   }
@@ -474,6 +473,29 @@ test("the random cycle changes key every pass and still covers every interval", 
     assert.equal(new Set(exercise.notes.map((n) => n.pitch.letter)).size, 7,
       "a shuffled pass is the same intervals in another order, not another set");
   }
+});
+
+test("turning Random on and off again picks the cycle up where it is", () => {
+  // The flag is read when each pass is built, so it can be ticked without
+  // ending the run. The ordered key must then follow the key actually just
+  // played, not a count of how many passes have been taken.
+  const { EXERCISES } = run_exercises();
+  const spec = EXERCISES.predict;
+  const keys = generator.CYCLE_KEYS.map((e) => e.key);
+  const run = { exercises: [spec.build("D", "major", null, { seconds: 6, random: false })], random: false };
+  run.exercises.push(spec.nextExercise(run));
+  assert.deepEqual(run.exercises.map((e) => e.key), [keys[0], keys[1]], "in order to start with");
+
+  run.random = true;                                     // ticked mid-run
+  run.exercises.push(spec.nextExercise(run));
+  const strayed = run.exercises[run.exercises.length - 1].key;
+  assert.notEqual(strayed, keys[1], "the random pass is not the next one along");
+
+  run.random = false;                                    // and unticked
+  run.exercises.push(spec.nextExercise(run));
+  assert.equal(run.exercises[run.exercises.length - 1].key,
+               keys[(keys.indexOf(strayed) + 1) % keys.length],
+               "the cycle resumes after the key actually played, not where it left off");
 });
 
 test("shuffled keeps every item and pickKey avoids the previous key", () => {

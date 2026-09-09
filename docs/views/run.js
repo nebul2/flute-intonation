@@ -63,11 +63,30 @@ export const EXERCISES = {
    * finishes. Three notes in one key was not enough to settle an ear, and it
    * taught D major only -- an ear that hears a third over D and nowhere else
    * has learned the note, not the interval. It ignores the tonic chosen on
-   * the list page: this exercise walks its own keys. */
+   * the list page: this exercise walks its own keys.
+   *
+   * `randomisable` puts a checkbox on it: same exercise, same score, with
+   * nothing to anticipate -- a key drawn at random rather than the next one
+   * along, never the one just played, and the intervals shuffled. It was a
+   * second card on the list, which said the two were different exercises
+   * when they differ in exactly one thing. The flag is read when each pass
+   * is built, so it can be turned on part-way through without losing the
+   * run: the current key finishes, and the next one is a surprise. */
   predict: {
-    build: (tonic, quality, chosen, opts = {}) => predictPass(CYCLE_KEYS[0], CYCLE_INTERVALS, opts.seconds),
-    nextExercise: (run) => predictPass(CYCLE_KEYS[run.exercises.length % CYCLE_KEYS.length],
-                                       CYCLE_INTERVALS, runNoteSeconds(run)),
+    randomisable: true,
+    build: (tonic, quality, chosen, opts = {}) =>
+      predictPass(opts.random ? pickKey(CYCLE_KEYS) : CYCLE_KEYS[0],
+                  opts.random ? shuffled(CYCLE_INTERVALS) : CYCLE_INTERVALS, opts.seconds),
+    /* The next key follows the one just played rather than a count of passes,
+     * so a run that has been random for a while and is set back to the cycle
+     * carries on from where it actually is. */
+    nextExercise: (run) => {
+      const previous = run.exercises[run.exercises.length - 1].key;
+      const next = CYCLE_KEYS[(CYCLE_KEYS.findIndex((e) => e.key === previous) + 1) % CYCLE_KEYS.length];
+      return predictPass(run.random ? pickKey(CYCLE_KEYS, previous) : next,
+                         run.random ? shuffled(CYCLE_INTERVALS) : CYCLE_INTERVALS,
+                         runNoteSeconds(run));
+    },
     feedback: "predict", endless: true,
   },
   /* The same written note over two basses: a third, then a fifth. Two
@@ -89,21 +108,6 @@ export const EXERCISES = {
    * note-by-note runner here cannot express. Experimental until it has
    * been used by someone other than the player it was calibrated on. */
   scales: { route: "scales", experimental: true },
-  /* The same drill with nothing to anticipate: a random key, and its
-   * intervals in random order. Randomising the key per *note* was the other
-   * option and is worse -- a drone that changes every note gives the ear
-   * nothing to measure against, and each change costs a fresh background
-   * measurement. So the key holds for one pass, and both what key and what
-   * interval comes next are unguessable. */
-  predictRandom: {
-    build: (tonic, quality, chosen, opts = {}) =>
-      predictPass(pickKey(CYCLE_KEYS), shuffled(CYCLE_INTERVALS), opts.seconds),
-    nextExercise: (run) =>
-      predictPass(pickKey(CYCLE_KEYS, run.exercises[run.exercises.length - 1].key),
-                  shuffled(CYCLE_INTERVALS), runNoteSeconds(run)),
-    feedback: "predict",
-    endless: true,
-  },
 };
 
 /* The stopper check: a tool, not an exercise, so it lives on its own page. */
@@ -186,12 +190,14 @@ export class ExerciseRun {
   mount(root) {
     this.root = root;
     const s = settings.get();
+    const random = this.spec.randomisable ? s.practiceRandom === true : false;
     const built = this.spec.build(this.tonic, this.quality, this.chosenKey(),
-                                  { seconds: Number(s.droneNoteSeconds) || 6 });
+                                  { seconds: Number(s.droneNoteSeconds) || 6, random });
     const tuning = currentTuning(s);
     this.run = {
       key: this.key, spec: this.spec, settings: s, tuning,
       tonic: this.tonic, quality: this.quality,
+      random: this.spec.randomisable ? s.practiceRandom === true : false,
       notes: [],                       // the current segment's notes (grows when endless)
       exercises: Array.isArray(built) ? built : [built],
       resolver: new TargetResolver(Mode.PURE, tuning),
@@ -246,6 +252,17 @@ export class ExerciseRun {
         value: String(i), selected: entry === this.chosenKey() || null,
         text: t("practice.inKey", nameClass(SpelledPitch.parse(`${entry.key}4`), run.settings)),
       }))) : null,
+      // Harder: nothing to anticipate. Read when each pass is built, so
+      // ticking it part-way through costs nothing -- the current key
+      // finishes and the next one is a surprise.
+      random: run.spec.randomisable ? el("label", { class: "toggle" }, [
+        el("input", { type: "checkbox", checked: run.random || null,
+                      onchange: (e) => {
+                        run.random = e.target.checked;
+                        settings.set({ practiceRandom: e.target.checked });
+                      } }),
+        el("span", { text: t("practice.random") }),
+      ]) : null,
       // Which key we are in now. Only exercises that change key on their own
       // show it -- everywhere else the player chose the key and knows.
       keyLine: run.spec.nextExercise ? el("p", { class: "intro key-now" }) : null,
@@ -276,6 +293,7 @@ export class ExerciseRun {
       u.keyPicker ? el("div", { class: "row" }, [
         el("label", { class: "field" }, [t("practice.key"), u.keyPicker]),
       ]) : null,
+      u.random ? el("div", { class: "row" }, [u.random]) : null,
       u.keyLine,
       // Short version folded away, sources behind it. The page stays clean and
       // nothing that explains WHY this exercise exists is more than a tap
@@ -540,6 +558,7 @@ export class ExerciseRun {
         exercise: `practice: ${run.key}`, mode: "pure",
         temperament: s.temperament, root: s.root, reference_hz: s.referenceHz,
         naming: s.naming, lang: lang(), stopped,
+        ...(run.spec.randomisable ? { random: run.random } : {}),
         ...(this.label ? { label: this.label } : {}),
       };
       if (run.judgements.length) {

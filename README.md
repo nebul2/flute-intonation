@@ -183,7 +183,7 @@ carries every real-audio fix and reads within ±0.9 cents across D4–A6 at both
 not equal temperament.
 
 The practice exercises run in the browser too — calibration, interval in
-context, D♯/E♭, and predict-then-see in two forms — on ports of the
+context, D♯/E♭, and predict-then-see — on ports of the
 segmenter, generator and scoring (`docs/audio/segmenter.js`, `docs/core/`),
 with the desktop rules intact: no needle while playing, duration the only
 route to a completed note, the drone-unison guard calibrated from 1.5 s of
@@ -199,13 +199,19 @@ plainest intervals first — and when the pass ends the key changes and the
 same pass begins again: D, G, C, A, E, F, B♭, E♭, round and round until the
 player presses Finish. Three notes in one key settled nothing, and it taught
 D major only; an ear that hears a third over D and nowhere else has learned
-the note, not the interval. The second form randomises both — a key drawn at
-random (never the one just played) and its intervals shuffled — which is the
-interleaving Stambaugh (2011) and Carter & Grahn (2016) support at retention,
-and which players reliably like less than blocked practice while doing better
-on it. The key is drawn per *pass*, not per note: a drone that changed every
-note would give the ear nothing to measure against, and each change costs a
-fresh 1.5 s background measurement. Finishing reports how often ear and
+the note, not the interval. A **Random (harder)** checkbox inside the exercise
+randomises both — a key drawn at random, never the one just played, and its
+intervals shuffled — which is the interleaving Stambaugh (2011) and Carter &
+Grahn (2016) support at retention, and which players reliably like less than
+blocked practice while doing better on it. It was a second card on the list
+until it was pointed out that two cards say the exercises are different when
+they differ in exactly one thing. The flag is read as each pass is built, so
+it can be ticked part-way through without ending the run: the current key
+finishes and the next one is a surprise, and unticking resumes the cycle after
+the key actually played rather than where it left off. The key is drawn per
+*pass*, not per note: a drone that changed every note would give the ear
+nothing to measure against, and each change costs a fresh 1.5 s background
+measurement. Finishing reports how often ear and
 measurement agreed, split by what the note actually did — hearing yourself
 sharp and hearing yourself flat are separate skills, and an overall
 percentage hides a blind spot in one of them.
