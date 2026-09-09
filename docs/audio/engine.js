@@ -103,6 +103,18 @@ class Drone {
   }
 }
 
+/* Is this failure "the microphone you asked for is not here" rather than "you
+ * may not have a microphone"?
+ *
+ * Safari does not keep deviceId stable: the ids are per-origin and rotate
+ * between browsing sessions, so a microphone chosen on one visit is a stale
+ * id on the next. Asked for with `exact`, that is not a fallback, it is a
+ * hard failure -- and it reads to the player as the microphone having stopped
+ * working, on the one device where nothing changed. */
+function deviceGone(err) {
+  return ["OverconstrainedError", "ConstraintNotSatisfiedError", "NotFoundError"].includes(err?.name);
+}
+
 class Engine {
   constructor() {
     this.state = "idle";
@@ -117,6 +129,7 @@ class Engine {
     this.stateListeners = new Set();
     this.drone = new Drone(this);
     this.deviceId = null;
+    this.deviceDropped = false;
   }
 
   get sampleRate() { return this.context ? this.context.sampleRate : 0; }
@@ -140,6 +153,7 @@ class Engine {
     if (this.state === "listening" || this.state === "starting") return;
     this.setState("starting");
     this.deviceId = deviceId;
+    this.deviceDropped = false;
 
     const audio = {
       echoCancellation: false,
@@ -152,8 +166,19 @@ class Engine {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio });
     } catch (err) {
-      this.setState("refused", err);
-      return;
+      // A saved microphone that is no longer there is not a refusal. Ask
+      // again for whatever the device offers, and record that the choice was
+      // dropped so the caller can stop saving an id that has expired.
+      if (!(deviceId && deviceGone(err))) { this.setState("refused", err); return; }
+      const { deviceId: expired, ...anyDevice } = audio;
+      this.deviceId = null;
+      this.deviceDropped = true;
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: anyDevice });
+      } catch (retry) {
+        this.setState("refused", retry);
+        return;
+      }
     }
 
     try {

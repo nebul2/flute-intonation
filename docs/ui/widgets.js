@@ -100,9 +100,14 @@ export function audioControl({ showGranted = true } = {}) {
     }
   }
 
-  button.addEventListener("click", () => {
-    if (engine.listening) engine.stop();
-    else engine.start({ deviceId: settings.get().deviceId });
+  button.addEventListener("click", async () => {
+    if (engine.listening) { engine.stop(); return; }
+    await engine.start({ deviceId: settings.get().deviceId });
+    // The chosen microphone was gone and the default was used instead. Forget
+    // the choice: keeping it would fail the same way on every future visit,
+    // and the player never chose *that* microphone in the sense that matters
+    // -- the id it was saved under no longer names anything.
+    if (engine.deviceDropped) settings.set({ deviceId: null });
   });
   const off = engine.onState(update);
   update();
