@@ -343,6 +343,67 @@ Still to build: routines by length.
 
 ## Findings
 
+### A note is scored where it settled (supersedes DESIGN.md §6)
+
+DESIGN.md §6 specified "per-note statistics over the post-attack voiced
+frames" and "time-to-settle (frames until |dev| < 10 cents sustained)". Both
+were wrong in the same direction, and the player found it:
+
+> say my sound is recorded for 2s, but I correct only toward the end. Ideally
+> it would be the last part of what I played excluding the very last bit
+> (100ms?), as flute sounds often drop as they taper off.
+
+The audit was worse than the complaint. **No path anywhere trimmed the tail** —
+every one skipped 60 ms of attack and then averaged to the last frame, taper
+included — and there was no chokepoint to fix it in: `postAttack()` is only the
+trimming half, and five views then chose mean or median for themselves, while
+Play Scales head-trimmed twice by accident and skipped 120 ms.
+
+| path | head | tail | reducer |
+|---|---|---|---|
+| guided exercises | 60 ms | none | mean, via `analyseNote` |
+| Listen to me | 60 ms | none | median to name + mean to score, inline |
+| Play Scales | **120 ms** | none | median inline + mean via `scaleReport` |
+| temperament pages | 60 ms | none | median inline |
+| live tuner | none | none | median of a rolling second |
+
+**`scoredWindow()` is now the one rule**: after the attack, before the last
+100 ms, from the point the pitch settled. Stability is measured against the
+note's own tail rather than against a target, so the window is a property of
+the note alone — a note held steadily thirty cents sharp settled immediately,
+and the cents figure is what says it was sharp. That also fixes the old
+time-to-settle, which required *every* remaining frame within ±10 cents of
+target and so returned `null` for any note that drooped at the end: the one
+signal that would have caught this was disabled by the thing it should detect.
+It had never been displayed anywhere. It is now.
+
+Two guards, both found by running the rule over real takes rather than
+reasoning about it — which is the same lesson as the detector:
+
+- `recordings/arpeggio.wav` @5.43s drifts +13 to +25 cents and carries **one**
+  frame reading −0.4 about 120 ms from the end. Scoring the settled end naively
+  called that note in tune off that single glitched frame. So the settled pitch
+  is a **median over a 150 ms probe**, and a run shorter than the probe is not
+  a settled note — it is one stray frame at the end of an unstable one.
+- Short notes step down a rung rather than measuring noise: under 350 ms of
+  body there is no settled end to look for, and under 150 ms the taper is not
+  taken at all, because trimming it would leave nothing. The floor is real —
+  46 ms to fill the detector window plus the 60 ms skip.
+
+Measured over 339 notes of real playing: **63 % settle, 12 % move by 3 cents or
+more.** `recordings/longtones.wav` @7.3s — held 26 cents flat and corrected to
+nothing over two seconds — went from −13.7 cents ("flat") to −6.6 cents,
+settled after 1.6 s. Notes that rise through their length now read *sharper*,
+because the end is where the player actually was: `recordings/piece.wav` @42.0s
+climbs +18 to +54 and went from +27.9 to +43.6, settled after 0.86 s of 1.18 s
+— which is the honest reading of a note that never held still.
+
+Saved records carry `scoring: "settled"`. Absent means the old whole-note mean:
+comparable in trend, not in absolute value, and Sessions must not pretend
+otherwise. The live tuner is deliberately unchanged — it is a rolling readout
+of a note still being played, and trimming 100 ms off the end of a window that
+has not ended would only make it lag.
+
 ### A silent microphone on an iPad was the iPad, not the app
 
 Worth writing down because two plausible code fixes were argued for it and

@@ -22,7 +22,7 @@ import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
-import { postAttack } from "../core/scoring.js";
+import { postAttack, notePitch } from "../core/scoring.js";
 import { TEMPERAMENT_ORDER } from "../core/temperaments.js";
 import {
   temperamentTable, matchRow, classifyHz, PITCH_CLASSES, INDISTINGUISHABLE_CENTS,
@@ -115,7 +115,7 @@ export default {
       const [framesHz] = postAttack(region.framesHz, tracker.frameSeconds, region.levelsDb);
       if (!framesHz.length) return;
       if (Math.abs(driftCents(framesHz)) >= GLIDE_CENTS) return;
-      const { index, cents } = classifyHz(median(framesHz), ref);
+      const { index, cents } = classifyHz(notePitch(framesHz, tracker.frameSeconds).hz, ref);
       played[index].push(cents);
       draw();
     });

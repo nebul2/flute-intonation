@@ -16,7 +16,7 @@ import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
-import { postAttack } from "../core/scoring.js";
+import { postAttack, notePitch } from "../core/scoring.js";
 import { identify, classifyHz, predictedCents, expectedHz, bestByTemperament,
          PITCH_CLASSES, MIN_CLASSES, FULL_CLASSES } from "../core/identify.js";
 import { el, append, audioControl, levelBar, temperamentLabel, explainer } from "../ui/widgets.js";
@@ -191,7 +191,7 @@ export default {
       // A pitch still travelling is not a reading; on a plucked string this
       // also throws out the pluck itself, which bends before it settles.
       if (Math.abs(driftCents(framesHz)) >= GLIDE_CENTS) return;
-      record(median(framesHz));
+      record(notePitch(framesHz, tracker.frameSeconds).hz);
     });
 
     const reset = () => {

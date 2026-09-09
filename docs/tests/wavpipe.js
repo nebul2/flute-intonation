@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 import { Detector } from "../audio/yin.js";
 import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
-import { postAttack } from "../core/scoring.js";
+import { postAttack, notePitch } from "../core/scoring.js";
 import { tunerCandidates, nearestCandidate } from "../core/naming.js";
 import { SpelledPitch } from "../core/pitch.js";
 import { parseScala, TemperamentTuning, ReferencePitch } from "../core/tuning.js";
@@ -99,7 +99,9 @@ export function analyse(file, { hop = 512, referenceHz = 415, temperament = "val
   for (const { start, end } of runs) for (let i = start; i < end; i++) ornament.add(i);
 
   const classified = regions.map((region, index) => {
-    const [framesHz] = postAttack(region.framesHz, frameSeconds);
+    // Levels are trimmed with the pitches: they were not, so anything reading
+    // the pair -- the volume link, for one -- had them a scoop out of step.
+    const [framesHz, levelsDb] = postAttack(region.framesHz, frameSeconds, region.levelsDb);
     const drift = driftCents(framesHz);
     let kind = "note";
     if (ornament.has(index)) kind = "trill";
@@ -107,9 +109,11 @@ export function analyse(file, { hop = 512, referenceHz = 415, temperament = "val
     else if (isOscillating(region)) kind = "trill";
     else if (Math.abs(drift) >= GLIDE_CENTS) kind = "slur";
     // The note as views/listen.js would have scored it, so anything that
-    // works on named notes can be run over a real recording.
-    const ordered = [...framesHz].sort((a, b) => a - b);
-    const medianHz = ordered.length ? ordered[ordered.length >> 1] : region.medianHz;
+    // works on named notes can be run over a real recording. That means the
+    // settled window, not the whole of it -- if this drifts from the view the
+    // recording tests stop measuring the app.
+    const { hz: settledHz, settleSeconds } = notePitch(framesHz, frameSeconds);
+    const medianHz = settledHz || region.medianHz;
     const near = nearestCandidate(candidates, medianHz);
     return {
       kind,
@@ -118,7 +122,8 @@ export function analyse(file, { hop = 512, referenceHz = 415, temperament = "val
       // Carried through so anything that measures a note -- not merely names
       // it -- can be run over a real recording too.
       framesHz,
-      levelsDb: region.levelsDb,
+      levelsDb,
+      settleSeconds,
       atSeconds: region.startIndex * frameSeconds,
       seconds: region.seconds,
       medianHz: region.medianHz,

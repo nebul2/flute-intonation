@@ -5,6 +5,7 @@ import { SpelledPitch } from "./pitch.js";
 export const IN_TUNE_CENTS = 5.0;
 export const CLOSE_CENTS = 15.0;
 export const SETTLE_CENTS = 10.0;
+export const SCORING_RULE = "settled";
 /* Flute attacks scoop, so the first moments of a note describe the attack
  * rather than the note. Every path that reduces frames to statistics discards
  * them -- the exercises through analyseNote, free play in views/listen.js. */
@@ -254,6 +255,10 @@ export class SessionSummary {
     const round = (x, d) => Math.round(x * 10 ** d) / 10 ** d;
     return {
       v: 1,
+      // Which rule produced these figures. Absent on anything saved before
+      // the settled window, whose means were taken over the whole note --
+      // comparable in trend, not in absolute value.
+      scoring: SCORING_RULE,
       notes: this.results.map((r) => ({
         pitch: r.pitch.name,
         target_hz: round(r.targetHz, 4),

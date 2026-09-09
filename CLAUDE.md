@@ -32,6 +32,10 @@ Rules:
 - Never compare frequencies, cents or durations with ==; use approx
   comparison with an explicit tolerance.
 - Pitches are spelled (letter/alter/octave), never MIDI numbers.
+- A note's figure comes from scoredWindow() in core/scoring.js (mirrored in
+  scoring.py): after the attack, before the taper, from where the pitch
+  settled. No view reduces frames to a pitch itself — use analyseNote() to
+  score against a target, notePitch() to name what was played.
 - Note naming is display-only and lives in ui/naming.py; solfège is
   fixed-do (C = Do) and is the default. It must never reach tuning.
 - Run the tests before claiming a task is done.

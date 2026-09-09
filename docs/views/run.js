@@ -33,7 +33,7 @@ import { highestFirst } from "../core/pitch.js";
 import { invitation } from "../ui/feedback.js";
 import { helpSection } from "../ui/help.js";
 import { compareAdjustment } from "../core/adjust.js";
-import { el, append, needle, levelBar, bandClass, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
+import { el, append, needle, levelBar, bandClass, settleLabel, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
 
 /* One pass of "Predict, then see": the given intervals over one key's own
  * drone. The shape belongs to this exercise rather than to the generator --
@@ -464,7 +464,8 @@ export class ExerciseRun {
       gauge.set(result.meanCents);
       const cents = el("span", { class: `mono ${bandClass(result.meanCents)}`,
                                  text: `${result.meanCents >= 0 ? "+" : ""}${result.meanCents.toFixed(1)}¢ ${bandLabel(result.meanCents)}` });
-      const children = [el("div", { class: "result-head" }, [el("span", { class: "result-name", text: label }), cents]), gauge.element];
+      const children = [el("div", { class: "result-head" }, [el("span", { class: "result-name", text: label }), cents]), gauge.element,
+                        el("div", { class: "muted small", text: settleLabel(result.settleSeconds) })];
       if (called) {
         const actual = judgeDirection(result.meanCents);
         const agreed = called === actual;

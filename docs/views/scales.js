@@ -27,7 +27,7 @@ import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch } from "../core/pitch.js";
-import { postAttack } from "../core/scoring.js";
+import { postAttack, notePitch, SCORING_RULE } from "../core/scoring.js";
 import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
 import { recogniseSession } from "../core/scales.js";
 import { scaleReport, CROSS_KEY_NOTABLE_CENTS, CROSS_KEY_ROWS } from "../core/scaleReport.js";
@@ -257,7 +257,11 @@ export default {
       const [framesHz, levelsDb] = postAttack(region.framesHz, run.tracker.frameSeconds, region.levelsDb);
       if (!framesHz.length) entry.kind = "short";
       else if (Math.abs(driftCents(framesHz)) >= GLIDE_CENTS) entry.kind = "slur";
-      else entry.note = { region, framesHz, levelsDb };
+      // `framesHz` is post-attack, for the drift test above and the naming
+      // below. `rawHz` is what scaleReport hands to analyseNote, which trims
+      // the attack itself -- passing the trimmed series skipped it twice and
+      // cost 120 ms off the front of every scored note.
+      else entry.note = { region, framesHz, levelsDb, rawHz: region.framesHz };
     }
     run.regions.push(entry);
     run.lastNoteAt = Date.now();
@@ -279,15 +283,14 @@ export default {
     run.regions.forEach((entry, i) => {
       if (ornament.has(i) || entry.kind !== "note" || !entry.note) return;
       const { framesHz, region } = entry.note;
-      const ordered = [...framesHz].sort((a, b) => a - b);
-      const medianHz = ordered[ordered.length >> 1];
+      const { hz: medianHz } = notePitch(framesHz, run.tracker.frameSeconds);
       const near = nearestCandidate(run.candidates, medianHz);
       run.notes.push({
         pitch: near.pitch,
         index: run.notes.length,
         atSeconds: region.atSeconds,
         seconds: region.seconds,
-        medianHz, framesHz,
+        medianHz, framesHz: entry.note.rawHz,
         levelsDb: entry.note.levelsDb,
       });
     });
@@ -491,6 +494,7 @@ export default {
     const record = {
       v: 1,
       exercise: "practice: scales",
+      scoring: SCORING_RULE,
       mode: s.mode, temperament: s.temperament, root: s.root,
       reference_hz: s.referenceHz, naming: s.naming, stopped,
       scales_mode: run.mode,

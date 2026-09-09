@@ -28,8 +28,8 @@ import { reviewSession, impossible } from "../core/bend.js";
 import * as profiles from "../profiles.js";
 import { invitation } from "../ui/feedback.js";
 import { helpSection } from "../ui/help.js";
-import { postAttack } from "../core/scoring.js";
-import { el, append, audioControl, labelField, needle, levelBar, bandClass, bandLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
+import { postAttack, scoredWindow, SCORING_RULE } from "../core/scoring.js";
+import { el, append, audioControl, labelField, needle, levelBar, bandClass, bandLabel, settleLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
 /* How long the tonic must be held to begin. Collected by the same state
  * machine the exercises use, so a brief dropout costs progress rather than
@@ -272,7 +272,13 @@ export default {
     // every steadiness figure and biased every mean flat.
     const [framesHz, levelsDb] =
       postAttack(region.framesHz, run.tracker.frameSeconds, region.levelsDb);
-    const ordered = [...framesHz].sort((a, b) => a - b);
+    // Which part of the note is the note: before the taper, from where the
+    // pitch settled. The whole post-attack series is still what the drift and
+    // volume-link figures below are measured over -- they are about how the
+    // note moved, and trimming them would hide the very thing they look for.
+    const window = scoredWindow(framesHz, run.tracker.frameSeconds);
+    const scored = window.frames.length ? window.frames : framesHz;
+    const ordered = [...scored].sort((a, b) => a - b);
     const medianHz = ordered[ordered.length >> 1];
     const meanDb = levelsDb.reduce((a, b) => a + b, 0) / levelsDb.length;
 
@@ -292,7 +298,7 @@ export default {
     }
     const usePure = run.settings.mode === "pure" && pureHz !== null;
     const primaryHz = usePure ? pureHz : near.hz;
-    const deviations = framesHz.map((hz) => centsBetween(primaryHz, hz));
+    const deviations = scored.map((hz) => centsBetween(primaryHz, hz));
     const meanDev = deviations.reduce((a, b) => a + b, 0) / deviations.length;
     const stdev = Math.sqrt(deviations.reduce((a, d) => a + (d - meanDev) ** 2, 0) / deviations.length);
     return {
@@ -300,6 +306,7 @@ export default {
       primary: usePure ? "pure" : "tempered",
       primaryCents: usePure ? pureCents : temperedCents,
       primaryHz, stdev, seconds: region.seconds, medianHz,
+      settleSeconds: window.settleSeconds,
       meanDb, levelsDb, framesHz,
       withinFit: withinNoteVolumeLink(framesHz, levelsDb, primaryHz),
       index: run.notes.length,
@@ -378,6 +385,7 @@ export default {
         secondary,
         `${note.seconds.toFixed(2)} s`,
         `${note.meanDb.toFixed(0)} dB`,
+        settleLabel(note.settleSeconds),
         note.stdev > UNSTABLE_CENTS ? `~ ${t("listen.unstable")} (±${note.stdev.toFixed(1)}¢)` : null,
       ].filter(Boolean).join(" · ") }),
     ]);
@@ -569,12 +577,14 @@ export default {
       const record = {
         v: 1, exercise: "listen", mode: s.mode, temperament: s.temperament, root: s.root,
         reference_hz: s.referenceHz, tonic: run.tonicPitch ? run.tonicPitch.name : null, lang: lang(),
+        scoring: SCORING_RULE,
         grounding: run.grounding, key: run.key, quality: run.quality,
         key_changes: run.keyChanges,
         ...(run.label ? { label: run.label } : {}),
         notes: run.notes.map((n) => ({
           pitch: n.pitch.name, target_hz: Math.round(n.primaryHz * 1e4) / 1e4,
-          mean_cents: r2(n.primaryCents), stdev_cents: r2(n.stdev), settle_s: null,
+          mean_cents: r2(n.primaryCents), stdev_cents: r2(n.stdev),
+          settle_s: n.settleSeconds === null ? null : Math.round(n.settleSeconds * 1000) / 1000,
           frames: n.framesHz.length, mean_db: r2(n.meanDb),
           tempered_cents: r2(n.temperedCents), pure_cents: n.pureCents === null ? null : r2(n.pureCents),
         })),

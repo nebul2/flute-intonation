@@ -259,6 +259,15 @@ export function bandLabel(cents) {
   return magnitude <= 5 ? t("band.inTune") : magnitude <= 15 ? t("band.close") : t("band.far");
 }
 
+/* How long the note took to arrive, in words. Null means it never did, which
+ * is a finding worth saying out loud rather than hiding: a pitch that never
+ * stopped moving is a different problem from one that stopped in the wrong
+ * place, and the cents figure alone cannot tell them apart. */
+export function settleLabel(settleSeconds) {
+  if (settleSeconds === null || settleSeconds === undefined) return t("note.unsettled");
+  return settleSeconds < 0.05 ? t("note.settledAtOnce") : t("note.settled", settleSeconds.toFixed(1));
+}
+
 export function bandClass(cents) {
   const m = Math.abs(cents);
   return m <= 5 ? "good" : m <= 15 ? "close" : "off";

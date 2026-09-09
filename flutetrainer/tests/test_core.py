@@ -360,6 +360,40 @@ def test_attack_frames_are_discarded():
     assert result.band == "in tune"
 
 
+def test_the_taper_at_the_end_of_a_note_is_not_the_note():
+    """Flute notes fall as they die, and that fall is not playing."""
+    target = 415.0
+    steady = [target * 2 ** (2 / 1200)] * 100
+    droop = [target * 2 ** (c / 1200) for c in (-10, -20, -30, -40, -50, -60, -70, -80, -90)]
+    result = analyse_note(
+        SpelledPitch.parse("A4"), target, steady + droop, frame_seconds=0.0116
+    )
+    assert result is not None
+    assert result.mean_cents == pytest.approx(2.0, abs=1.0)
+
+
+def test_a_note_corrected_part_way_is_scored_where_it_arrived():
+    """The reported case: held two seconds, corrected only toward the end."""
+    target = 415.0
+    approach = [target * 2 ** ((-26 + 18 * i / 89) / 1200) for i in range(90)]
+    arrived = [target * 2 ** (-1 / 1200)] * 80
+    result = analyse_note(
+        SpelledPitch.parse("A4"), target, approach + arrived, frame_seconds=0.0116
+    )
+    assert result is not None
+    assert result.mean_cents > -3.0
+    assert result.settle_seconds is not None and result.settle_seconds > 0.5
+
+
+def test_a_note_that_never_settles_says_so():
+    target = 415.0
+    wobble = [target * 2 ** ((-18 if i % 6 < 3 else 18) / 1200) for i in range(160)]
+    result = analyse_note(SpelledPitch.parse("A4"), target, wobble, frame_seconds=0.0116)
+    assert result is not None
+    assert result.settle_seconds is None
+    assert result.frame_count > 100
+
+
 def test_returns_none_when_nothing_was_played():
     assert analyse_note(SpelledPitch.parse("A4"), 415.0, [], 0.0116) is None
 

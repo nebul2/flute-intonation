@@ -13,6 +13,15 @@ IN_TUNE_CENTS = 5.0
 CLOSE_CENTS = 15.0
 SETTLE_CENTS = 10.0
 
+# Which part of a held note is the note. Mirrors docs/core/scoring.js; see the
+# comments there for the measurements these came from.
+ATTACK_SKIP_SECONDS = 0.060
+TAPER_SKIP_SECONDS = 0.100
+TAPER_BODY_SECONDS = 0.150
+SETTLE_BODY_SECONDS = 0.350
+SETTLE_PROBE_SECONDS = 0.150
+SCORING_RULE = "settled"
+
 
 def cents_deviation(detected_hz: float, target_hz: float) -> float:
     """Positive means sharp of target."""
@@ -59,35 +68,86 @@ class NoteResult:
         return band(self.mean_cents)
 
 
+def post_attack(frames_hz: list[float], frame_seconds: float) -> list[float]:
+    """The frames of a note that describe the note rather than its attack.
+
+    At least one frame always survives, so a note barely longer than the skip
+    still yields something.
+    """
+    if frame_seconds <= 0 or not frames_hz:
+        return list(frames_hz)
+    skip = min(len(frames_hz) - 1, int(round(ATTACK_SKIP_SECONDS / frame_seconds)))
+    return list(frames_hz[skip:])
+
+
+def scored_window(
+    frames_hz: list[float], frame_seconds: float
+) -> tuple[list[float], float | None]:
+    """The part of a held note that is the note: after the attack, before the
+    taper, from where the pitch settled.
+
+    ``frames_hz`` must already be post-attack and voiced. Stability is measured
+    against the note's own tail rather than a target, so the window is a
+    property of the note alone. The returned settle time is None when no
+    settled run was found -- a finding, not a failure -- and the whole body is
+    returned instead.
+    """
+    if not frames_hz or frame_seconds <= 0:
+        return list(frames_hz), None
+
+    def in_frames(seconds: float) -> int:
+        return max(1, int(round(seconds / frame_seconds)))
+
+    seconds = len(frames_hz) * frame_seconds
+    body = (
+        list(frames_hz[: -in_frames(TAPER_SKIP_SECONDS)])
+        if seconds - TAPER_SKIP_SECONDS >= TAPER_BODY_SECONDS
+        else list(frames_hz)
+    )
+
+    probe = in_frames(SETTLE_PROBE_SECONDS)
+    if len(body) * frame_seconds < SETTLE_BODY_SECONDS or len(body) <= probe:
+        return body, None
+
+    anchor = statistics.median(body[-probe:])
+    i = len(body) - 1
+    while i > 0 and abs(cents_deviation(body[i - 1], anchor)) < SETTLE_CENTS:
+        i -= 1
+    if len(body) - i < probe:
+        return body, None
+    return body[i:], i * frame_seconds
+
+
 def analyse_note(
     pitch: SpelledPitch,
     target_hz: float,
     frames_hz: list[float],
     frame_seconds: float,
-    skip_attack_seconds: float = 0.060,
+    skip_attack_seconds: float = ATTACK_SKIP_SECONDS,
 ) -> NoteResult | None:
-    """Reduce a note's voiced frames to statistics.
+    """Reduce a note's voiced frames to statistics, over scored_window().
 
     The first ``skip_attack_seconds`` are discarded: flute attacks scoop, and
     including them would systematically bias every note flat.
     """
-    skip = int(round(skip_attack_seconds / frame_seconds)) if frame_seconds > 0 else 0
+    skip = (
+        min(max(len(frames_hz) - 1, 0), int(round(skip_attack_seconds / frame_seconds)))
+        if frame_seconds > 0
+        else 0
+    )
     usable = [hz for hz in frames_hz[skip:] if hz > 0.0]
     if not usable:
         return None
 
-    deviations = [cents_deviation(hz, target_hz) for hz in usable]
+    scored, settle = scored_window(usable, frame_seconds)
+    if not scored:
+        scored = usable
+
+    deviations = [cents_deviation(hz, target_hz) for hz in scored]
     mean = statistics.fmean(deviations)
     stdev = statistics.pstdev(deviations) if len(deviations) > 1 else 0.0
 
-    settle: float | None = None
-    for i, dev in enumerate(deviations):
-        if abs(dev) < SETTLE_CENTS:
-            if all(abs(d) < SETTLE_CENTS for d in deviations[i:]):
-                settle = i * frame_seconds
-                break
-
-    return NoteResult(pitch, target_hz, mean, stdev, settle, len(usable))
+    return NoteResult(pitch, target_hz, mean, stdev, settle, len(scored))
 
 
 def sounded_hz(result: NoteResult) -> float:
