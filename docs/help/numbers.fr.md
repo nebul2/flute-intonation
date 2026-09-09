@@ -7,6 +7,42 @@ tenue. L'application dit qu'une note est **juste** à moins de 5 cents de sa
 cible, **proche** à moins de 15, et **fausse** au-delà. Positif veut dire
 haut, négatif bas.
 
+## Quelle partie de la note est mesurée
+
+Pas toute la note. Le chiffre vient de **ce qui suit l'attaque, avant que le
+son ne s'éteigne, et à partir du moment où la hauteur a cessé de bouger** —
+en gros la dernière partie de ce que tu as joué, moins le dernier dixième de
+seconde.
+
+C'est voulu, et cela change la façon de travailler ces exercices. L'attaque de
+la flûte glisse, et le son baisse en s'éteignant : ni l'un ni l'autre n'est du
+jeu. Surtout, une note commencée 20 cents trop bas puis corrigée est une note
+*corrigée*, et faire la moyenne du tout reviendrait à te reprocher une erreur
+que tu as déjà réparée. Donc :
+
+**Joue dans la note.** Commence-la, écoute, et déplace-la. Le relevé suit là
+où tu as abouti, pas là où tu es parti. Chercher la note jusqu'à ce qu'elle
+tombe juste, c'est l'exercice — pas une triche.
+
+À côté du chiffre en cents s'affiche le temps que cela a pris : *stabilisée
+après 0,8 s*, ou *stabilisée d'emblée*. C'est cette seconde ligne qu'il faut
+suivre sur des semaines. Au début, une note est juste parce que tu l'as
+corrigée ; plus tard, la même note est juste dès le premier instant, parce que
+l'oreille et l'embouchure ont appris où elle habite. Le chiffre en cents seul
+ne distingue pas les deux : c'est précisément pour cela que le temps de
+stabilisation est affiché à côté.
+
+Parfois il indique *jamais stabilisée*. La hauteur bougeait encore à la fin de
+la note — un problème différent de celui d'aboutir au mauvais endroit, et bon
+à savoir plutôt qu'à cacher. Toute la note est alors mesurée, pour qu'une note
+errante donne quand même un résultat.
+
+Cela vaut partout où une note est notée : les exercices avec bourdon, Devine
+puis vois, Écoute-moi et Joue des gammes. Cela ne vaut pas pour le profil de
+la flûte ni pour le contrôle du bouchon, qui mesurent jusqu'où une note *peut*
+être poussée et la largeur de tes octaves — d'autres questions, avec leurs
+propres règles.
+
 ## Deux façons de faire la moyenne, et pourquoi les deux sont affichées
 
 Après un exercice tu lis une ligne comme *écart absolu moyen : 4,6 cents*,

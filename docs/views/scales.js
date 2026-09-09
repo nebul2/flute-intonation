@@ -34,6 +34,7 @@ import { scaleReport, CROSS_KEY_NOTABLE_CENTS, CROSS_KEY_ROWS } from "../core/sc
 import { PureIntervalTuning } from "../core/tuning.js";
 import { STANDOUT_CENTS } from "../core/stats.js";
 import { tunerCandidates, nearestCandidate } from "../core/naming.js";
+import { helpSection } from "../ui/help.js";
 import {
   el, append, audioControl, levelBar, runNav, currentTuning, name, nameClass, bandClass, explainer,
 } from "../ui/widgets.js";
@@ -484,6 +485,11 @@ export default {
       parts.push(el("p", { class: "muted small", text: t("scales.notYet", report.missed.join(", ")) }));
     }
     parts.push(el("p", { class: "muted small", text: t("scales.pureNote") }));
+    // The same "how to read this" document the exercises and Listen to me
+    // show. Scales are scored by the same rule and were the one scored page
+    // without it, so a player who wondered which part of a note counted had
+    // to go and find the answer somewhere else.
+    parts.push(helpSection("numbers").element);
     return parts;
   },
 

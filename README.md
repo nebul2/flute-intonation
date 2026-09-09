@@ -786,6 +786,13 @@ the two notes, so detection becomes verification and the analysis window can
 shrink — and a guide to the French agréments, grouped by what the app can
 honestly measure and what it cannot.
 
+`cr/006-weakest-notes-first.md` proposes letting free playing choose the
+exercises: accumulate per-note figures across sessions, rank notes by whether
+the problem is placement, control or support, and offer drills around the
+worst. Its governing constraint is that the baroque flute is not chromatic —
+a note must be practised in the keys where its fingering is the normal one,
+so the unit is the note *in a key*, never the pitch class.
+
 ## Next steps
 
 1. **Short notes in imported music.** Measured against real tongued onsets:

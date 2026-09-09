@@ -6,6 +6,39 @@ a careful ear notices on a held note. The app calls a note **in tune** within
 5 cents of its target, **close** within 15, and **out** beyond that.
 Positive is sharp, negative is flat.
 
+## Which part of the note is measured
+
+Not all of it. A note's figure comes from **after the attack, before the note
+dies away, and from the point the pitch stopped moving** — roughly the last
+part of what you played, minus the final tenth of a second.
+
+That is deliberate, and it changes how these exercises are best practised.
+Flute attacks scoop, and flute notes fall as they taper off; neither is
+playing. More importantly, a note you start 20 cents flat and correct is a
+note you *corrected*, and averaging the whole of it would report the mistake
+you already fixed. So:
+
+**Play into the note.** Start it, listen, and move it. The reading follows
+where you ended up, not where you began. Chasing a note until it sits right is
+the exercise, not cheating at it.
+
+Beside the cents figure you will see how long that took — *settled after
+0.8 s*, or *settled straight away*. That second line is the one to watch over
+weeks. Early on, a note is right because you corrected it; later, the same
+note is right from the first instant, because the ear and the embouchure have
+learned where it lives. The cents figure alone cannot tell those two apart,
+which is exactly why the settling time is shown next to it.
+
+Sometimes it says *never settled*. That means the pitch was still moving when
+the note ended — a different problem from ending in the wrong place, and worth
+knowing rather than hiding. The whole note is scored in that case, so a
+wandering note still reports something.
+
+This applies everywhere a note is scored: the drone exercises, Predict then
+see, Listen to me and Play scales. It does not apply to the flute profile or
+the stopper check, which measure how far a note *can* be pushed and how wide
+your octaves are — different questions, with their own rules.
+
 ## Two ways to average, and why both are shown
 
 After an exercise you see a line like *mean absolute deviation: 4.6 cents*
