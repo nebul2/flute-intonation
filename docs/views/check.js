@@ -30,6 +30,12 @@ export default {
     const cents = el("span");
     const gauge = needle();
     const level = levelBar();
+    // Whether frames are arriving at all, and what is in them. Without this
+    // "listening but the bar never moves" has three different causes that
+    // look identical: no frames (the graph is not being pulled, or the
+    // context is suspended), frames of digital silence (the input iPadOS
+    // chose is not the one in the room), or a level bar that is simply low.
+    const diag = el("div", { class: "diag" });
     const control = audioControl();
     const drone = el("button", { class: "secondary", text: t("check.drone"), disabled: true });
 
@@ -45,8 +51,10 @@ export default {
     this.offState = engine.onState(updateDrone);
     updateDrone();
 
+    let frames = 0;
     let lastVoiced = null;
     this.offFrame = engine.onFrame((frame) => {
+      frames += 1;
       if (frame.hz > 0) lastVoiced = frame;
       level.set(frame.levelDb);
     });
@@ -67,6 +75,9 @@ export default {
         cents.textContent = "";
         gauge.set(null);
       }
+      const last = engine.lastFrame;
+      diag.textContent = t("check.diag", frames, engine.contextState,
+        last && Number.isFinite(last.levelDb) ? last.levelDb.toFixed(1) : "—");
       requestAnimationFrame(render);
     };
     this.mounted = true;
@@ -79,6 +90,7 @@ export default {
         el("div", { class: "readout" }, [hz, cents]),
         gauge.element,
         level.element,
+        diag,
         el("div", { class: "controls" }, [control.element, drone]),
       ]),
     );

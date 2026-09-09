@@ -333,6 +333,7 @@ export const STRINGS = {
     "check.intro": "Press Start, allow the microphone, play a note. Drone tests the speakers.",
     "check.pressStart": "press Start",
     "check.listening": "listening",
+    "check.diag": (frames, context, level) => `frames received: ${frames} · audio context: ${context} · last level: ${level} dBFS`,
     "check.drone": "Drone",
     "check.droneStop": (hz) => `Stop drone (${hz} Hz)`,
     "check.note": "Note names here are equal temperament, for this check only — the real " +
@@ -882,6 +883,7 @@ export const STRINGS = {
     "check.intro": "Appuyez sur Démarrer, autorisez le micro, jouez une note. Le bourdon teste les haut-parleurs.",
     "check.pressStart": "appuyez sur Démarrer",
     "check.listening": "à l'écoute",
+    "check.diag": (frames, context, level) => `trames reçues : ${frames} · contexte audio : ${context} · dernier niveau : ${level} dBFS`,
     "check.drone": "Bourdon",
     "check.droneStop": (hz) => `Couper le bourdon (${hz} Hz)`,
     "check.note": "Ici les noms de notes sont en tempérament égal, pour ce test uniquement — le " +

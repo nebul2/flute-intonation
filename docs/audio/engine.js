@@ -134,6 +134,11 @@ class Engine {
 
   get sampleRate() { return this.context ? this.context.sampleRate : 0; }
   get listening() { return this.state === "listening"; }
+  /* "running", "suspended", "closed" -- or "none" before there is one. iOS
+   * suspends an AudioContext on an interruption and does not resume it, and
+   * a suspended context delivers no frames while everything else still looks
+   * healthy: permission granted, state listening, no error anywhere. */
+  get contextState() { return this.context ? this.context.state : "none"; }
 
   onFrame(cb) { this.frameListeners.add(cb); return () => this.frameListeners.delete(cb); }
   onState(cb) { this.stateListeners.add(cb); return () => this.stateListeners.delete(cb); }
