@@ -1,27 +1,39 @@
 /* Hardware check: the phase-0 page on the shared engine. Equal-temperament
  * names here on purpose -- this page tests the microphone and speakers, not
- * the tuning -- and it says so. */
+ * the tuning -- and it says so.
+ *
+ * The equal-temperament arithmetic is the page's own decision and stays. Its
+ * *spelling* does not: this file carried a private table that hard-coded
+ * solfege, so a player who had chosen letters was shown "Do#4" here whatever
+ * they had set, on the one page whose whole purpose is to confirm things are
+ * working. Names come from ui/naming.js now, like everywhere else. */
 
 import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import { el, append, audioControl, needle, levelBar, bandClass, explainer } from "../ui/widgets.js";
+import { pitchClassLabel } from "../ui/naming.js";
+import { owner } from "../ui/owner.js";
 
-const NAMES = ["Do", "Do♯", "Ré", "Mi♭", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "Si♭", "Si"];
-
-function describe(hz, referenceHz) {
+/* The octave stays a bare number here rather than following octaveStyle. On
+ * every other page a register word ("Re grave") is the friendlier name; on a
+ * hardware check, where the question is whether the machine hears what is in
+ * the room, an unambiguous number is the useful answer. */
+function describe(hz, referenceHz, naming) {
   const semis = 12 * Math.log2(hz / referenceHz);
   const nearest = Math.round(semis);
   const cents = 100 * (semis - nearest);
   const index = ((nearest % 12) + 12 + 9) % 12;
   const octave = 4 + Math.floor((nearest + 9) / 12);
-  return { name: `${NAMES[index]}${octave}`, cents };
+  return { name: `${pitchClassLabel(index, naming)}${octave}`, cents };
 }
 
 export default {
   title: () => t("check.title"),
 
   mount(root) {
+    const own = owner();
+    this.own = own;
     const ref = Number(settings.get().referenceHz) || 415;
     const droneHz = ref * Math.pow(2, -7 / 12);      // D below the reference A
 
@@ -48,22 +60,22 @@ export default {
       if (engine.drone.playing) engine.drone.stop();
       else engine.drone.start(droneHz, settings.get().droneLevel);
     });
-    this.offState = engine.onState(updateDrone);
+    own.add(engine.onState(updateDrone));
     updateDrone();
 
     let frames = 0;
     let lastVoiced = null;
-    this.offFrame = engine.onFrame((frame) => {
+    own.add(engine.onFrame((frame) => {
       frames += 1;
       if (frame.hz > 0) lastVoiced = frame;
       level.set(frame.levelDb);
-    });
+    }));
 
     const render = () => {
       if (!this.mounted) return;
       const now = performance.now();
       if (engine.listening && lastVoiced && now - lastVoiced.t < 400) {
-        const d = describe(lastVoiced.hz, ref);
+        const d = describe(lastVoiced.hz, ref, settings.get().naming);
         note.textContent = d.name;
         hz.textContent = `${lastVoiced.hz.toFixed(2)} Hz`;
         cents.textContent = `${d.cents >= 0 ? "+" : ""}${d.cents.toFixed(1)}¢`;
@@ -100,8 +112,7 @@ export default {
 
   unmount() {
     this.mounted = false;
-    if (this.offFrame) this.offFrame();
-    if (this.offState) this.offState();
+    if (this.own) { this.own.dispose(); this.own = null; }
     if (this.control) this.control.dispose();
   },
 };

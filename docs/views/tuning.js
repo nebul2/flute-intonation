@@ -1,21 +1,33 @@
 /* Mode & temperament: two questions with simple help, and a live example so
  * the choice is felt rather than abstract -- the same F# over D, tempered and
- * pure, at the current settings. */
+ * pure, at the current settings.
+ *
+ * Every control here is bound to its setting rather than writing it by hand,
+ * so the page is three declarations and one example refresh. It was also the
+ * page where the naming bug was most visible: the root select named its own
+ * options and nothing told it when Do-Re-Mi became C-D-E. */
 
 import { t } from "../i18n.js";
 import * as settings from "../settings.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
-import { TEMPERAMENTS, TEMPERAMENT_ORDER } from "../core/temperaments.js";
-import { lang } from "../i18n.js";
-import { el, append, currentTuning, temperamentLabel, nameClass, explainer } from "../ui/widgets.js";
+import { TEMPERAMENT_ORDER } from "../core/temperaments.js";
+import { el, append, currentTuning, explainer } from "../ui/widgets.js";
+import { radioGroup } from "../ui/fields.js";
+import { rootControl, temperamentControl } from "../ui/controls.js";
+import { owner } from "../ui/owner.js";
 
+/* The temperament roots the app offers. Not all twelve: these are the ones a
+ * baroque player would build a temperament on, and offering B natural or E
+ * flat here would be offering a choice nobody makes. */
 const ROOTS = ["C", "D", "F", "G", "A", "Bb"];
 
 export default {
   title: () => t("tuning.title"),
 
   mount(root) {
+    const own = owner();
+    this.own = own;
     const example = el("p", { class: "example mono" });
 
     const refreshExample = () => {
@@ -29,47 +41,37 @@ export default {
                               `${gap >= 0 ? "+" : ""}${gap.toFixed(1)}`);
     };
 
-    const radio = (groupName, value, checked, label, help) =>
-      el("label", { class: "option" }, [
-        el("input", {
-          type: "radio", name: groupName, value, checked: checked || null,
-          onchange: () => { settings.set({ [groupName]: value }); refreshExample(); },
-        }),
-        el("span", { class: "option-body" }, [
-          el("span", { class: "option-label", text: label }),
-          help ? el("span", { class: "option-help", text: help }) : null,
-        ]),
-      ]);
-
-    const s = settings.get();
-    const modes = el("div", { class: "options" }, [
-      radio("mode", "temperament", s.mode === "temperament",
-            t("mode.temperament"), t("tuning.mode.temperament.help")),
-      radio("mode", "pure", s.mode === "pure", t("mode.pure"), t("tuning.mode.pure.help")),
-    ]);
-
-    const temperaments = el("div", { class: "options" }, TEMPERAMENT_ORDER.map((key) =>
-      radio("temperament", key, s.temperament === key,
-            temperamentLabel(key), TEMPERAMENTS[key].help[lang()] ?? TEMPERAMENTS[key].help.en)));
-
-    const rootSelect = el("select", { class: "select", onchange: (e) => {
-      settings.set({ root: e.target.value }); refreshExample();
-    } }, ROOTS.map((r) => el("option", {
-      value: r, selected: s.root === r || null, text: nameClass(SpelledPitch.parse(`${r}4`), s),
-    })));
+    // Labels are functions so a language change re-renders them in place;
+    // the control's own subscription does the rest.
+    const modes = own.add(radioGroup({
+      name: "mode", bind: "mode", onChange: refreshExample,
+      options: ["temperament", "pure"].map((mode) => ({
+        value: mode,
+        label: () => t(`mode.${mode}`),
+        help: () => t(`tuning.mode.${mode}.help`),
+      })),
+    }));
+    const temperaments = own.add(temperamentControl({
+      order: TEMPERAMENT_ORDER, bind: "temperament", onChange: refreshExample,
+    }));
+    // Mid-sentence, so it keeps its own label rather than music.root's, which
+    // is a field label and capitalised for one.
+    const rootField = own.add(rootControl({
+      roots: ROOTS, bind: "root", label: t("tuning.root"), onChange: refreshExample,
+    }));
 
     refreshExample();
-    append(root, 
+    append(root,
       el("h2", { text: t("tuning.modeQuestion") }),
-      modes,
+      modes.element,
       el("h2", { text: t("tuning.whichTemperament") }),
-      temperaments,
-      el("div", { class: "row" }, [el("span", { text: t("tuning.root") }), rootSelect]),
+      temperaments.element,
+      rootField.element,
       el("h2", { text: t("tuning.example") }),
       example,
       explainer(t("tuning.enharmonic")),
     );
   },
 
-  unmount() {},
+  unmount() { if (this.own) { this.own.dispose(); this.own = null; } },
 };

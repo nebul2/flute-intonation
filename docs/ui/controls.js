@@ -20,7 +20,7 @@ import { el } from "./dom.js";
 import { field, selectField, checkboxField, radioGroup, segmentedField, rangeField, setOptions } from "./fields.js";
 import { name, nameClass, temperamentLabel, audioControl } from "./widgets.js";
 import { NAMING_KEYS, CHROMATIC_SPELLINGS, pitchClassLabel, pitchClassIndexOf } from "./naming.js";
-import { t, lang } from "../i18n.js";
+import { t, lang, onLanguageChange } from "../i18n.js";
 import * as settings from "../settings.js";
 import { engine } from "../audio/engine.js";
 import { SpelledPitch } from "../core/pitch.js";
@@ -154,16 +154,55 @@ export function pitchClassControl({ label = t("music.root"), ...rest } = {}) {
 /* Which temperament, as cards with their explanations or as a plain select. */
 export function temperamentControl({ order, look = "radio", label = t("music.temperament"), ...rest } = {}) {
   const list = order ?? Object.keys(TEMPERAMENTS);
+  // radioGroup builds its markup once and re-renders text in place, so its
+  // labels have to be functions or a language change leaves the cards in the
+  // old language. selectField rebuilds its options, so it takes the list as a
+  // function instead. Same data, two shapes, one of which used to go stale.
   const options = () => list.map((key) => ({
     value: key, label: temperamentLabel(key),
     help: TEMPERAMENTS[key].help?.[lang()] ?? TEMPERAMENTS[key].help?.en ?? null,
   }));
   return look === "radio"
-    ? radioGroup({ name: "temperament", options: options(), ...rest })
+    ? radioGroup({
+        name: "temperament", ...rest,
+        options: list.map((key) => ({
+          value: key,
+          label: () => temperamentLabel(key),
+          help: () => TEMPERAMENTS[key].help?.[lang()] ?? TEMPERAMENTS[key].help?.en ?? null,
+        })),
+      })
     : selectField({ label, options, ...rest });
 }
 
+/* A select over named pitches -- the tuner's drone choice. Spelled pitches in,
+ * spelled pitches out; named on the way to the screen and nowhere else, so
+ * the naming setting reaches the label and never the frequency. */
+export function pitchControl({ pitches, label = t("music.pitch"), ...rest } = {}) {
+  return selectField({
+    label, watch: NAMING_KEYS,
+    options: () => pitches.map((p) => ({
+      value: p, label: name(SpelledPitch.parse(p), rest.source ? rest.source() : settings.get()),
+    })),
+    ...rest,
+  });
+}
+
 /* ---- the microphone ---------------------------------------------------- */
+
+/* What the engine is doing, as a chip. home.js and the audio control each
+ * wrote this out, and the two could disagree about how an error reads. */
+export function stateChip() {
+  const chip = el("span", { class: "chip audio" });
+  const update = () => {
+    chip.textContent = engine.state === "error"
+      ? t("audio.error", engine.error?.message ?? "?") : t(`audio.${engine.state}`);
+    chip.dataset.state = engine.state;
+  };
+  const offState = engine.onState(update);
+  const offLanguage = onLanguageChange(update);
+  update();
+  return { element: chip, update, dispose() { offState(); offLanguage(); } };
+}
 
 /* Enable something only while the engine is listening. Four views wrote this
  * out, and one of them stored the unsubscribe in a field it later overwrote. */

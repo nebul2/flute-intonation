@@ -33,11 +33,15 @@ class StubNode {
 globalThis.document = {
   createElement: (tag) => new StubNode(tag),
   createTextNode: (text) => { const n = new StubNode("#text"); n.textContent = text; return n; },
+  // i18n stamps the chosen language on <html>; without this, changing
+  // language throws here and nowhere else, which tells you nothing.
+  documentElement: new StubNode("html"),
 };
 
 const settings = await import("../settings.js");
 const { selectField, checkboxField } = await import("../ui/fields.js");
-const { keyControl } = await import("../ui/controls.js");
+const { keyControl, temperamentControl } = await import("../ui/controls.js");
+const { t, setLanguage } = await import("../i18n.js");
 const { owner } = await import("../ui/owner.js");
 
 const reset = () => { settings._reset(); settings.set({ listenKey: "D", listenQuality: "major", practiceRandom: false }); };
@@ -138,4 +142,26 @@ test("an owner disposes everything once, in reverse", () => {
   assert.deepEqual(order, ["second", "first"], "LIFO, and a thrower strands nothing");
   own.dispose();
   assert.deepEqual(order, ["second", "first"], "disposing twice is harmless");
+});
+
+/* The two shapes of temperamentControl carry their labels differently --
+ * radioGroup renders text into markup it already built, selectField rebuilds
+ * its options -- and the radio shape was handing over strings, which go stale
+ * the moment the language changes. */
+const textsIn = (node, found = []) => {
+  if (node._text) found.push(node._text);
+  for (const kid of node.children ?? []) textsIn(kid, found);
+  return found;
+};
+
+test("the temperament cards relabel when the language does", () => {
+  const control = temperamentControl({ order: ["vallotti", "equal"], value: "vallotti" });
+  const before = textsIn(control.element);
+  assert.ok(before.includes(t("temperament.vallotti")), "starts in the current language");
+  setLanguage(t("temperament.vallotti") === "Vallotti" && before.join(" ").includes("Well") ? "fr" : "en");
+  const after = textsIn(control.element);
+  assert.notDeepEqual(after, before, "labels must follow the language, not be frozen at build");
+  assert.ok(after.every((text) => text.length > 0), "and must not blank out");
+  setLanguage("en");
+  control.dispose();
 });

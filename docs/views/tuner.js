@@ -8,7 +8,9 @@ import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import { navigate } from "../router.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
-import { el, append, audioControl, needle, levelBar, bandClass, currentTuning, temperamentLabel, name } from "../ui/widgets.js";
+import { el, append, audioControl, needle, levelBar, bandClass, currentTuning, temperamentLabel } from "../ui/widgets.js";
+import { pitchControl } from "../ui/controls.js";
+import { owner } from "../ui/owner.js";
 
 /* Spellings the tuner offers. In a 12-note temperament the enharmonics share a
  * frequency, so this choice is cosmetic; flats where the flute's keys prefer
@@ -40,6 +42,8 @@ export default {
   title: () => t("tuner.title"),
 
   mount(root) {
+    const own = owner();
+    this.own = own;
     let s = settings.get();
     let tuning = currentTuning(s);
     let cands = candidates(tuning);
@@ -62,8 +66,13 @@ export default {
     const level = levelBar();
     const control = audioControl({ showGranted: false });
 
-    const droneSelect = el("select", { class: "select" },
-      DRONE_CHOICES.map((p) => el("option", { value: p, text: name(SpelledPitch.parse(p), s) })));
+    // Unlabelled: it sits in a button row, where a label would read as a
+    // heading for the whole row. It still relabels itself when the naming
+    // setting changes -- which is the control's business, not this view's.
+    const droneSelect = own.add(pitchControl({
+      pitches: DRONE_CHOICES, label: null, value: DRONE_CHOICES[0],
+      onChange: () => { if (engine.drone.playing) startDrone(); },
+    }));
     const droneButton = el("button", { class: "secondary", text: t("tuner.drone"), disabled: true });
 
     const refreshIntro = () => {
@@ -80,33 +89,30 @@ export default {
     droneButton.addEventListener("click", () => {
       if (engine.drone.playing) engine.drone.stop(); else startDrone();
     });
-    droneSelect.addEventListener("change", () => { if (engine.drone.playing) startDrone(); });
-
-    this.offSettings = settings.subscribe((next) => {
+    // The tuning itself, which this view owns; the drone select relabels
+    // itself and is no longer this subscription's business.
+    own.add(settings.subscribe((next) => {
       s = next;
       tuning = currentTuning(s);
       cands = candidates(tuning);
       refreshIntro();
-      droneSelect.querySelectorAll("option").forEach((o) => {
-        o.textContent = name(SpelledPitch.parse(o.value), s);
-      });
       if (engine.drone.playing) startDrone();
-    });
-    this.offState = engine.onState(updateDrone);
+    }));
+    own.add(engine.onState(updateDrone));
     refreshIntro();
     updateDrone();
 
     // Held-note readout: median of the voiced frames in the last second.
     const recent = [];
     let lastVoiced = null;
-    this.offFrame = engine.onFrame((frame) => {
+    own.add(engine.onFrame((frame) => {
       level.set(frame.levelDb);
       if (frame.hz > 0) {
         lastVoiced = frame;
         recent.push(frame);
       }
       while (recent.length && frame.t - recent[0].t > 1000) recent.shift();
-    });
+    }));
 
     const render = () => {
       if (!this.mounted) return;
@@ -152,7 +158,7 @@ export default {
         gauge.element,
         level.element,
         held,
-        el("div", { class: "controls" }, [control.element, droneSelect, droneButton]),
+        el("div", { class: "controls" }, [control.element, droneSelect.element, droneButton]),
       ]),
     );
     this.control = control;
@@ -160,7 +166,7 @@ export default {
 
   unmount() {
     this.mounted = false;
-    for (const off of [this.offFrame, this.offState, this.offSettings]) if (off) off();
+    if (this.own) { this.own.dispose(); this.own = null; }
     if (this.control) this.control.dispose();
   },
 };

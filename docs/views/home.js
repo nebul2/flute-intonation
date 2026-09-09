@@ -2,9 +2,9 @@
  * instrument, ways to play, and how the app is set up. */
 
 import { t } from "../i18n.js";
-import { engine } from "../audio/engine.js";
 import { navigate } from "../router.js";
 import { el, append } from "../ui/widgets.js";
+import { stateChip } from "../ui/controls.js";
 
 const SECTIONS = [
   { key: "tools", cards: [
@@ -61,18 +61,12 @@ export default {
   title: () => t("app.name"),
 
   mount(root) {
-    const chip = el("span", { class: "chip audio" });
-    const update = () => {
-      chip.textContent = engine.state === "error"
-        ? t("audio.error", engine.error?.message ?? "?") : t(`audio.${engine.state}`);
-      chip.dataset.state = engine.state;
-    };
-    this.off = engine.onState(update);
-    update();
+    const chip = stateChip();
+    this.chip = chip;
 
     append(root, 
       el("p", { class: "tagline", text: t("app.tagline") }),
-      el("div", { class: "audio-line" }, [chip]),
+      el("div", { class: "audio-line" }, [chip.element]),
       ...SECTIONS.map(({ key, cards }) => el("section", { class: "home-section" }, [
         el("h2", { class: "section-label", text: t(`home.section.${key}`) }),
         el("div", { class: "cards" }, cards.map(card)),
@@ -80,5 +74,5 @@ export default {
     );
   },
 
-  unmount() { if (this.off) this.off(); },
+  unmount() { if (this.chip) { this.chip.dispose(); this.chip = null; } },
 };

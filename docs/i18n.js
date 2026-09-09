@@ -405,6 +405,7 @@ export const STRINGS = {
     "music.root": "rooted on",
     "music.temperament": "temperament",
     "music.octave": "octave",
+    "music.pitch": "note",
 
     "practice.title": "Practice",
     "practice.intro": "Guided exercises. No needle while you play — only progress; the reading appears when the note ends.",
@@ -975,6 +976,7 @@ export const STRINGS = {
     "music.root": "fondée sur",
     "music.temperament": "tempérament",
     "music.octave": "octave",
+    "music.pitch": "note",
 
     "practice.title": "Exercices",
     "practice.intro": "Exercices guidés. Pas d'aiguille pendant que tu joues — seulement la progression ; la mesure s'affiche quand la note se termine.",
