@@ -232,6 +232,13 @@ export default {
       if (!framesHz.length) return;
       // The level goes in beside the pitch: a bend that killed the sound is
       // not the same finding as a bend the player can actually use.
+      //
+      // Deliberately NOT scoredWindow(): this measures how far a note can be
+      // pushed and held, not where a note settled. The settled window scores
+      // the end of a note, and the end of a bend is the player letting the
+      // pitch come back -- which would report every bend as smaller than it
+      // was. The whole post-attack median is right here for the same reason
+      // it is wrong elsewhere. Enforced as a stated exception in ui.test.js.
       readings.push({
         cents: centsBetween(targetHz(target), median(framesHz)),
         db: levelsDb.length ? levelsDb.reduce((a, b) => a + b, 0) / levelsDb.length : NaN,

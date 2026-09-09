@@ -119,6 +119,10 @@ export default {
         cents.className = bandClass(n.cents);
         target.textContent = `${t("tuner.target")} ${n.hz.toFixed(2)} Hz`;
         gauge.set(n.cents);
+        // A live rolling window, not a note: there is no end to trim a taper
+        // from, because the end is now. scoredWindow() needs a finished note
+        // and would have nothing to work on here. Nothing is scored or saved
+        // from this line -- it is the tuner steadying its own display.
         if (recent.length >= 10) {
           const sorted = recent.map((f) => f.hz).sort((a, b) => a - b);
           const median = sorted[sorted.length >> 1];

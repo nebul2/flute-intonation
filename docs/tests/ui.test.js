@@ -283,3 +283,53 @@ test("the register break is configurable for a flute with a C foot", () => {
   // An unknown value falls back to the default rather than throwing.
   assert.equal(at("D4", "nonsense"), at("D4", "D"));
 });
+
+/* ---- the scoring rule ------------------------------------------------- */
+
+/* CLAUDE.md: "A note's figure comes from scoredWindow() in core/scoring.js.
+ * No view reduces frames to a pitch itself." That rule was convention only,
+ * and convention is what let five views each pick mean or median for
+ * themselves in the first place -- which is how a note corrected at the end
+ * came to be scored on its own approach.
+ *
+ * Unlike HAND_BUILT_CONTROLS this list is not expected to empty. Both entries
+ * are decisions, not debt, and each says so at the line that matches. What the
+ * test enforces is that the list stays exactly this: a sixth view cannot
+ * quietly start reducing frames again. */
+const OWN_REDUCTION = new Map([
+  ["bend.js", "measures how far a note can be pushed, not where it settled"],
+  ["tuner.js", "a live rolling display, with no finished note to trim"],
+]);
+const REDUCES_FRAMES = /(?:median|mean)\(\s*(?:framesHz|voiced|frames\b)|\.hz\)\.sort\(/;
+
+test("only core/scoring.js turns a note's frames into a pitch", () => {
+  const views = fs.readdirSync(path.join(here, "..", "views"));
+  for (const file of views) {
+    const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
+    // Comments explain the rule; only code may break it.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    const reduces = REDUCES_FRAMES.test(code);
+    if (OWN_REDUCTION.has(file)) {
+      assert.ok(reduces,
+        `${file}: no longer reduces frames? then delete it from OWN_REDUCTION`);
+    } else {
+      assert.ok(!reduces,
+        `${file}: use scoredWindow()/notePitch()/analyseNote(), not your own average`);
+    }
+  }
+});
+
+test("a view that measures a note imports a reducer rather than writing one", () => {
+  // The other half of the same rule: a view holding framesHz has to hand them
+  // somewhere. Naming the sanctioned entry points here means a new view is
+  // pointed at them by a failing test rather than by a code review.
+  const SANCTIONED = /\b(?:scoredWindow|notePitch|analyseNote|postAttack)\b/;
+  const views = fs.readdirSync(path.join(here, "..", "views"));
+  for (const file of views) {
+    const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
+    if (!/framesHz/.test(src)) continue;
+    assert.ok(SANCTIONED.test(src),
+      `${file}: holds a note's frames but reduces them with neither `
+      + `scoredWindow(), notePitch(), analyseNote() nor postAttack()`);
+  }
+});
