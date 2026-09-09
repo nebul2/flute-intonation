@@ -18,7 +18,7 @@ import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
-import { PRACTICE_KEYS, MINOR_RELATIVE, scaleKeyFor } from "../core/generator.js";
+import { scaleKeyFor } from "../core/generator.js";
 import { spellInKey } from "../core/naming.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
@@ -28,8 +28,11 @@ import { reviewSession, impossible } from "../core/bend.js";
 import * as profiles from "../profiles.js";
 import { invitation } from "../ui/feedback.js";
 import { helpSection } from "../ui/help.js";
+import { selectField, checkboxField } from "../ui/fields.js";
+import { keyQuality, startRow } from "../ui/controls.js";
+import { owner } from "../ui/owner.js";
 import { postAttack, scoredWindow, SCORING_RULE } from "../core/scoring.js";
-import { el, append, audioControl, labelField, needle, levelBar, bandClass, bandLabel, settleLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
+import { el, append, labelField, needle, levelBar, bandClass, bandLabel, settleLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
 /* How long the tonic must be held to begin. Collected by the same state
  * machine the exercises use, so a brief dropout costs progress rather than
@@ -53,9 +56,8 @@ export default {
 
   teardown() {
     this.mounted = false;
-    for (const off of [this.offFrame, this.offState]) if (off) off();
-    this.offFrame = this.offState = null;
-    if (this.control) { this.control.dispose(); this.control = null; }
+    if (this.own) this.own.dispose();
+    this.own = owner();
   },
 
   /* ---- start screen ---------------------------------------------------- */
@@ -63,10 +65,8 @@ export default {
   showStart() {
     this.teardown();
     const root = this.root;
+    const own = this.own;
     root.replaceChildren();
-    const s0 = settings.get();
-    const control = audioControl({ showGranted: false });
-    this.control = control;
 
     /* Three ways to ground a session, in order of how much the app then
      * knows. Stating the key gives it a tonic AND a scale: every note can be
@@ -75,59 +75,41 @@ export default {
      * D sharp back from "Eb". Playing the tonic first gives it the tonic
      * only. Neither gives it nothing, and the page says plainly what that
      * costs, because it must still be possible to just play. */
-    let grounding = s0.listenGrounding ?? "key";
-    let quality = s0.listenQuality ?? "major";
-    let key = s0.listenKey ?? "D";
-
-    const keysFor = (q) => (q === "minor"
-      ? Object.keys(MINOR_RELATIVE).map((tonic) => ({ key: tonic, tonic }))
-      : PRACTICE_KEYS);
-    const keySelect = el("select", { class: "select", onchange: (e) => {
-      key = e.target.value; settings.set({ listenKey: key });
-    } });
-    const fillKeys = () => {
-      keySelect.replaceChildren(...keysFor(quality).map((entry) => el("option", {
-        value: entry.key, text: nameClass(SpelledPitch.parse(`${entry.key}4`), s0),
-      })));
-      if (!keysFor(quality).some((entry) => entry.key === key)) key = keysFor(quality)[0].key;
-      keySelect.value = key;
-    };
-    const qualitySelect = el("select", { class: "select", onchange: (e) => {
-      quality = e.target.value; settings.set({ listenQuality: quality }); fillKeys();
-    } }, ["major", "minor"].map((q) => el("option", {
-      value: q, selected: q === quality || null, text: t(`practice.quality.${q}`),
-    })));
-    fillKeys();
-
-    const keyRow = el("div", { class: "row" }, [
-      el("label", { class: "field" }, [t("listen.key"), keySelect]),
-      qualitySelect,
-    ]);
+    /* All three bound, so the start screen no longer keeps its own copy of
+     * what the settings already hold. The key vocabulary narrows with the
+     * quality -- a minor scale is only spellable from some tonics -- which is
+     * the pairing keyQuality() exists for. */
+    const chooser = own.add(keyQuality({ keyBind: "listenKey", qualityBind: "listenQuality" }));
     const hint = el("p", { class: "muted small" });
-    const groundingSelect = el("select", { class: "select", onchange: (e) => {
-      grounding = e.target.value; settings.set({ listenGrounding: grounding }); refresh();
-    } }, ["key", "tonic", "none"].map((g) => el("option", {
-      value: g, selected: g === grounding || null, text: t(`listen.grounding.${g}`),
-    })));
-    const refresh = () => {
-      keyRow.hidden = grounding === "none";
-      qualitySelect.hidden = grounding !== "key";      // the tonic gate needs a tonic, not a mode
-      hint.textContent = t(`listen.grounding.${grounding}.hint`);
-      hint.classList.toggle("warn", grounding === "none");
-    };
+    const groundingField = own.add(selectField({
+      label: t("listen.groundingLabel"), bind: "listenGrounding",
+      options: () => ["key", "tonic", "none"].map((g) => ({ value: g, label: t(`listen.grounding.${g}`) })),
+      onChange: refresh,
+    }));
+    const grounding = () => groundingField.value;
+    function refresh() {
+      chooser.element.hidden = grounding() === "none";
+      // The tonic gate needs a tonic, not a mode.
+      chooser.quality.element.hidden = grounding() !== "key";
+      hint.textContent = t(`listen.grounding.${grounding()}.hint`);
+      hint.classList.toggle("warn", grounding() === "none");
+    }
     refresh();
 
     const label = labelField();
     this.label = label;
-    const start = el("button", { class: "primary", text: t("listen.start"), disabled: !engine.listening,
-                                 onclick: () => this.startSession({ grounding, key, quality: grounding === "key" ? quality : "major" }) });
-    this.offState = engine.onState(() => { start.disabled = !engine.listening; });
-    append(root, 
+    const row = own.add(startRow({
+      label: t("listen.start"), needMicNote: false,
+      onStart: () => this.startSession({
+        grounding: grounding(), key: chooser.key.key,
+        quality: grounding() === "key" ? chooser.quality.value : "major" }),
+    }));
+    append(root,
       explainer(t("listen.intro"), t("listen.introGrounding")),
-      el("div", { class: "row" }, [el("label", { class: "field" }, [t("listen.groundingLabel"), groundingSelect])]),
-      keyRow,
+      groundingField.element,
+      chooser.element,
       hint,
-      el("div", { class: "row" }, [control.element, start]),
+      row.element,
       el("div", { class: "row" }, [label.element]),
     );
   },
@@ -158,11 +140,10 @@ export default {
     const root = this.root;
     root.replaceChildren();
 
-    const logToggle = el("label", { class: "toggle" }, [
-      el("input", { type: "checkbox", checked: s.listenLog || null,
-                    onchange: (e) => { settings.set({ listenLog: e.target.checked }); this.ui.rows.hidden = !e.target.checked; } }),
-      el("span", { text: t("listen.log") }),
-    ]);
+    const logToggle = this.own.add(checkboxField({
+      label: t("listen.log"), look: "toggle", bind: "listenLog",
+      onChange: (on) => { this.ui.rows.hidden = !on; },
+    }));
 
     this.ui = {
       status: el("p", { class: "intro", text: grounding === "tonic"
@@ -173,7 +154,7 @@ export default {
         onStop: () => this.finish(),
         onRedo: () => this.startSession(this.lastStart),   // not the defaults: those are D major
         onBack: () => this.showStart(),
-        extras: [logToggle],
+        extras: [logToggle.element],
       }),
       note: el("div", { class: "big-note", text: "—" }),
       progress: el("div", { class: "progress" }, [el("div", { class: "progress-fill" })]),
@@ -200,10 +181,7 @@ export default {
      * there is no key to change. */
     let keyRow = null;
     if (grounding !== "none") {
-      const keysFor = (q) => (q === "minor"
-        ? Object.keys(MINOR_RELATIVE).map((tonic) => ({ key: tonic, tonic }))
-        : PRACTICE_KEYS);
-      const rekey = (nextKey, nextQuality) => {
+      const rekey = ({ key: nextKey, quality: nextQuality }) => {
         run.key = nextKey; run.quality = nextQuality;
         run.tonicPitch = SpelledPitch.parse(`${nextKey}4`);
         run.context = new HarmonicContext(run.tonicPitch);
@@ -212,30 +190,24 @@ export default {
         run.keyChanges.push({ atIndex: run.notes.length, key: nextKey, quality: nextQuality });
         u.status.textContent = t("listen.keyChanged", nameClass(run.tonicPitch, s));
       };
-      const midKey = el("select", { class: "select" });
-      const midQuality = el("select", { class: "select", hidden: grounding !== "key" || null },
-        ["major", "minor"].map((q) => el("option", { value: q, selected: q === run.quality || null,
-                                                     text: t(`practice.quality.${q}`) })));
-      const fillMid = () => {
-        midKey.replaceChildren(...keysFor(midQuality.value).map((entry) => el("option", {
-          value: entry.key, selected: entry.key === run.key || null,
-          text: nameClass(SpelledPitch.parse(`${entry.key}4`), s),
-        })));
-        if (!keysFor(midQuality.value).some((entry) => entry.key === midKey.value)) midKey.value = keysFor(midQuality.value)[0].key;
-      };
-      midQuality.addEventListener("change", () => { fillMid(); rekey(midKey.value, midQuality.value); });
-      midKey.addEventListener("change", () => rekey(midKey.value, midQuality.value));
-      fillMid();
-      keyRow = el("div", { class: "row keyrow" }, [
-        el("label", { class: "field" }, [t("listen.changeKey"), midKey]), midQuality,
-      ]);
+      /* The same control as the start screen, with neither half bound: this
+       * changes the session in progress and must never rewrite the
+       * preference. `source` gives it the run's frozen settings, so a naming
+       * change mid-session cannot leave half a scored session reading in Do
+       * and half in D -- the rows above it are already labelled. */
+      const mid = this.own.add(keyQuality({
+        source: () => run.settings, key: run.key, quality: run.quality,
+        label: t("listen.changeKey"), onChange: rekey,
+      }));
+      mid.quality.element.hidden = grounding !== "key";
+      keyRow = el("div", { class: "row keyrow" }, [mid.element]);
     }
     // The shared helper, not Node.append: an ungrounded session has no key
     // row, and Node.append renders a null as the text "null".
     append(root, u.status, keyRow, u.nav.top, u.panel, u.table, u.summary, u.rows, u.nav.bottom);
     this.renderTable();
 
-    this.offFrame = engine.onFrame((frame) => this.onFrame(frame));
+    this.own.add(engine.onFrame((frame) => this.onFrame(frame)));
     this.mounted = true;
     requestAnimationFrame(() => this.render());
   },

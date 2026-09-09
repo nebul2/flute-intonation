@@ -4,27 +4,24 @@
 import { t } from "../i18n.js";
 import { navigate } from "../router.js";
 import { engine } from "../audio/engine.js";
-import { SpelledPitch } from "../core/pitch.js";
-import { el, append, audioControl, labelField, nameClass, explainer } from "../ui/widgets.js";
+import { el, append, labelField, explainer } from "../ui/widgets.js";
+import { keyQuality, micGate, startRow } from "../ui/controls.js";
+import { owner } from "../ui/owner.js";
 import { EXERCISES, ExerciseRun } from "./run.js";
-
-const TONICS = ["D", "G", "A", "C", "F"];
 
 export default {
   title: () => t("practice.title"),
 
   mount(root) {
     this.root = root;
-    this.tonic = "D";
-    this.quality = "major";
     this.showList();
   },
 
   unmount() { this.teardown(); },
 
   teardown() {
-    if (this.offState) { this.offState(); this.offState = null; }
-    if (this.control) { this.control.dispose(); this.control = null; }
+    if (this.own) this.own.dispose();
+    this.own = owner();
     if (this.active) { this.active.unmount(); this.active = null; }
   },
 
@@ -32,17 +29,22 @@ export default {
     this.teardown();
     const root = this.root;
     root.replaceChildren();
-    const control = audioControl({ showGranted: false });
-    this.control = control;
     const label = labelField();
     this.label = label;
 
-    const tonicSelect = el("select", { class: "select", onchange: (e) => { this.tonic = e.target.value; } },
-      TONICS.map((k) => el("option", { value: k, selected: k === this.tonic || null,
-                                       text: nameClass(SpelledPitch.parse(`${k}4`)) })));
-    const qualitySelect = el("select", { class: "select", onchange: (e) => { this.quality = e.target.value; } },
-      ["major", "minor"].map((q) => el("option", { value: q, selected: q === this.quality || null,
-                                                    text: t(`practice.quality.${q}`) })));
+    /* The tonic and the scale, bound so they are remembered.
+     *
+     * They were plain fields on this object, reset to D major every time the
+     * page was opened -- so a player working in G had to say so again on
+     * every visit, while the key-choosing exercises next door had remembered
+     * their key across sessions since phase 6. Two halves of one page
+     * disagreeing about whether a choice is worth keeping.
+     *
+     * TONICS -- five letters -- is gone with them: the shared vocabulary
+     * spells every key the app can, so Practice gains the flat keys it had no
+     * reason to be missing. */
+    const chooser = this.own.add(keyQuality({ keyBind: "practiceTonic", qualityBind: "practiceQuality" }));
+    this.chooser = chooser;
 
     // A spec with a `route` runs itself on its own page: Play Scales is a
     // listening exercise, not a walk through fixed target notes, so it
@@ -59,22 +61,28 @@ export default {
       ]),
       el("div", { class: "card-desc", text: t(`practice.ex.${key}.desc`) }),
     ]));
-    this.offState = engine.onState(() => buttons.forEach((b) => { b.disabled = !engine.listening; }));
+    // The exercise cards are the start buttons, so the row is the microphone
+    // control and the note saying why the cards are dead.
+    this.own.add(micGate(buttons));
+    const row = this.own.add(startRow());
 
     append(root,
       explainer(t("practice.intro")),
-      el("div", { class: "row" }, [control.element, el("span", { text: t("practice.tonic") }), tonicSelect,
-                                    el("span", { text: t("practice.quality") }), qualitySelect]),
+      chooser.element,
       el("div", { class: "row" }, [label.element]),
-      engine.listening ? null : el("p", { class: "note-box", text: t("practice.needMic") }),
+      row.element,
       el("div", { class: "cards" }, buttons),
     );
   },
 
   startRun(key) {
+    // Read before teardown: teardown() disposes the chooser, and reading a
+    // control after disposing it happens to work today for a reason nobody
+    // should have to know.
+    const { key: tonic, quality } = this.chooser.value;
+    const label = this.label ? this.label.value : "";
     this.teardown();
-    this.active = new ExerciseRun({ key, spec: EXERCISES[key], tonic: this.tonic, quality: this.quality,
-                                    label: this.label ? this.label.value : "",
+    this.active = new ExerciseRun({ key, spec: EXERCISES[key], tonic, quality, label,
                                     onBack: () => this.showList() });
     this.active.mount(this.root);
   },

@@ -35,6 +35,8 @@ export const DEFAULTS = Object.freeze({
   scalesKeyIndex: 0,     // where the guided sequence had got to
   practiceKeyIndex: 0,   // which key the key-choosing exercises are in
   practiceRandom: false, // predict-then-see: random keys and intervals
+  practiceTonic: "D",    // the tonic the exercise list is set to
+  practiceQuality: "major",
 });
 
 let state = null;

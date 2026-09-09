@@ -34,6 +34,9 @@ import { invitation } from "../ui/feedback.js";
 import { helpSection } from "../ui/help.js";
 import { compareAdjustment } from "../core/adjust.js";
 import { el, append, needle, levelBar, bandClass, settleLabel, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
+import { checkboxField } from "../ui/fields.js";
+import { keyControl } from "../ui/controls.js";
+import { owner } from "../ui/owner.js";
 
 /* One pass of "Predict, then see": the given intervals over one key's own
  * drone. The shape belongs to this exercise rather than to the generator --
@@ -207,8 +210,9 @@ export class ExerciseRun {
       summary: new SessionSummary(), judgements: [], rows: [], stopped: false,
       pendingResult: null, nextTimer: null,
     };
+    this.own = owner();
     this.buildUi();
-    this.offFrame = engine.onFrame((frame) => this.onFrame(frame));
+    this.own.add(engine.onFrame((frame) => this.onFrame(frame)));
     this.mounted = true;
     requestAnimationFrame(() => this.render());
     this.nextSegment();
@@ -216,7 +220,7 @@ export class ExerciseRun {
 
   unmount() {
     this.mounted = false;
-    if (this.offFrame) { this.offFrame(); this.offFrame = null; }
+    if (this.own) { this.own.dispose(); this.own = null; }
     if (this.keyHandler) { window.removeEventListener("keydown", this.keyHandler); this.keyHandler = null; }
     if (this.run?.nextTimer) clearTimeout(this.run.nextTimer);
     engine.drone.stop();
@@ -242,27 +246,29 @@ export class ExerciseRun {
   buildUi() {
     const run = this.run;
     const root = this.root;
+    const own = this.own;
     root.replaceChildren();
     this.ui = {
       heading: el("h2", { text: t(`practice.ex.${run.key}.title`) }),
-      keyPicker: run.spec.keys ? el("select", { class: "select", onchange: (e) => {
-        settings.set({ practiceKeyIndex: Number(e.target.value) });
-        this.restart();
-      } }, run.spec.keys.map((entry, i) => el("option", {
-        value: String(i), selected: entry === this.chosenKey() || null,
-        text: t("practice.inKey", nameClass(SpelledPitch.parse(`${entry.key}4`), run.settings)),
-      }))) : null,
+      // Deliberately live rather than reading the run's frozen settings: the
+      // note rows are labelled from the frozen copy so a mid-run naming change
+      // cannot retro-label a scored session, but this control is a choice the
+      // player is making now and should read in the names they have now.
+      //
+      // onChange lands in a microtask, which is what makes restart() safe --
+      // it tears down the very select whose change event is still dispatching.
+      keyPicker: run.spec.keys ? own.add(keyControl({
+        keys: run.spec.keys, store: "index", bind: "practiceKeyIndex",
+        label: t("practice.key"), labelKey: "practice.inKey",
+        onChange: () => this.restart(),
+      })) : null,
       // Harder: nothing to anticipate. Read when each pass is built, so
       // ticking it part-way through costs nothing -- the current key
       // finishes and the next one is a surprise.
-      random: run.spec.randomisable ? el("label", { class: "toggle" }, [
-        el("input", { type: "checkbox", checked: run.random || null,
-                      onchange: (e) => {
-                        run.random = e.target.checked;
-                        settings.set({ practiceRandom: e.target.checked });
-                      } }),
-        el("span", { text: t("practice.random") }),
-      ]) : null,
+      random: run.spec.randomisable ? own.add(checkboxField({
+        label: t("practice.random"), look: "toggle", bind: "practiceRandom",
+        onChange: (on) => { run.random = on; },
+      })) : null,
       // Which key we are in now. Only exercises that change key on their own
       // show it -- everywhere else the player chose the key and knows.
       keyLine: run.spec.nextExercise ? el("p", { class: "intro key-now" }) : null,
@@ -290,10 +296,8 @@ export class ExerciseRun {
     u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.level.element, u.judge]);
     append(root,
       u.heading,
-      u.keyPicker ? el("div", { class: "row" }, [
-        el("label", { class: "field" }, [t("practice.key"), u.keyPicker]),
-      ]) : null,
-      u.random ? el("div", { class: "row" }, [u.random]) : null,
+      u.keyPicker ? u.keyPicker.element : null,
+      u.random ? el("div", { class: "row" }, [u.random.element]) : null,
       u.keyLine,
       // Short version folded away, sources behind it. The page stays clean and
       // nothing that explains WHY this exercise exists is more than a tap

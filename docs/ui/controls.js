@@ -101,7 +101,7 @@ export function qualityControl({ label = t("music.quality"), ...rest } = {}) {
  * quietly becomes something else; that is preserved here, including its
  * silence, and surfaced through onChange so a view could choose to say so.
  */
-export function keyQuality({ keyBind = null, qualityBind = null, keys = null,
+export function keyQuality({ keyBind = null, qualityBind = null, keys = null, label = null,
                              onChange = null, source = null, key = null, quality = "major" } = {}) {
   const listFor = (q) => keys ?? keysForQuality(q);
   const announce = () => { if (onChange) onChange({ key: keyControl_.key, quality: qualityControl_.value }); };
@@ -113,6 +113,9 @@ export function keyQuality({ keyBind = null, qualityBind = null, keys = null,
   const keyControl_ = keyControl({
     keys: listFor(qualityBind ? (source ? source() : settings.get())[qualityBind] : quality),
     bind: keyBind, source, value: key, onChange: announce,
+    // Some callers lead in with their own wording -- "Change key" mid-session
+    // rather than "Key" -- and that is a label, not a new piece of markup.
+    ...(label ? { label } : {}),
   });
 
   return {
@@ -219,16 +222,20 @@ export function micGate(target) {
 
 /* The start-the-microphone row: the audio control, a primary button that
  * comes alive when the engine does, and the note explaining why it is dead.
- * stopper.js, listen.js, scales.js and practice.js each had their own. */
-export function startRow({ label, onStart, showGranted = false, extras = [], needMicNote = true } = {}) {
+ * stopper.js, listen.js, scales.js and practice.js each had their own.
+ *
+ * `label` null means no button. Practice is that case: its exercise cards are
+ * the start buttons, so the row is the microphone control and the note saying
+ * why the cards are dead -- which is the half worth sharing anyway. */
+export function startRow({ label = null, onStart = null, showGranted = false, extras = [], needMicNote = true } = {}) {
   const control = audioControl({ showGranted });
-  const button = el("button", { class: "primary", text: label, onclick: () => onStart() });
-  const off = micGate(button);
+  const button = label ? el("button", { class: "primary", text: label, onclick: () => onStart() }) : null;
+  const off = button ? micGate(button) : () => {};
   const note = needMicNote ? el("p", { class: "note-box", text: t("practice.needMic") }) : null;
   const offNote = note ? engine.onState(() => { note.hidden = engine.listening; }) : null;
   if (note) note.hidden = engine.listening;
   return {
-    element: el("div", {}, [el("div", { class: "row" }, [control.element, button, ...extras]), note]),
+    element: el("div", {}, [el("div", { class: "row" }, [control.element, button, ...extras].filter(Boolean)), note]),
     button, control,
     dispose() { off(); if (offNote) offNote(); control.dispose(); },
   };

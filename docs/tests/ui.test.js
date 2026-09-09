@@ -58,8 +58,7 @@ test("the exercise list and its strings agree, in both directions", () => {
  * name left behind, so the list cannot rot into a permanent exemption. Delete
  * a name when you migrate the view; delete the list when it empties. */
 const HAND_BUILT_CONTROLS = new Set([
-  "bend.js", "listen.js", "practice.js", "run.js",
-  "sessions.js", "settings.js",
+  "bend.js", "sessions.js", "settings.js",
 ]);
 const HAND_BUILT = /el\("select"|type:\s*"(?:checkbox|radio|range)"/;
 
@@ -134,13 +133,21 @@ test("the control layer keeps its dependencies pointing one way", () => {
 test("a class the app puts on the page is a class the stylesheet knows", () => {
   // `.field` was emitted at nine sites and had no rule at all: those rows laid
   // out by inheritance, so the day someone added one, nine places would move.
+  //
+  // Checked over ui/ rather than every view: this is the shared layer, small
+  // and new, and a class invented here lands on every page at once. It caught
+  // a `.field-lead` invented mid-migration with no rule behind it -- the same
+  // mistake, one file over from where the test was looking.
   const css = fs.readFileSync(path.join(here, "..", "styles.css"), "utf8");
-  for (const dir of ["views", "ui"]) {
-    for (const file of fs.readdirSync(path.join(here, "..", dir))) {
-      if (!file.endsWith(".js")) continue;
-      const src = fs.readFileSync(path.join(here, "..", dir, file), "utf8");
-      if (!/class:\s*"field"/.test(src)) continue;
-      assert.ok(new RegExp("\\.field\\s*\\{").test(css), `${file} uses .field; styles.css must define it`);
+  const known = (name) => new RegExp(`\\.${name}[\\s,.:>{]`).test(css);
+  for (const file of fs.readdirSync(path.join(here, "..", "ui"))) {
+    if (!file.endsWith(".js")) continue;
+    const src = fs.readFileSync(path.join(here, "..", "ui", file), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    for (const [, value] of src.matchAll(/class:\s*"([a-z][a-z0-9 -]*)"/g)) {
+      for (const name of value.split(/\s+/).filter(Boolean)) {
+        assert.ok(known(name), `${file} puts .${name} on the page; styles.css must define it`);
+      }
     }
   }
 });
