@@ -37,6 +37,7 @@
 import { parseScala, TemperamentTuning, ReferencePitch } from "./tuning.js";
 import { SpelledPitch } from "./pitch.js";
 import { TEMPERAMENTS, TEMPERAMENT_ORDER } from "./temperaments.js";
+import { SETTLE_BODY_SECONDS } from "./scoring.js";
 
 /** Chromatic pitch classes, indexed as SpelledPitch.chromaticIndex is. */
 export const PITCH_CLASSES = Object.freeze(
@@ -235,6 +236,43 @@ export function classifyHz(hz, referenceHz) {
     index: (((nearest % 12) + 12) + A_INDEX) % 12,
     cents: 100 * (semis - nearest),
   };
+}
+
+/* ---- which notes a pitch-class table may count ------------------------ */
+
+/* Shorter than this and there is nothing to read.
+ *
+ * The same threshold the scoring policy uses for "long enough to look for a
+ * settled end", and for the same reason. Measured over 945 real notes with
+ * docs/tests/abscore.js: a note of 6 to 14 frames swings up to 46 cents when
+ * the region's edges move by 12 ms -- a boundary the level gate places, not
+ * the player. Four of those 945 swing more than 20 cents and three are
+ * shorter than a quarter second. Fast playing is 38% such notes, and folding
+ * them into a pitch class alongside a held note gives them equal weight.
+ */
+export const CLASS_MIN_SECONDS = SETTLE_BODY_SECONDS;
+
+/* And further than this from a pitch class, which row it belongs to is a
+ * coin toss: 40 cents from one name is 60 from the next, and 4% of real
+ * notes land there. Better to say a note could not be placed than to place
+ * it in the neighbouring row and let it move that row's figure. */
+export const CLASS_AMBIGUOUS_CENTS = 40.0;
+
+/**
+ * Name a played note as a pitch class, and say whether it may be counted.
+ *
+ * Both tables that fold notes onto pitch classes go through this, so "which
+ * notes count" is one decision rather than two that drift apart. `usable` is
+ * false with a reason rather than the note being dropped silently: a player
+ * who plays something and sees nothing happen is owed the reason.
+ *
+ * @returns {{index: number, cents: number, usable: boolean, why: string|null}}
+ */
+export function classifyNote(hz, referenceHz, seconds) {
+  const { index, cents } = classifyHz(hz, referenceHz);
+  if (!(seconds >= CLASS_MIN_SECONDS)) return { index, cents, usable: false, why: "short" };
+  if (Math.abs(cents) > CLASS_AMBIGUOUS_CENTS) return { index, cents, usable: false, why: "between" };
+  return { index, cents, usable: true, why: null };
 }
 
 /**

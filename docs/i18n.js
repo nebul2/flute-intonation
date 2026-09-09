@@ -266,7 +266,13 @@ export const STRINGS = {
     "temperaments.col.note": "Note",
     "temperaments.col.spread": "Spread",
     "temperaments.same": "same",
-    "temperaments.you": (cents) => `you: ${cents}¢`,
+    "temperaments.you": (cents, n) => `you: ${cents}¢ (${n})`,
+    "temperaments.ignored": (short, between, seconds) =>
+      `Not counted: ${short} note${short === 1 ? "" : "s"} shorter than ${seconds}s`
+      + `${between ? `, ${between} too far from any note to place` : ""}. `
+      + "A short note is worth tens of cents of noise, so it would only move these figures around.",
+    "temperaments.copy": "Copy these readings",
+    "temperaments.copied": "Copied — paste it wherever you are keeping notes.",
     "temperaments.clear": "Clear what I played",
 
     "home.card.temperament.title": "Which temperament?",
@@ -832,7 +838,13 @@ export const STRINGS = {
     "temperaments.col.note": "Note",
     "temperaments.col.spread": "Écart",
     "temperaments.same": "idem",
-    "temperaments.you": (cents) => `toi : ${cents}¢`,
+    "temperaments.you": (cents, n) => `toi : ${cents}¢ (${n})`,
+    "temperaments.ignored": (short, between, seconds) =>
+      `Non comptées : ${short} note${short === 1 ? "" : "s"} plus courte${short === 1 ? "" : "s"} que ${seconds}s`
+      + `${between ? `, ${between} trop loin de toute note pour être placée${between === 1 ? "" : "s"}` : ""}. `
+      + "Une note brève vaut des dizaines de cents de bruit : elle ne ferait que déplacer ces chiffres.",
+    "temperaments.copy": "Copier ces relevés",
+    "temperaments.copied": "Copié — colle-le où tu gardes tes notes.",
     "temperaments.clear": "Effacer ce que j'ai joué",
 
     "home.card.temperament.title": "Quel tempérament ?",

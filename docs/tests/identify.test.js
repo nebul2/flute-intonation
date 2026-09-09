@@ -128,7 +128,8 @@ test("contention is judged on distance, so a clear winner stands alone", () => {
 
 /* ---- from frequencies, as the detector reports them ------------------- */
 
-import { classifyHz } from "../core/identify.js";
+import { classifyHz, classifyNote, CLASS_MIN_SECONDS } from "../core/identify.js";
+import { SETTLE_BODY_SECONDS } from "../core/scoring.js";
 import { parseScala, TemperamentTuning, ReferencePitch } from "../core/tuning.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
 import { SpelledPitch } from "../core/pitch.js";
@@ -401,4 +402,52 @@ test("C minor spells both its ways: the signature going down, the raised degrees
   assert.equal(spell("A4"), "A4", "the raised sixth is A natural, raised from Ab");
   // and the tonic itself, for good measure
   assert.equal(spell("C5"), "C5");
+});
+
+/* ---- which notes a pitch-class table may count ------------------------ */
+
+/* The two guards exist because both pages that fold notes onto pitch classes
+ * used to count everything the segmenter let through, including notes far too
+ * short to have a reading. Measured with docs/tests/abscore.js: a note of six
+ * to fourteen frames swings up to 46 cents when the region's edges move by
+ * 12 ms, and 38% of notes in real fast playing are that short. */
+
+test("a note too short to measure is named but not counted", () => {
+  const short = classifyNote(554.6, 415, 0.20);
+  assert.equal(short.usable, false);
+  assert.equal(short.why, "short");
+  // Named all the same: the caller may still want to say what it heard.
+  assert.equal(short.index, 2);
+  assert.ok(Math.abs(short.cents - 2.0) < 0.5);
+});
+
+test("a note long enough to measure is counted", () => {
+  const held = classifyNote(554.6, 415, 1.0);
+  assert.equal(held.usable, true);
+  assert.equal(held.why, null);
+});
+
+test("the threshold is the scoring policy's own, not a second opinion", () => {
+  assert.equal(CLASS_MIN_SECONDS, SETTLE_BODY_SECONDS);
+  // Exactly at the threshold counts: the comparison must not be strict, or a
+  // note of precisely the minimum length would fall through the floor.
+  assert.equal(classifyNote(554.6, 415, CLASS_MIN_SECONDS).usable, true);
+});
+
+test("a note stranded between two names is not placed in either", () => {
+  // 45 cents above D is 55 below Eb: no arithmetic can say which was meant,
+  // and putting it in one of them moves that row's figure by a lot.
+  const between = classifyNote(554.6 * Math.pow(2, 45 / 1200), 415, 1.0);
+  assert.equal(between.usable, false);
+  assert.equal(between.why, "between");
+  // Still on the near side, so a caller that shows it shows the near name.
+  assert.equal(between.index, 2);
+});
+
+test("a note well off but placeable is still counted", () => {
+  // 30 cents sharp is bad playing, not an ambiguous reading, and this page
+  // exists to show exactly that.
+  const sharp = classifyNote(554.6 * Math.pow(2, 30 / 1200), 415, 1.0);
+  assert.equal(sharp.usable, true);
+  assert.ok(Math.abs(sharp.cents - 32) < 1);
 });

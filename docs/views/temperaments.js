@@ -16,6 +16,12 @@
  * at once. Where several columns agree, several light up: no amount of careful
  * playing separates notes the temperaments put in the same place, and saying
  * otherwise would teach the wrong lesson.
+ *
+ * It counts held notes only, and says how many each row rests on. A note too
+ * short to measure used to be folded in with the same weight as a long tone,
+ * and a short note is worth up to 46 cents of noise -- enough to put a mark
+ * in the wrong row. See classifyNote() for the two thresholds and the
+ * measurements behind them.
  */
 
 import { t } from "../i18n.js";
@@ -25,7 +31,8 @@ import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
 import { postAttack, notePitch } from "../core/scoring.js";
 import { TEMPERAMENT_ORDER } from "../core/temperaments.js";
 import {
-  temperamentTable, matchRow, classifyHz, INDISTINGUISHABLE_CENTS,
+  temperamentTable, matchRow, classifyNote, INDISTINGUISHABLE_CENTS,
+  CLASS_MIN_SECONDS, PITCH_CLASSES,
 } from "../core/identify.js";
 import { el, append, audioControl, levelBar, temperamentLabel, explainer } from "../ui/widgets.js";
 import { pitchClassControl } from "../ui/controls.js";
@@ -41,6 +48,33 @@ const median = (xs) => {
   return o.length % 2 ? o[o.length >> 1] : (o[o.length / 2 - 1] + o[o.length / 2]) / 2;
 };
 
+/* What was played, as text that can be pasted somewhere else.
+ *
+ * Read off a screen and retyped, twelve numbers acquire a typo, and a typo in
+ * a tuning measurement is indistinguishable from a finding -- which is the
+ * whole problem with checking one device against another by eye. So the page
+ * writes them out itself: the readings, how many notes each rests on, which
+ * columns each lit, and what was thrown away.
+ */
+export function readingsReport({ rows, played, ignored, referenceHz, rootLabel, octave, naming }) {
+  const lines = [
+    `LBG temperaments  A=${referenceHz}  root=${rootLabel}  octave=${octave}  naming=${naming}`,
+    `columns: ${TEMPERAMENT_ORDER.join(" ")}`,
+  ];
+  for (const row of rows) {
+    const heard = played[row.index];
+    if (!heard.length) continue;
+    const you = median(heard);
+    const hit = matchRow(row, you);
+    lines.push(`${PITCH_CLASSES[row.index].padEnd(3)} n=${String(heard.length).padStart(2)}`
+      + `  you ${you >= 0 ? "+" : ""}${you.toFixed(1)}`
+      + `  cols ${row.cells.map((c) => c.cents.toFixed(1)).join(" ")}`
+      + `  lit ${hit.matches.join(",") || "-"}`);
+  }
+  lines.push(`ignored: ${ignored.short} too short, ${ignored.between} between rows`);
+  return lines.join("\n");
+}
+
 export default {
   title: () => t("temperaments.title"),
 
@@ -54,8 +88,13 @@ export default {
     const own = owner();
     this.own = own;
     const played = Array.from({ length: 12 }, () => []);
+    // Notes heard but not counted, by reason. Shown, not swallowed: playing
+    // something and seeing nothing happen needs an explanation on the page.
+    const ignored = { short: 0, between: 0 };
 
     const table = el("table", { class: "temp-table" });
+    const skipped = el("p", { class: "muted small" });
+    const copied = el("div", { class: "muted small" });
     const control = audioControl({ showGranted: false });
     this.control = control;
     const level = levelBar();
@@ -74,9 +113,11 @@ export default {
       onChange: (chosen) => { octave = chosen; draw(); },
     }));
 
+    let drawnRows = [];
     const draw = () => {
       const s = settings.get();
       const rows = temperamentTable({ referenceHz: ref, root: rootClass, octave });
+      drawnRows = rows;
       table.replaceChildren();
       table.append(el("thead", {}, [el("tr", {}, [
         el("th", { text: t("temperaments.col.note") }),
@@ -101,7 +142,7 @@ export default {
             el("div", { text: className(row.index, s) }),
             heard === null ? null
               : el("div", { class: "temp-you", text: t("temperaments.you",
-                  `${heard >= 0 ? "+" : ""}${heard.toFixed(1)}`) }),
+                  `${heard >= 0 ? "+" : ""}${heard.toFixed(1)}`, played[row.index].length) }),
           ]),
           ...cells,
           el("td", { class: "temp-spread", text: row.indistinguishable
@@ -110,6 +151,9 @@ export default {
         ]));
       }
       table.append(body);
+      skipped.textContent = ignored.short || ignored.between
+        ? t("temperaments.ignored", ignored.short, ignored.between, CLASS_MIN_SECONDS)
+        : "";
     };
 
     /* Each played note is folded onto its pitch class -- the octave it was
@@ -125,8 +169,10 @@ export default {
       const [framesHz] = postAttack(region.framesHz, tracker.frameSeconds, region.levelsDb);
       if (!framesHz.length) return;
       if (Math.abs(driftCents(framesHz)) >= GLIDE_CENTS) return;
-      const { index, cents } = classifyHz(notePitch(framesHz, tracker.frameSeconds).hz, ref);
-      played[index].push(cents);
+      const { index, cents, usable, why } = classifyNote(
+        notePitch(framesHz, tracker.frameSeconds).hz, ref, region.seconds);
+      if (usable) played[index].push(cents);
+      else ignored[why] += 1;
       draw();
     });
 
@@ -141,10 +187,31 @@ export default {
       control.element,
       level.element,
       el("div", { class: "scroll" }, [table]),
+      skipped,
       helpSection("temperaments").element,
+      copied,
       el("div", { class: "controls" }, [
+        el("button", { class: "secondary", text: t("temperaments.copy"), onclick: async () => {
+          const text = readingsReport({
+            rows: drawnRows, played, ignored, referenceHz: ref,
+            rootLabel: PITCH_CLASSES[rootClass], octave,
+            naming: settings.get().naming,
+          });
+          try {
+            await navigator.clipboard.writeText(text);
+            copied.replaceChildren(el("span", { text: t("temperaments.copied") }));
+          } catch (_error) {
+            // Denied, or an insecure context. The text on the page can still
+            // be selected by hand: worse, but it never fails.
+            copied.replaceChildren(
+              el("textarea", { class: "feedback-fallback", rows: 10, readonly: true, text }));
+          }
+        } }),
         el("button", { class: "primary", text: t("temperaments.clear"), onclick: () => {
           played.forEach((xs) => { xs.length = 0; });
+          ignored.short = 0;
+          ignored.between = 0;
+          copied.replaceChildren();
           tracker.flush();
           draw();
         } }),

@@ -17,7 +17,7 @@ import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
 import { postAttack, notePitch } from "../core/scoring.js";
-import { identify, classifyHz, predictedCents, expectedHz, bestByTemperament,
+import { identify, classifyNote, predictedCents, expectedHz, bestByTemperament,
          PITCH_CLASSES, MIN_CLASSES, FULL_CLASSES } from "../core/identify.js";
 import { el, append, audioControl, levelBar, temperamentLabel, explainer } from "../ui/widgets.js";
 
@@ -66,8 +66,12 @@ export default {
      * distance from that name. Proximity is safe because no temperament here
      * moves a note more than about 25 cents, so only a badly set reference
      * pitch can misname one -- which identify() flags rather than hides. */
-    const record = (hz) => {
-      const { index, cents } = classifyHz(hz, ref);
+    const record = (hz, seconds) => {
+      // Short notes and notes stranded between two names are not readings:
+      // one carries tens of cents of noise, the other could be either row.
+      // Both would corrupt a fingerprint built from twelve medians.
+      const { index, cents, usable } = classifyNote(hz, ref, seconds);
+      if (!usable) return;
       heard[index].push(cents);
       const cell = cells[index];
       cell.classList.add("heard");
@@ -191,7 +195,7 @@ export default {
       // A pitch still travelling is not a reading; on a plucked string this
       // also throws out the pluck itself, which bends before it settles.
       if (Math.abs(driftCents(framesHz)) >= GLIDE_CENTS) return;
-      record(notePitch(framesHz, tracker.frameSeconds).hz);
+      record(notePitch(framesHz, tracker.frameSeconds).hz, region.seconds);
     });
 
     const reset = () => {
