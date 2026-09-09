@@ -25,13 +25,16 @@ import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
 import { postAttack, notePitch } from "../core/scoring.js";
 import { TEMPERAMENT_ORDER } from "../core/temperaments.js";
 import {
-  temperamentTable, matchRow, classifyHz, PITCH_CLASSES, INDISTINGUISHABLE_CENTS,
+  temperamentTable, matchRow, classifyHz, INDISTINGUISHABLE_CENTS,
 } from "../core/identify.js";
 import { el, append, audioControl, levelBar, temperamentLabel, explainer } from "../ui/widgets.js";
+import { pitchClassControl } from "../ui/controls.js";
+import { selectField } from "../ui/fields.js";
+import { owner } from "../ui/owner.js";
+import { pitchClassLabel, pitchClassIndexOf } from "../ui/naming.js";
 import { helpSection } from "../ui/help.js";
 
-const SOLFEGE = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "La♯", "Si"];
-const className = (i, s) => (s.naming === "solfege" ? SOLFEGE[i] : PITCH_CLASSES[i]);
+const className = (i, s) => pitchClassLabel(i, s.naming);
 
 const median = (xs) => {
   const o = [...xs].sort((a, b) => a - b);
@@ -44,9 +47,12 @@ export default {
   mount(root) {
     const s0 = settings.get();
     const ref = Number(s0.referenceHz) || 415;
-    let rootClass = PITCH_CLASSES.indexOf((s0.root || "C").replace("b", "#"));
-    if (rootClass < 0) rootClass = 0;
+    // The saved root is a key name -- "Bb" -- and turning it into an index by
+    // replacing b with # landed a semitone out on every flat key.
+    let rootClass = pitchClassIndexOf(s0.root || "C");
     let octave = 4;
+    const own = owner();
+    this.own = own;
     const played = Array.from({ length: 12 }, () => []);
 
     const table = el("table", { class: "temp-table" });
@@ -54,15 +60,19 @@ export default {
     this.control = control;
     const level = levelBar();
 
-    const rootSelect = el("select", { class: "select" },
-      PITCH_CLASSES.map((_, i) => el("option", { value: String(i), text: className(i, s0) })));
-    rootSelect.value = String(rootClass);
-    rootSelect.addEventListener("change", () => { rootClass = Number(rootSelect.value); draw(); });
-
-    const octaveSelect = el("select", { class: "select" },
-      [3, 4, 5, 6].map((o) => el("option", { value: String(o), text: String(o) })));
-    octaveSelect.value = String(octave);
-    octaveSelect.addEventListener("change", () => { octave = Number(octaveSelect.value); draw(); });
+    // Unbound on purpose: this page compares temperaments from a root of its
+    // own choosing and must not rewrite the root the whole app is tuned to.
+    // It still relabels itself when the naming setting changes, which is the
+    // control's business rather than this view's.
+    const rootField = own.add(pitchClassControl({
+      label: t("temperaments.root"), value: rootClass,
+      onChange: (index) => { rootClass = index; draw(); },
+    }));
+    const octaveField = own.add(selectField({
+      label: t("temperaments.octave"), value: octave, parse: Number,
+      options: [3, 4, 5, 6].map((o) => ({ value: o, label: String(o) })),
+      onChange: (chosen) => { octave = chosen; draw(); },
+    }));
 
     const draw = () => {
       const s = settings.get();
@@ -120,19 +130,14 @@ export default {
       draw();
     });
 
-    this.offSettings = settings.subscribe(() => {
-      const s = settings.get();
-      rootSelect.querySelectorAll("option").forEach((o, i) => { o.textContent = className(i, s); });
-      draw();
-    });
+    // The table's own note names still follow the setting; the two controls
+    // now relabel themselves.
+    own.add(settings.subscribe(() => draw()));
 
     append(root,
       explainer(t("temperaments.intro"), t("temperaments.lesson", INDISTINGUISHABLE_CENTS),
                 t("temperaments.how", ref)),
-      el("div", { class: "row" }, [
-        el("label", { class: "field" }, [t("temperaments.root"), rootSelect]),
-        el("label", { class: "field" }, [t("temperaments.octave"), octaveSelect]),
-      ]),
+      el("div", { class: "row" }, [rootField.element, octaveField.element]),
       control.element,
       level.element,
       el("div", { class: "scroll" }, [table]),
@@ -150,7 +155,7 @@ export default {
 
   unmount() {
     if (this.offFrame) this.offFrame();
-    if (this.offSettings) this.offSettings();
+    if (this.own) { this.own.dispose(); this.own = null; }
     if (this.control) this.control.dispose();
   },
 };

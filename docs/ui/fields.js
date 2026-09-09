@@ -110,6 +110,10 @@ function bound({ bind = null, source = null, value = null, onChange = null, onSy
       queueMicrotask(() => { if (onSync) onSync(next); if (onChange) onChange(next); });
     },
     sync() { current = read(); if (onSync) onSync(current); return current; },
+    /* Take the value the setting now holds, without telling anyone: a render
+     * caused by somebody else's write must show their value, not the one this
+     * control last saw. Two controls on one setting disagreed until this. */
+    reread() { if (bind && !source) current = read(); return current; },
     get writing() { return writing; },
   };
 }
@@ -118,12 +122,17 @@ function bound({ bind = null, source = null, value = null, onChange = null, onSy
 
 /* A select over a fixed or computed list of {value, label} options. */
 export function selectField({ label = null, hint = null, options, watch = [], parse = String, ...rest }) {
+  // A bound control watches its own setting as well as whatever else it
+  // displays, or two controls on one setting can still disagree -- which is
+  // the entire thing this layer exists to prevent.
+  if (rest.bind) watch = [...watch, rest.bind];
   const state = bound(rest);
   const select = el("select", { class: "select" });
   const hintNode = hint ? el("p", { class: "muted small" }) : null;
   const list = () => (typeof options === "function" ? options() : options);
 
   const render = () => {
+    state.reread();
     const chosen = setOptions(select, list(), state.value);
     if (chosen !== state.value) state.set(chosen);
     if (hintNode) hintNode.textContent = typeof hint === "function" ? hint(state.value) : hint;
@@ -155,6 +164,7 @@ export function checkboxField({ label, help = null, look = "toggle", ariaLabel =
   const text = el("span", { class: look === "option" ? "option-label" : "" });
   const helpNode = help ? el("span", { class: "option-help" }) : null;
   const render = () => {
+    state.reread();
     input.checked = state.value === true;
     text.textContent = typeof label === "function" ? label() : label;
     if (helpNode) helpNode.textContent = typeof help === "function" ? help() : help;
@@ -191,6 +201,7 @@ export function radioGroup({ name, options, ...rest }) {
   }));
 
   const render = () => {
+    state.reread();
     for (const [input, option] of inputs) input.checked = option.value === state.value;
     for (const [text, help, option] of labels) {
       text.textContent = typeof option.label === "function" ? option.label() : option.label;
@@ -214,7 +225,7 @@ export function rangeField({ label = null, min, max, step, ...rest }) {
   const input = el("input", { type: "range", min: String(min), max: String(max), step: String(step) });
   input.value = String(state.value);
   input.addEventListener("input", () => state.changed(Number(input.value)));
-  const render = () => { input.value = String(state.value); };
+  const render = () => { state.reread(); input.value = String(state.value); };
   const off = live(render, { watch: rest.bind ? [rest.bind] : [], source: rest.source });
   return {
     element: field(label, input), input,
@@ -234,6 +245,7 @@ export function segmentedField({ options, ...rest }) {
   });
   const wrap = el("div", { class: "segmented" }, buttons.map(([button]) => button));
   const render = () => {
+    state.reread();
     for (const [button, option] of buttons) {
       button.className = option.value === state.value ? "active" : "";
       button.textContent = typeof option.label === "function" ? option.label() : option.label;

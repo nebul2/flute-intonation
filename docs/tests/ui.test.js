@@ -59,7 +59,7 @@ test("the exercise list and its strings agree, in both directions", () => {
  * a name when you migrate the view; delete the list when it empties. */
 const HAND_BUILT_CONTROLS = new Set([
   "bend.js", "listen.js", "practice.js", "run.js", "scales.js",
-  "sessions.js", "settings.js", "temperaments.js", "tuner.js", "tuning.js",
+  "sessions.js", "settings.js", "tuner.js", "tuning.js",
 ]);
 const HAND_BUILT = /el\("select"|type:\s*"(?:checkbox|radio|range)"/;
 
@@ -86,7 +86,7 @@ test("note names live in ui/naming.js, not in a table in a view", () => {
   // Three views carried their own. One hard-codes solfège, so a player who
   // chose letters was shown "Do♯4" on that page whatever they had set; two
   // more disagreed with each other on whether to spell with sharps or flats.
-  const KNOWN = new Set(["temperaments.js", "temperament.js", "check.js"]);
+  const KNOWN = new Set(["temperament.js", "check.js"]);
   const views = fs.readdirSync(path.join(here, "..", "views"));
   for (const file of views) {
     const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
