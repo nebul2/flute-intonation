@@ -337,6 +337,32 @@ Still to build: routines by length.
 
 ## Findings
 
+### A silent microphone on an iPad was the iPad, not the app
+
+Worth writing down because two plausible code fixes were argued for it and
+neither was needed. The symptom: permission granted, engine state
+`listening`, frames arriving from the worklet at exactly the right rate, and
+every frame reading **−120 dBFS** — which is the floor `rmsDb()` returns for a
+buffer of literal zeros (`docs/audio/yin.js`), a level no real room produces.
+Voice Memos on the same iPad recorded normally.
+
+That pattern reads exactly like a Web Audio graph that is never pulled: the
+capture worklet has no outputs, which makes it a terminal node whose
+`process()` runs on schedule whether or not anything above it is rendered. It
+is also what an `AudioContext` running at the playback rate does when the
+microphone switches iOS to its record route. Both are real Safari behaviours
+and both were coded around. **A reboot of the iPad fixed it on the build that
+had neither change**, so the graph was fine all along and iPadOS was holding
+the audio session in a bad state — the reverted commit is in the history with
+a rationale that turned out to be wrong.
+
+So: when the iPad goes silent with frames still flowing, reboot it before
+touching the audio path. The diagnostic line on Hardware check exists to make
+this readable from another device — frames received, the context's state and
+rate, the input track's rate and whether the system has muted it, and the last
+level in dBFS. Frames arriving at −120 with an unmuted track is the system, not
+the code.
+
 **The detector default changed.** `DESIGN.md` §5 proposed aubio's `yinfft`.
 Measured on synthetic flute-like tones across D4–A6, the bundled numpy YIN holds
 within **1.4 cents** everywhere, while aubio reads D4 about **6 cents sharp** at

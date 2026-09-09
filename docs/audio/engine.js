@@ -128,7 +128,6 @@ class Engine {
     this.frameListeners = new Set();
     this.stateListeners = new Set();
     this.drone = new Drone(this);
-    this.sink = null;
     this.deviceId = null;
     this.deviceDropped = false;
   }
@@ -201,20 +200,7 @@ class Engine {
     }
 
     try {
-      // The context is built from the track's own sample rate where the
-      // browser reports one. iOS switches the audio session to its record
-      // route when the microphone opens, and a context left running at the
-      // playback rate feeds a MediaStreamAudioSourceNode across a rate
-      // change -- which on Safari yields silence rather than an error or
-      // resampling. (Which is also why the context is created here, after
-      // getUserMedia, and not before it.)
-      const Context = window.AudioContext || window.webkitAudioContext;
-      const trackRate = this.stream.getAudioTracks()[0].getSettings().sampleRate;
-      try {
-        this.context = trackRate ? new Context({ sampleRate: trackRate }) : new Context();
-      } catch (unsupported) {
-        this.context = new Context();
-      }
+      this.context = new (window.AudioContext || window.webkitAudioContext)();
       await this.context.resume();
       await this.context.audioWorklet.addModule(new URL("./worklet.js", import.meta.url));
       this.detector = new Detector(this.context.sampleRate);
@@ -239,19 +225,6 @@ class Engine {
       this.notches[0].connect(this.notches[1]);
       this.notches[1].connect(this.notches[2]);
       this.notches[2].connect(capture);
-      // Safari will not pull a chain that ends nowhere. A worklet with no
-      // outputs is a terminal node, so its process() is called on schedule
-      // either way and frames keep arriving at exactly the right rate -- but
-      // nothing pulls the microphone at the top of the chain, and every
-      // sample handed over is zero. That is what an iPad showed: permission
-      // granted, state listening, frames flowing, -120 dBFS, which is the
-      // floor rmsDb() returns for literal silence and a level no real room
-      // produces. A gain of zero into the destination gives the graph the
-      // path to the destination it wants, and is inaudible by construction.
-      this.sink = this.context.createGain();
-      this.sink.gain.value = 0;
-      this.notches[2].connect(this.sink);
-      this.sink.connect(this.context.destination);
       const warmupFrames = Math.ceil(WARMUP_SECONDS * this.context.sampleRate / this.detector.hop);
       let warmed = 0;
       capture.port.onmessage = (event) => {
@@ -293,7 +266,6 @@ class Engine {
   stop() {
     this.drone.stop();
     this.notches = null;
-    this.sink = null;
     if (this.stream) this.stream.getTracks().forEach((track) => track.stop());
     if (this.context) this.context.close().catch(() => {});
     this.stream = null;

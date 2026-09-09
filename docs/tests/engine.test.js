@@ -66,41 +66,6 @@ function stubGraph({ trackRate = 48000 } = {}) {
   return log;
 }
 
-test("the microphone chain is given a path to the destination", async () => {
-  // A worklet with no outputs is a terminal node: Safari calls its process()
-  // on schedule whether or not anything pulls the chain above it, so frames
-  // arrive at exactly the right rate carrying nothing but zeros. Observed on
-  // an iPad as -120 dBFS, which is rmsDb()'s floor for literal silence. The
-  // gain is zero, so the path is inaudible; it exists to be pulled.
-  reset();
-  const log = stubGraph();
-  await engine.start();
-  assert.equal(engine.state, "listening");
-  assert.ok(log.wires.includes("notch -> gain"), `chain reaches a gain: ${log.wires.join(", ")}`);
-  assert.ok(log.wires.includes("gain -> destination"), "and the gain reaches the destination");
-  assert.ok(log.wires.includes("notch -> capture"), "the detector is still fed from the same chain");
-  engine.stop();
-});
-
-test("the context is opened at the capture track's own sample rate", async () => {
-  // iOS switches to its record route when the microphone opens; a context
-  // left at the playback rate feeds the source node across a rate change,
-  // and Safari answers that with silence rather than resampling.
-  reset();
-  const log = stubGraph({ trackRate: 48000 });
-  await engine.start();
-  assert.equal(log.contexts[0].sampleRate, 48000);
-  assert.equal(engine.sampleRate, 48000);
-  engine.stop();
-
-  // A track that reports no rate leaves the choice to the browser.
-  reset();
-  const plain = stubGraph({ trackRate: 0 });
-  await engine.start();
-  assert.equal(plain.contexts[0], null, "no options rather than a made-up rate");
-  engine.stop();
-});
-
 test("the input track reports itself for diagnosis", async () => {
   reset();
   stubGraph({ trackRate: 48000 });
