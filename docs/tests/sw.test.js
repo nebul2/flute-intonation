@@ -37,6 +37,14 @@ test("sw.js precaches exactly the served files", () => {
 test("sw.js is network-first and never touches other origins", () => {
   const source = fs.readFileSync(path.join(docs, "sw.js"), "utf8");
   assert.ok(source.includes("url.origin !== self.location.origin"), "cross-origin requests pass through");
-  assert.ok(/await fetch\(request\)/.test(source) && /cache\.match\(request/.test(source),
+  assert.ok(/await fetch\(request,\s*\{\s*cache:\s*"reload"\s*\}\)/.test(source)
+            && /cache\.match\(request/.test(source),
     "network first, cache on failure");
+  // The half that was missing and shipped anyway: a bare fetch() inside a
+  // worker still reads the browser's HTTP cache, and Pages serves this app
+  // with max-age=600, so for ten minutes after a push the worker fetched the
+  // old file and cached it under the new key -- a page reporting 8.1 out of a
+  // cache named for 8.2. Network-first is only network-first with `reload`.
+  assert.ok(!/await fetch\(request\)/.test(source),
+    "a bare fetch(request) reads the HTTP cache; pass { cache: \"reload\" }");
 });

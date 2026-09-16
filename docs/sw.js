@@ -10,7 +10,7 @@
  * PRECACHE must list every file the app serves. A test compares it against
  * the files on disk, so a new module cannot be forgotten. */
 
-const VERSION = "phase 8.2 · 2026-09-16";
+const VERSION = "phase 8.3 · 2026-09-16";
 const CACHE = `bongout-${VERSION}`;
 
 const PRECACHE = [
@@ -113,7 +113,20 @@ self.addEventListener("fetch", (event) => {
 async function networkFirst(request) {
   const cache = await caches.open(CACHE);
   try {
-    const response = await fetch(request);
+    /* `cache: "reload"` is what makes this worker actually network-first.
+     *
+     * A plain fetch() inside a worker still consults the browser's own HTTP
+     * cache, and GitHub Pages serves this app with max-age=600 -- so for ten
+     * minutes after a push the worker faithfully fetched the *old* file and
+     * stored it under the new cache key. Measured on the live site: a page
+     * reporting phase 8.1 out of a cache named bongout-phase 8.2, with
+     * `age: 19` on a response the CDN had already updated. "Push is the
+     * release" was the intent above and was not true.
+     *
+     * The cost is that a warm HTTP cache no longer short-circuits anything
+     * while online; the offline path below is untouched, which is the half
+     * that matters when the network is gone. */
+    const response = await fetch(request, { cache: "reload" });
     if (response && response.ok) cache.put(request, response.clone());
     return response;
   } catch (error) {
