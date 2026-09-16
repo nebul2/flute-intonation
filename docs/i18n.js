@@ -403,6 +403,8 @@ export const STRINGS = {
     "music.quality.major": "major",
     "music.quality.minor": "minor",
     "music.root": "rooted on",
+    "music.rootEqual": "Equal temperament has no root: every step is the same size, so rotating it " +
+                       "changes nothing. Choose an unequal temperament for this to matter.",
     "music.temperament": "temperament",
     "music.octave": "octave",
     "music.pitch": "note",
@@ -968,6 +970,9 @@ export const STRINGS = {
     "music.quality.major": "majeure",
     "music.quality.minor": "mineure",
     "music.root": "fondée sur",
+    "music.rootEqual": "Le tempérament égal n'a pas de fondamentale : tous les degrés sont de même " +
+                       "taille, le tourner ne change donc rien. Choisis un tempérament inégal pour " +
+                       "que ce réglage compte.",
     "music.temperament": "tempérament",
     "music.octave": "octave",
     "music.pitch": "note",

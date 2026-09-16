@@ -27,7 +27,7 @@ import { owner } from "../ui/owner.js";
 import { reach, isRigid, bestOffset, profileStats, wasForced, bendCost,
          validEntry, RIGID_CENTS, FORCED_DROP_DB } from "../core/bend.js";
 import {
-  el, append, audioControl, levelBar, currentTuning, name, explainer,
+  el, append, audioControl, meters, currentTuning, name, explainer,
 } from "../ui/widgets.js";
 
 /* Enough of the note to be a reading rather than a stab. */
@@ -175,7 +175,7 @@ export default {
     nameInput.addEventListener("blur", () => { if (!nameInput.hidden) endEdit(); });
 
     const control = own.add(audioControl({ showGranted: false }));
-    const level = levelBar();
+    const meter = meters();
     const status = el("p", { class: "status", text: t("bend.pick") });
     const prompt = el("div", { class: "bend-prompt" });
     const grid = el("div", { class: "bend-grid" });
@@ -232,7 +232,7 @@ export default {
       frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
     });
     own.add(engine.onFrame((frame) => {
-      level.set(frame.levelDb);
+      meter.setLevel(frame.levelDb);
       const region = tracker.push(frame);
       if (!region || !target || readings.length >= 3) return;
       if (region.short || region.seconds < MIN_READING_SECONDS) return;
@@ -361,7 +361,7 @@ export default {
       ]),
       nameNote,
       control.element,
-      level.element,
+      meter.element,
       status,
       prompt,
       grid,

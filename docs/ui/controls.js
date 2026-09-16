@@ -26,6 +26,7 @@ import { engine } from "../audio/engine.js";
 import { SpelledPitch } from "../core/pitch.js";
 import { PRACTICE_KEYS, keysForQuality } from "../core/generator.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
+import { parseScala } from "../core/tuning.js";
 
 /* The sounding pitch of a key, for naming and for drones.
  *
@@ -130,12 +131,51 @@ export function keyQuality({ keyBind = null, qualityBind = null, keys = null, la
 
 /* ---- root, pitch class, temperament ---------------------------------- */
 
-/* The note a temperament is built on, as a letter. */
+/* A temperament whose twelve steps are all the same size has no root:
+ * rotating the scale maps it onto itself, so every note lands exactly where
+ * it already was. Measured rather than assumed -- root C against root D, over
+ * all twelve notes at A=415: 0.00 cents under equal temperament, against
+ * 11.73 in Vallotti and 41.06 in quarter-comma meantone.
+ *
+ * Derived from the scale rather than from the name "equal", because the fact
+ * is a property of the steps, not of a key in a table: a second equal-step
+ * entry would be recognised without anyone remembering to come back here.
+ *
+ * Approximate, with a stated tolerance, as everywhere else in this app: the
+ * .scl texts carry six decimal places and are not exactly 100.000000. */
+const EQUAL_STEP_CENTS = 0.01;
+
+export function rootless(temperament) {
+  const entry = TEMPERAMENTS[temperament];
+  if (!entry) return false;
+  // degreesCents opens with the unison, so it holds noteCount + 1 entries and
+  // degree i sits at i steps -- not (i + 1).
+  const scale = parseScala(entry.scl);
+  const step = scale.periodCents / scale.noteCount;
+  return scale.degreesCents.every((cents, i) => Math.abs(cents - step * i) < EQUAL_STEP_CENTS);
+}
+
+/* The note a temperament is built on, as a letter.
+ *
+ * Under an equal temperament the control greys out and says why. It is not
+ * hidden: a player who has just chosen equal should be able to see that the
+ * question exists and has been answered for them, and find it again when they
+ * choose Vallotti. Nor is it silently left live, which is what it did -- the
+ * page invited a choice that changed nothing and never said so.
+ *
+ * It stays relevant in pure-interval mode, which is why the hint is about the
+ * temperament and not about the mode: pure targets are priced from a bass
+ * whose own frequency comes from the temperament, so the root still moves
+ * them -- together, without changing the intervals between them. Nothing
+ * under Vallotti or meantone, up to 5.9 cents under Werckmeister III. */
 export function rootControl({ roots = ["C", "D", "F", "G", "A", "Bb"], label = t("music.root"), ...rest } = {}) {
+  const settingsOf = () => (rest.source ? rest.source() : settings.get());
   return selectField({
-    label, watch: NAMING_KEYS,
+    label, watch: [...NAMING_KEYS, "temperament"],
+    disabled: () => rootless(settingsOf().temperament),
+    hint: () => (rootless(settingsOf().temperament) ? t("music.rootEqual") : ""),
     options: () => roots.map((root) => ({
-      value: root, label: nameClass(SpelledPitch.parse(`${root}4`), rest.source ? rest.source() : settings.get()),
+      value: root, label: nameClass(SpelledPitch.parse(`${root}4`), settingsOf()),
     })),
     ...rest,
   });

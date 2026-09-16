@@ -11,7 +11,7 @@
 import { t } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
-import { el, append, audioControl, needle, levelBar, bandClass, explainer } from "../ui/widgets.js";
+import { el, append, audioControl, meters, bandClass, explainer } from "../ui/widgets.js";
 import { pitchClassLabel } from "../ui/naming.js";
 import { owner } from "../ui/owner.js";
 
@@ -40,8 +40,7 @@ export default {
     const note = el("div", { class: "big-note", text: "—" });
     const hz = el("span", { text: t("check.pressStart") });
     const cents = el("span");
-    const gauge = needle();
-    const level = levelBar();
+    const meter = meters({ intonation: true });
     // Whether frames are arriving at all, and what is in them. Without this
     // "listening but the bar never moves" has three different causes that
     // look identical: no frames (the graph is not being pulled, or the
@@ -68,7 +67,7 @@ export default {
     own.add(engine.onFrame((frame) => {
       frames += 1;
       if (frame.hz > 0) lastVoiced = frame;
-      level.set(frame.levelDb);
+      meter.setLevel(frame.levelDb);
     }));
 
     const render = () => {
@@ -80,12 +79,12 @@ export default {
         hz.textContent = `${lastVoiced.hz.toFixed(2)} Hz`;
         cents.textContent = `${d.cents >= 0 ? "+" : ""}${d.cents.toFixed(1)}¢`;
         cents.className = bandClass(d.cents);
-        gauge.set(d.cents);
+        meter.setCents(d.cents);
       } else {
         note.textContent = "—";
         hz.textContent = engine.listening ? t("check.listening") : t("check.pressStart");
         cents.textContent = "";
-        gauge.set(null);
+        meter.setCents(null);
       }
       const last = engine.lastFrame;
       diag.textContent = t("check.diag", frames,
@@ -101,8 +100,7 @@ export default {
       el("div", { class: "card panel" }, [
         note,
         el("div", { class: "readout" }, [hz, cents]),
-        gauge.element,
-        level.element,
+        meter.element,
         diag,
         el("div", { class: "controls" }, [control.element, drone]),
       ]),

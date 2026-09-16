@@ -39,7 +39,7 @@ import { selectField } from "../ui/fields.js";
 import { keyControl, startRow } from "../ui/controls.js";
 import { owner } from "../ui/owner.js";
 import {
-  el, append, levelBar, runNav, currentTuning, name, nameClass, bandClass, explainer,
+  el, append, meters, runNav, currentTuning, name, nameClass, bandClass, explainer,
 } from "../ui/widgets.js";
 
 /* The order the player asked for: the traverso's home key first, then outward
@@ -160,7 +160,7 @@ export default {
     const heard = el("div", { class: "scales-heard" });
     const tally = el("p", { class: "status" });
     const clock = el("span", { class: "mono muted small" });
-    const level = levelBar();
+    const meter = meters();
     const summary = el("div", { class: "summary" });
     const nav = runNav({
       onStop: () => this.finish(false),
@@ -170,12 +170,12 @@ export default {
       backLabel: t("scales.change"),
       extras: [clock],
     });
-    run.ui = { asked, heard, tally, clock, level, summary, nav };
+    run.ui = { asked, heard, tally, clock, meter, summary, nav };
 
     append(root,
       nav.top,
       asked,
-      level.element,
+      meter.element,
       heard,
       tally,
       summary,
@@ -237,7 +237,7 @@ export default {
   onFrame(frame) {
     const run = this.run;
     if (!run) return;
-    run.ui.level.set(frame.levelDb);
+    run.ui.meter.setLevel(frame.levelDb);
     const region = run.tracker.push(frame);
     if (region) this.addRegion(region);
   },
@@ -351,7 +351,7 @@ export default {
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
 
     run.ui.nav.finish();
-    run.ui.level.element.hidden = true;
+    run.ui.meter.element.hidden = true;
     run.ui.asked.replaceChildren();
 
     /* Everything the report says is worked out in core/scaleReport.js, which

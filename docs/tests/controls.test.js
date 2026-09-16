@@ -40,7 +40,8 @@ globalThis.document = {
 
 const settings = await import("../settings.js");
 const { selectField, checkboxField } = await import("../ui/fields.js");
-const { keyControl, temperamentControl } = await import("../ui/controls.js");
+const { keyControl, temperamentControl, rootControl, rootless } = await import("../ui/controls.js");
+const { TEMPERAMENT_ORDER } = await import("../core/temperaments.js");
 const { t, setLanguage } = await import("../i18n.js");
 const { owner } = await import("../ui/owner.js");
 
@@ -164,4 +165,33 @@ test("the temperament cards relabel when the language does", () => {
   assert.ok(after.every((text) => text.length > 0), "and must not blank out");
   setLanguage("en");
   control.dispose();
+});
+
+test("only an equal temperament is rootless, and it is read from the steps", () => {
+  // Not a list of names: the question is whether the twelve steps are the
+  // same size, which is a property of the scale. Vallotti and the meantone
+  // would still be rooted if someone renamed them.
+  assert.equal(rootless("equal"), true);
+  for (const key of TEMPERAMENT_ORDER.filter((k) => k !== "equal")) {
+    assert.equal(rootless(key), false, `${key} has a root`);
+  }
+  assert.equal(rootless("no-such-temperament"), false, "an unknown name is not a claim");
+});
+
+test("the root greys out under equal temperament, and comes back", () => {
+  // The page went on inviting a choice that moved nothing: root C against
+  // root D is 0.00 cents under equal, against 11.73 in Vallotti and 41.06 in
+  // quarter-comma meantone. The control now says so itself, from its own
+  // subscription -- views/tuning.js is not told and does not have to be.
+  reset();
+  settings.set({ temperament: "vallotti" });
+  const root = rootControl({ bind: "root" });
+  assert.equal(root.select.disabled, false, "Vallotti has a root");
+
+  settings.set({ temperament: "equal" });
+  assert.equal(root.select.disabled, true, "equal temperament has none");
+
+  settings.set({ temperament: "meantone_quarter" });
+  assert.equal(root.select.disabled, false, "and the choice returns");
+  root.dispose();
 });

@@ -133,7 +133,12 @@ test("a class the app puts on the page is a class the stylesheet knows", () => {
     if (!file.endsWith(".js")) continue;
     const src = fs.readFileSync(path.join(here, "..", "ui", file), "utf8")
       .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    for (const [, value] of src.matchAll(/class:\s*"([a-z][a-z0-9 -]*)"/g)) {
+    // Both ways a class reaches the page: declared in el(), and added later
+    // by classList. The quiet level bar is set the second way, and the first
+    // pattern alone would have let `.quiet` ship with no rule behind it.
+    const declared = [...src.matchAll(/class:\s*"([a-z][a-z0-9 -]*)"/g)];
+    const added = [...src.matchAll(/classList\.(?:add|toggle)\("([a-z][a-z0-9-]*)"/g)];
+    for (const [, value] of [...declared, ...added]) {
       for (const name of value.split(/\s+/).filter(Boolean)) {
         assert.ok(known(name), `${file} puts .${name} on the page; styles.css must define it`);
       }
@@ -168,6 +173,61 @@ test("widgets that return a wrapper are appended by their element", () => {
       assert.ok(src.includes(`${holder}.element`),
         `${file}: ${holder} comes from ${factory}() but is never used as ${holder}.element`);
     }
+  }
+});
+
+test("a view imports every shared widget it calls", () => {
+  // How the tuner shipped broken in 8.0: `name()` was dropped from the import
+  // list when the drone select moved to ui/controls.js, but the live note
+  // readout still called it. In a module `name` is not an error -- it resolves
+  // to window.name, a string -- so the call threw TypeError inside the
+  // requestAnimationFrame loop, the loop stopped rescheduling, and the tuner
+  // sat at "—" while the level bar (a separate onFrame subscription) went on
+  // moving. Exactly "it hears sound but no notes register", on every browser,
+  // with nothing in any test to say so.
+  //
+  // Checked against widgets.js only: it is where the collisions with real
+  // globals live (name, status, length, close, focus), and it is the file
+  // every view imports from.
+  const widgets = fs.readFileSync(path.join(here, "..", "ui", "widgets.js"), "utf8");
+  const exported = new Set([...widgets.matchAll(/^export\s+(?:function|const)\s+(\w+)/gm)]
+    .map(([, id]) => id));
+  assert.ok(exported.has("name") && exported.has("meters"), "export scan found nothing");
+
+  for (const file of fs.readdirSync(path.join(here, "..", "views"))) {
+    const raw = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
+    const src = raw.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+    const imported = new Set();
+    for (const [, names] of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*"[^"]*"/g)) {
+      for (const part of names.split(",")) {
+        const id = part.trim().split(/\s+as\s+/).pop().trim();
+        if (id) imported.add(id);
+      }
+    }
+    // Declared locally under the same name is fine -- that is a view choosing
+    // its own, not reaching for a global by accident.
+    for (const [, id] of src.matchAll(/(?:const|let|var|function)\s+(\w+)/g)) imported.add(id);
+
+    for (const [, id] of src.matchAll(/(?<![.\w$])([a-z][\w$]*)\s*\(/g)) {
+      if (!exported.has(id) || imported.has(id)) continue;
+      assert.fail(`${file}: calls ${id}() from ui/widgets.js without importing it`);
+    }
+  }
+});
+
+test("a view takes its volume meter from meters(), never a bare level bar", () => {
+  // Eight views built `levelBar()` and placed it themselves, and the three
+  // that also had a needle put a full-weight bar directly under it -- so how
+  // loudly you played was drawn as importantly as whether you played in tune.
+  // meters() now owns that relation: with a needle the bar is subordinate,
+  // without one it keeps its full weight, and no view gets to decide.
+  //
+  // `needle()` on its own is still allowed, and run.js uses it for a finished
+  // result: a needle with no volume beside it has no relation to get wrong.
+  for (const file of fs.readdirSync(path.join(here, "..", "views"))) {
+    const src = fs.readFileSync(path.join(here, "..", "views", file), "utf8");
+    assert.ok(!/\blevelBar\s*\(/.test(src),
+      `${file}: build the volume meter with meters() from ui/widgets.js`);
   }
 });
 

@@ -120,8 +120,15 @@ function bound({ bind = null, source = null, value = null, onChange = null, onSy
 
 /* ---- the fields ------------------------------------------------------ */
 
-/* A select over a fixed or computed list of {value, label} options. */
-export function selectField({ label = null, hint = null, options, watch = [], parse = String, ...rest }) {
+/* A select over a fixed or computed list of {value, label} options.
+ *
+ * `disabled` is a predicate re-run on every render, for a choice that is
+ * sometimes not applicable -- the temperament's root under equal temperament,
+ * where rotating the scale maps it onto itself and the control would silently
+ * do nothing. It is rendered from the same subscription as the options and
+ * the hint, so a control cannot end up greyed out for a temperament that is
+ * no longer selected. */
+export function selectField({ label = null, hint = null, disabled = null, options, watch = [], parse = String, ...rest }) {
   // A bound control watches its own setting as well as whatever else it
   // displays, or two controls on one setting can still disagree -- which is
   // the entire thing this layer exists to prevent.
@@ -131,15 +138,24 @@ export function selectField({ label = null, hint = null, options, watch = [], pa
   const hintNode = hint ? el("p", { class: "muted small" }) : null;
   const list = () => (typeof options === "function" ? options() : options);
 
+  // An empty hint is hidden rather than left as an empty paragraph, or a
+  // conditional hint reserves its own blank line on every page that has one.
+  const setHint = () => {
+    if (!hintNode) return;
+    const text = typeof hint === "function" ? hint(state.value) : hint;
+    hintNode.textContent = text ?? "";
+    hintNode.hidden = !text;
+  };
   const render = () => {
     state.reread();
     const chosen = setOptions(select, list(), state.value);
     if (chosen !== state.value) state.set(chosen);
-    if (hintNode) hintNode.textContent = typeof hint === "function" ? hint(state.value) : hint;
+    if (disabled) select.disabled = Boolean(disabled(state.value));
+    setHint();
   };
   select.addEventListener("change", () => {
     state.changed(parse(select.value));
-    if (hintNode) hintNode.textContent = typeof hint === "function" ? hint(state.value) : hint;
+    setHint();
   });
   const off = live(render, { watch, source: rest.source });
 

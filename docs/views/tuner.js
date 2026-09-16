@@ -8,7 +8,7 @@ import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import { navigate } from "../router.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
-import { el, append, audioControl, needle, levelBar, bandClass, currentTuning, temperamentLabel } from "../ui/widgets.js";
+import { el, append, audioControl, meters, bandClass, currentTuning, temperamentLabel, name } from "../ui/widgets.js";
 import { pitchControl } from "../ui/controls.js";
 import { owner } from "../ui/owner.js";
 
@@ -62,8 +62,7 @@ export default {
     const cents = el("span");
     const target = el("div", { class: "target" });
     const held = el("div", { class: "held" });
-    const gauge = needle();
-    const level = levelBar();
+    const meter = meters({ intonation: true });
     const control = own.add(audioControl({ showGranted: false }));
 
     // Unlabelled: it sits in a button row, where a label would read as a
@@ -106,7 +105,7 @@ export default {
     const recent = [];
     let lastVoiced = null;
     own.add(engine.onFrame((frame) => {
-      level.set(frame.levelDb);
+      meter.setLevel(frame.levelDb);
       if (frame.hz > 0) {
         lastVoiced = frame;
         recent.push(frame);
@@ -124,7 +123,7 @@ export default {
         cents.textContent = `${n.cents >= 0 ? "+" : ""}${n.cents.toFixed(1)}¢`;
         cents.className = bandClass(n.cents);
         target.textContent = `${t("tuner.target")} ${n.hz.toFixed(2)} Hz`;
-        gauge.set(n.cents);
+        meter.setCents(n.cents);
         // A live rolling window, not a note: there is no end to trim a taper
         // from, because the end is now. scoredWindow() needs a finished note
         // and would have nothing to work on here. Nothing is scored or saved
@@ -141,7 +140,7 @@ export default {
         hz.textContent = engine.listening ? t("tuner.listening") : t("check.pressStart");
         cents.textContent = "";
         target.textContent = "";
-        gauge.set(null);
+        meter.setCents(null);
       }
       requestAnimationFrame(render);
     };
@@ -155,8 +154,7 @@ export default {
         note,
         el("div", { class: "readout" }, [hz, cents]),
         target,
-        gauge.element,
-        level.element,
+        meter.element,
         held,
         el("div", { class: "controls" }, [control.element, droneSelect.element, droneButton]),
       ]),

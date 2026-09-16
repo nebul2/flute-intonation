@@ -19,7 +19,7 @@ import { RegionTracker, driftCents, GLIDE_CENTS } from "../audio/regions.js";
 import { postAttack, notePitch } from "../core/scoring.js";
 import { identify, classifyNote, predictedCents, expectedHz, bestByTemperament,
          PITCH_CLASSES, MIN_CLASSES, FULL_CLASSES } from "../core/identify.js";
-import { el, append, audioControl, levelBar, temperamentLabel, explainer } from "../ui/widgets.js";
+import { el, append, audioControl, meters, temperamentLabel, explainer } from "../ui/widgets.js";
 import { owner } from "../ui/owner.js";
 import { pitchClassLabel } from "../ui/naming.js";
 
@@ -64,7 +64,7 @@ export default {
       return cell;
     });
     const status = el("p", { class: "status", text: t("temperament.waiting") });
-    const level = levelBar();
+    const meter = meters();
     const control = own.add(audioControl({ showGranted: false }));
     const board = el("div", { class: "board-wrap" });
     const result = el("div", { class: "result" });
@@ -194,7 +194,7 @@ export default {
       frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
     });
     own.add(engine.onFrame((frame) => {
-      level.set(frame.levelDb);
+      meter.setLevel(frame.levelDb);
       const region = tracker.push(frame);
       if (!region || region.short) return;
       const [framesHz] = postAttack(region.framesHz, tracker.frameSeconds, region.levelsDb);
@@ -227,7 +227,7 @@ export default {
       el("p", { class: "note-box warn", text: t("temperament.experimental") }),
       explainer(t("temperament.intro"), t("temperament.how", ref), t("temperament.boardNote")),
       control.element,
-      level.element,
+      meter.element,
       status,
       grid,
       board,

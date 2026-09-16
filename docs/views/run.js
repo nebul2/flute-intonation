@@ -33,7 +33,7 @@ import { highestFirst } from "../core/pitch.js";
 import { invitation } from "../ui/feedback.js";
 import { helpSection } from "../ui/help.js";
 import { compareAdjustment } from "../core/adjust.js";
-import { el, append, needle, levelBar, bandClass, settleLabel, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
+import { el, append, needle, meters, bandClass, settleLabel, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
 import { checkboxField } from "../ui/fields.js";
 import { keyControl } from "../ui/controls.js";
 import { owner } from "../ui/owner.js";
@@ -277,7 +277,7 @@ export class ExerciseRun {
       target: el("div", { class: "target" }),
       progress: el("div", { class: "progress" }, [el("div", { class: "progress-fill" })]),
       progressText: el("div", { class: "target" }),
-      level: levelBar(),
+      meter: meters(),
       judge: el("div", { class: "judge", hidden: true }, ["sharp", "flat", "in tune"].map((call) =>
         el("button", { class: "secondary big", text: t(`practice.call.${call}`), onclick: () => this.judge(call) }))),
       rows: el("div", { class: "rows" }),
@@ -293,7 +293,7 @@ export class ExerciseRun {
       }),
     };
     const u = this.ui;
-    u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.level.element, u.judge]);
+    u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.meter.element, u.judge]);
     append(root,
       u.heading,
       u.keyPicker ? u.keyPicker.element : null,
@@ -492,7 +492,7 @@ export class ExerciseRun {
     if (run.phase === "finished") return;      // nothing moves once it is over
     const u = this.ui;
     const frame = engine.lastFrame;
-    if (frame) u.level.set(frame.levelDb);
+    if (frame) u.meter.setLevel(frame.levelDb);
     if (run.phase === "playing" && run.seg) {
       const fraction = Math.min(1, run.seg.elapsedSeconds / run.seg.requiredSeconds);
       u.progress.firstChild.style.width = `${fraction * 100}%`;
@@ -524,7 +524,7 @@ export class ExerciseRun {
     u.target.textContent = "";
     u.progress.hidden = true;
     u.progressText.textContent = "";
-    u.level.element.hidden = true;
+    u.meter.element.hidden = true;
     u.panel.classList.add("finished");
     u.status.textContent = stopped ? t("practice.stopped") : t("practice.done");
     u.nav.finish();

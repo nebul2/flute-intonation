@@ -34,7 +34,7 @@ import {
   temperamentTable, matchRow, classifyNote, INDISTINGUISHABLE_CENTS,
   CLASS_MIN_SECONDS, PITCH_CLASSES,
 } from "../core/identify.js";
-import { el, append, audioControl, levelBar, temperamentLabel, explainer } from "../ui/widgets.js";
+import { el, append, audioControl, meters, temperamentLabel, explainer } from "../ui/widgets.js";
 import { pitchClassControl } from "../ui/controls.js";
 import { selectField } from "../ui/fields.js";
 import { owner } from "../ui/owner.js";
@@ -96,7 +96,7 @@ export default {
     const skipped = el("p", { class: "muted small" });
     const copied = el("div", { class: "muted small" });
     const control = own.add(audioControl({ showGranted: false }));
-    const level = levelBar();
+    const meter = meters();
 
     // Unbound on purpose: this page compares temperaments from a root of its
     // own choosing and must not rewrite the root the whole app is tuned to.
@@ -162,7 +162,7 @@ export default {
       frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
     });
     own.add(engine.onFrame((frame) => {
-      level.set(frame.levelDb);
+      meter.setLevel(frame.levelDb);
       const region = tracker.push(frame);
       if (!region || region.short) return;
       const [framesHz] = postAttack(region.framesHz, tracker.frameSeconds, region.levelsDb);
@@ -184,7 +184,7 @@ export default {
                 t("temperaments.how", ref)),
       el("div", { class: "row" }, [rootField.element, octaveField.element]),
       control.element,
-      level.element,
+      meter.element,
       el("div", { class: "scroll" }, [table]),
       skipped,
       helpSection("temperaments").element,

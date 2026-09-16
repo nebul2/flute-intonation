@@ -32,7 +32,7 @@ import { selectField, checkboxField } from "../ui/fields.js";
 import { keyQuality, startRow } from "../ui/controls.js";
 import { owner } from "../ui/owner.js";
 import { postAttack, scoredWindow, SCORING_RULE } from "../core/scoring.js";
-import { el, append, labelField, needle, levelBar, bandClass, bandLabel, settleLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
+import { el, append, labelField, meters, bandClass, bandLabel, settleLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
 /* How long the tonic must be held to begin. Collected by the same state
  * machine the exercises use, so a brief dropout costs progress rather than
@@ -159,13 +159,13 @@ export default {
       note: el("div", { class: "big-note", text: "—" }),
       progress: el("div", { class: "progress" }, [el("div", { class: "progress-fill" })]),
       readout: el("div", { class: "readout" }, [el("span"), el("span")]),
-      gauge: needle(), level: levelBar(),
+      meter: meters({ intonation: true }),
       table: el("div", { class: "stats scroll" }),
       rows: el("div", { class: "rows", hidden: !s.listenLog }),
       summary: el("div", { class: "summary" }),
     };
     const u = this.ui;
-    u.panel = el("div", { class: "card panel" }, [u.note, u.readout, u.progress, u.gauge.element, u.level.element]);
+    u.panel = el("div", { class: "card panel" }, [u.note, u.readout, u.progress, u.meter.element]);
 
     // The tonic may be played in any octave the flute has it in; whichever
     // lands first opens the session.
@@ -402,7 +402,7 @@ export default {
     if (!this.mounted || !this.run || this.run.phase === "finished") return;
     const run = this.run, u = this.ui;
     const frame = engine.lastFrame;
-    if (frame) u.level.set(frame.levelDb);
+    if (frame) u.meter.setLevel(frame.levelDb);
     const now = performance.now();
     if (run.lastVoiced && now - run.lastVoiced.t < 400) {
       const near = nearestCandidate(run.candidates, run.lastVoiced.hz);
@@ -410,14 +410,14 @@ export default {
       u.readout.children[0].textContent = `${run.lastVoiced.hz.toFixed(2)} Hz`;
       u.readout.children[1].textContent = `${fmt(near.cents)}¢`;
       u.readout.children[1].className = bandClass(near.cents);
-      u.gauge.set(near.cents);
+      u.meter.setCents(near.cents);
     } else {
       u.note.textContent = "—";
       // Say something during the tonic phase too: a blank panel while the
       // gate refuses to lock is indistinguishable from a dead microphone.
       u.readout.children[0].textContent = t("listen.playing");
       u.readout.children[1].textContent = "";
-      u.gauge.set(null);
+      u.meter.setCents(null);
     }
     if (run.phase === "tonic") {
       const best = run.tonicSegs.reduce((most, seg) =>
@@ -439,8 +439,7 @@ export default {
     u.note.textContent = "✓";
     u.readout.children[0].textContent = "";
     u.readout.children[1].textContent = "";
-    u.gauge.element.hidden = true;
-    u.level.element.hidden = true;
+    u.meter.element.hidden = true;
     u.progress.hidden = true;
     u.panel.classList.add("finished");
     u.status.textContent = t("practice.done");

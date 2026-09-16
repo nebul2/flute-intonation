@@ -1,5 +1,6 @@
 /* Small DOM helpers and the widgets several views share: the microphone
- * start/stop control with its state chip, the cents needle, the level bar,
+ * start/stop control with its state chip, the meters (the cents needle and
+ * the level bar, built as a pair so their relative weight is decided once),
  * and "the current tuning" built from settings. Views compose these; none of
  * them knows about routes. */
 
@@ -206,12 +207,16 @@ export function needle() {
 
 /* ---- level bar ------------------------------------------------------ */
 
-export function levelBar() {
+/* `subordinate` is the quiet variant, used wherever a needle is present. Not
+ * a caller's choice: meters() below decides it, so the two can never be given
+ * equal weight by accident on one page and not another. */
+function levelBar({ subordinate = false } = {}) {
   const bar = el("div", { class: "levelbar" });
   const text = el("span", { class: "leveltext", text: "−∞ dBFS" });
   const element = el("div", { class: "level" }, [
     el("div", { class: "track" }, [bar, el("div", { class: "gate" })]), text,
   ]);
+  if (subordinate) element.classList.add("quiet");
   return {
     element,
     set(db) {
@@ -219,6 +224,36 @@ export function levelBar() {
       bar.style.width = `${((level + 72) / 72) * 100}%`;
       text.textContent = `${db.toFixed(1)} dBFS`;
     },
+  };
+}
+
+/* ---- the two meters, and which of them leads ------------------------- */
+
+/* Volume and intonation are built here together, because their *relative*
+ * weight is the thing that has to hold across the app. Eight views each
+ * assembled these by hand, and three of them put a full-weight level bar
+ * directly under the needle -- so on the pages where the reading is the whole
+ * point, the bar announcing how loudly you played looked exactly as important
+ * as the reading it only qualifies.
+ *
+ * So: where there is a needle, the level bar is subordinate -- thinner,
+ * dimmer, smaller figure. It stays, because "it cannot hear you" and "it
+ * hears you sharp" are different problems and the bar is how a player tells
+ * them apart; it just stops competing with the number it exists to support.
+ * Where there is no needle -- Play scales, the flute profile, the two
+ * temperament pages, an exercise in progress -- the bar is the only thing
+ * the player has to watch, and keeps its full weight.
+ *
+ * setCents() on a volume-only meter is a no-op rather than an error: a view
+ * that stops showing a needle should not also have to find every call. */
+export function meters({ intonation = false } = {}) {
+  const gauge = intonation ? needle() : null;
+  const level = levelBar({ subordinate: intonation });
+  const element = el("div", { class: "meters" }, [gauge ? gauge.element : null, level.element]);
+  return {
+    element,
+    setCents(cents) { if (gauge) gauge.set(cents); },
+    setLevel(db) { level.set(db); },
   };
 }
 

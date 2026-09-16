@@ -130,11 +130,25 @@ h2 { font-size: 0.95rem; font-weight: 600; color: var(--ink); margin-top: 0.4rem
 .scale-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .needle { transition: none; } .card { transition: none; } }
 
+/* The needle and the bar arrive together from meters(), so they are grouped
+ * tighter than the panel's own 1rem: the volume reads as belonging to the
+ * intonation above it rather than as the next thing down the page. */
+.meters { display: flex; flex-direction: column; gap: 0.55rem; }
+.meters[hidden] { display: none; }
+
 .level { display: flex; align-items: center; gap: 0.7rem; }
 .level .track { flex: 1; height: 8px; }
 .levelbar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--muted); border-radius: 4px; width: 0%; }
 .level .gate { position: absolute; top: -3px; bottom: -3px; left: 30.5%; width: 2px; background: var(--brass); opacity: 0.7; }
 .leveltext { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); width: 6.5rem; text-align: right; }
+
+/* The quiet variant: a level bar standing beside a needle. Still readable --
+ * the figure is what tells a silent microphone from a flat note -- but it no
+ * longer carries the same weight as the reading it qualifies. */
+.level.quiet .track { height: 4px; }
+.level.quiet .levelbar { opacity: 0.5; }
+.level.quiet .gate { top: -2px; bottom: -2px; opacity: 0.35; }
+.level.quiet .leveltext { font-size: 0.68rem; width: 5.6rem; opacity: 0.6; }
 
 /* ---- controls ------------------------------------------------------- */
 .controls { display: flex; gap: 0.7rem; flex-wrap: wrap; justify-content: center; align-items: center; }
@@ -144,6 +158,12 @@ button.primary:disabled { background: var(--edge); color: var(--muted); cursor: 
 button.secondary { background: var(--panel); color: var(--brass); border: 1px solid var(--brass); border-radius: 7px; padding: 0.6rem 1.2rem; font-weight: 600; cursor: pointer; }
 button.secondary:disabled { border-color: var(--edge); color: var(--muted); cursor: default; }
 .select, .number { background: var(--ground); color: var(--ink); border: 1px solid var(--edge); border-radius: 7px; padding: 0.5rem 0.7rem; }
+/* A choice that does not apply -- the temperament's root under equal
+ * temperament. The buttons already had this; a select looked identical
+ * whether it was accepting a choice or ignoring one. The label greys with
+ * it, or the row reads as half live. */
+.select:disabled, .number:disabled { color: var(--muted); opacity: 0.55; cursor: default; }
+.field:has(.select:disabled) { color: var(--muted); }
 .number { width: 6.5rem; }
 .diag { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); text-align: center; min-height: 1rem; width: 100%; }
 .row { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 0.9rem; }
