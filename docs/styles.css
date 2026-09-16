@@ -48,6 +48,11 @@ a { color: var(--brass); }
   background: none; border: 1px solid var(--edge); color: var(--ink); cursor: pointer;
   display: grid; place-items: center;
 }
+/* An explicit `display` beats the browser's own [hidden] rule, so the back
+ * arrow stayed on the home page it is hidden on -- the shell set .hidden and
+ * the stylesheet quietly ignored it. .logo one line down had the guard from
+ * the start; this did not. */
+.back[hidden] { display: none; }
 .logo { width: 40px; height: 40px; border-radius: 9px; display: block; }
 .logo[hidden] { display: none; }
 .lang { display: flex; align-items: center; gap: 0.3rem; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }

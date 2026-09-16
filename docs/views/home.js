@@ -1,5 +1,16 @@
-/* The landing page: cards in three labelled groups -- tools you use on the
- * instrument, ways to play, and how the app is set up. */
+/* The landing page: cards in three labelled groups.
+ *
+ * The groups are named for what a player came to do, not for what kind of
+ * software each card is. "Tools / Play / Set up" was a true description of
+ * the code and a useless one to the person holding a flute, who arrives
+ * asking why their F# is always sharp, or whether this flute is better in
+ * tune than that one -- never asking for a tool.
+ *
+ * Play scales is on this page. It was reachable only from inside Practice,
+ * two levels down, which hid one of the app's two free-playing surfaces --
+ * and free playing is what produces the per-note statistics everything else
+ * reads. It stays in the exercise list too; a shortcut does not remove the
+ * long way round. */
 
 import { t } from "../i18n.js";
 import { navigate } from "../router.js";
@@ -7,21 +18,26 @@ import { el, append } from "../ui/widgets.js";
 import { stateChip } from "../ui/controls.js";
 
 const SECTIONS = [
-  { key: "tools", cards: [
-    { route: "tuner", icon: iconTuner },
-    { route: "stopper", icon: iconStopper },
-    { route: "temperament", icon: iconTemperament, experimental: true },
-    { route: "temperaments", icon: iconCompare },
-    { route: "check", icon: iconCheck },
-    { route: "bend", icon: iconBend },
-  ] },
   { key: "play", cards: [
     { route: "practice", icon: iconPractice },
     { route: "listen", icon: iconListen },
+    { route: "scales", icon: iconScales },
     { route: "sessions", icon: iconSessions },
   ] },
-  { key: "setup", cards: [
+  { key: "flute", cards: [
+    { route: "bend", icon: iconBend },
+    { route: "stopper", icon: iconStopper },
+    { route: "check", icon: iconCheck },
+  ] },
+  // The tuner sits here rather than with the flute: it answers "what is this
+  // note in the temperament I have chosen", which is a question about the
+  // tuning, not a measurement of the instrument. Its neighbours above are
+  // diagnosis -- what this flute does and whether the microphone can hear it.
+  { key: "tuning", cards: [
     { route: "tuning", icon: iconTuning },
+    { route: "tuner", icon: iconTuner },
+    { route: "temperament", icon: iconTemperament, experimental: true },
+    { route: "temperaments", icon: iconCompare },
     { route: "settings", icon: iconSettings },
   ] },
 ];
@@ -40,6 +56,7 @@ function iconCompare() { return svg('<path d="M4 7h6M4 12h6M4 17h6M14 7h6M14 12h
 function iconBend() { return svg('<path d="M4 18c4 0 4-12 8-12s4 12 8 12"/><path d="M2 12h20" stroke-dasharray="2 3"/>'); }
 function iconSessions() { return svg('<path d="M4 6h16M4 12h16M4 18h10"/><circle cx="18.5" cy="18" r="2.5"/>'); }
 function iconListen() { return svg('<path d="M7 9a5 5 0 0110 0c0 3-3 4-3 7a2 2 0 01-4 0"/><path d="M4 12h2M18 12h2"/>'); }
+function iconScales() { return svg('<path d="M3 20h3v-4h3v-4h3V8h3V4h3"/>'); }
 
 function card({ route, icon, soon, experimental }) {
   return el("button", {

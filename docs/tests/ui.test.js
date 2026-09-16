@@ -33,6 +33,26 @@ test("every route has card strings and a title", () => {
   }
 });
 
+test("every route is reachable without knowing its URL", () => {
+  // Play scales shipped as a card inside Practice and nowhere else, so one of
+  // the app's two free-playing surfaces -- the one that feeds the per-note
+  // statistics everything else reads -- could not be found from the front
+  // page at all. A route with no way in is not a page, it is a URL.
+  //
+  // Two ways in count: a card on the home screen, or a link in the shell's
+  // footer (help and feedback live there, deliberately).
+  const home = fs.readFileSync(path.join(here, "..", "views", "home.js"), "utf8");
+  const carded = new Set([...home.matchAll(/route:\s*"(\w+)"/g)].map(([, r]) => r));
+  const shell = fs.readFileSync(path.join(here, "..", "index.html"), "utf8");
+  const footer = new Set([...shell.matchAll(/href="#\/(\w+)"/g)].map(([, r]) => r));
+
+  for (const route of Object.values(ROUTES)) {
+    if (route === "home") continue;
+    assert.ok(carded.has(route) || footer.has(route),
+      `${route}: no card on the home screen and no link in the footer`);
+  }
+});
+
 test("the exercise list and its strings agree, in both directions", () => {
   // The stopper check was moved out of Practice into Tools and its strings
   // stayed behind, so the front page went on advertising it as an exercise.
@@ -143,6 +163,39 @@ test("a class the app puts on the page is a class the stylesheet knows", () => {
         assert.ok(known(name), `${file} puts .${name} on the page; styles.css must define it`);
       }
     }
+  }
+});
+
+test("anything the app hides has a rule that lets it hide", () => {
+  // The trap: a class that sets its own `display` overrides the browser's
+  // [hidden] rule, so setting .hidden does nothing and the element stays on
+  // screen. The back arrow sat on the home page that way -- app.js hid it on
+  // every render and the stylesheet ignored it -- while .logo beside it had
+  // the guard and worked.
+  //
+  // Judged per element, not per class: #offline is `chip offline` and its
+  // guard is the compound `.chip.offline[hidden]`, which is perfectly good.
+  // So an element passes if any class it carries is named in a [hidden] rule.
+  const css = fs.readFileSync(path.join(here, "..", "styles.css"), "utf8");
+  const shell = fs.readFileSync(path.join(here, "..", "index.html"), "utf8");
+
+  const elements = [];
+  for (const [, attrs] of shell.matchAll(/<[a-z]+([^>]*\bhidden\b[^>]*)>/g)) {
+    const cls = attrs.match(/class="([^"]+)"/);
+    if (cls) elements.push(cls[1].split(/\s+/).filter(Boolean));
+  }
+  // The wrappers ui/ and the views toggle, each its own single-class element.
+  for (const name of ["meters", "level", "progress", "rows"]) elements.push([name]);
+
+  const setsDisplay = (name) =>
+    new RegExp(`\\.${name}\\s*(?:,[^{]*)?\\{[^}]*display:\\s*(?!none)[a-z-]+`, "s").test(css);
+  const guarded = (name) => new RegExp(`\\.${name}(?:\\.[\\w-]+)*\\[hidden\\]`).test(css);
+
+  for (const classes of elements) {
+    if (!classes.some(setsDisplay)) continue;
+    assert.ok(classes.some(guarded),
+      `${classes.map((c) => "." + c).join("")} sets its own display, so one of its `
+      + `classes needs a [hidden] rule or .hidden does nothing`);
   }
 });
 
