@@ -247,7 +247,10 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
            background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius); padding: 0.7rem 0.9rem; }
 .session.selected { border-color: var(--brass); }
 .session input { accent-color: var(--brass); }
-.session-body { cursor: pointer; display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+/* Shift-clicking a run of rows drags a text selection across them otherwise,
+ * which looks like a bug even though the ticks are right. */
+.session-body { cursor: pointer; display: flex; flex-direction: column; gap: 0.2rem; min-width: 0;
+                user-select: none; -webkit-user-select: none; }
 .session-head { display: flex; gap: 0.7rem; align-items: baseline; flex-wrap: wrap; }
 .session-label { font-weight: 600; }
 .link-button { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 0.8rem; padding: 0.2rem; }

@@ -66,6 +66,7 @@ export default {
   mount(root) {
     this.root = root;
     this.selected = [];
+    this.anchor = null;      // the last row clicked without shift
     this.records = [];
     this.load();
   },
@@ -77,20 +78,59 @@ export default {
     this.render();
   },
 
-  toggle(id) {
-    const index = this.selected.indexOf(id);
-    if (index >= 0) this.selected.splice(index, 1);
-    else {
-      this.selected.push(id);
-      if (this.selected.length > MAX_COMPARE) this.selected.shift();   // oldest drops out
+  /* Clicking a row. Plain, ctrl and cmd all add or remove the one -- these
+   * rows carry checkboxes and that is what a checkbox does, so there is no
+   * separate "replace the selection" gesture to distinguish them from.
+   * Shift extends from the last row clicked.
+   *
+   * Extending *adds* the range rather than replacing the selection, as a
+   * tick-list does and unlike a file manager: nothing a stray shift-click
+   * does can lose a selection that was already made. */
+  click(id, event) {
+    if (event?.shiftKey && this.anchor && this.anchor !== id) {
+      // A shift-click drags a text selection across the rows otherwise.
+      event.preventDefault();
+      this.selectRange(this.anchor, id);
+      return;
     }
+    this.anchor = id;
+    this.toggle(id);
+  },
+
+  selectRange(from, to) {
+    const ids = this.records.map((record) => record.id);
+    const a = ids.indexOf(from), b = ids.indexOf(to);
+    if (a < 0 || b < 0) { this.toggle(to); return; }     // the anchor was deleted
+    const [low, high] = a <= b ? [a, b] : [b, a];
+    this.selected = [...new Set([...this.selected, ...ids.slice(low, high + 1)])];
     this.render();
   },
 
+  /* No cap. Until 8.4.4 a fourth tick silently dropped the oldest, because
+   * the selection existed only to be compared and comparing takes three at
+   * most. It is now also what gets deleted, and a selection that quietly
+   * changes under you is no basis for a delete -- so the limit moved to the
+   * Compare button, where it can be seen and explained. */
+  toggle(id) {
+    const index = this.selected.indexOf(id);
+    if (index >= 0) this.selected.splice(index, 1);
+    else this.selected.push(id);
+    this.render();
+  },
+
+  /* The row's own Delete. When that row is one of several ticked, the button
+   * says so and takes the lot: having ticked four sessions, the next thing
+   * wanted is rarely to remove exactly one of them, and a button that said
+   * "Delete" while four were selected would be the ambiguous one. Untick a
+   * row to delete it on its own. */
   async remove(id) {
-    if (!window.confirm(t("sessions.deleteConfirm"))) return;
-    await history.remove(id);
-    this.selected = this.selected.filter((s) => s !== id);
+    const bulk = this.selected.length > 1 && this.selected.includes(id);
+    const doomed = bulk ? [...this.selected] : [id];
+    if (!window.confirm(bulk ? t("sessions.deleteSelectedConfirm", doomed.length)
+                             : t("sessions.deleteConfirm"))) return;
+    for (const one of doomed) await history.remove(one);
+    this.selected = this.selected.filter((s) => !doomed.includes(s));
+    if (doomed.includes(this.anchor)) this.anchor = null;
     this.load();
   },
 
@@ -112,9 +152,9 @@ export default {
      * page's own state, not a preference, and it is rebuilt on every draw. */
     const box = checkboxField({
       look: "bare", value: selected, ariaLabel: record.label || t("sessions.unnamed"),
-      onChange: () => this.toggle(record.id),
+      onChange: () => this.click(record.id),
     });
-    const body = el("div", { class: "session-body", onclick: () => this.toggle(record.id) }, [
+    const body = el("div", { class: "session-body", onclick: (e) => this.click(record.id, e) }, [
       el("div", { class: "session-head" }, [
         el("span", { class: "session-label", text: record.label || t("sessions.unnamed") }),
         el("span", { class: "muted", text: when(record) }),
@@ -122,7 +162,9 @@ export default {
       el("div", { class: "muted", text: details }),
     ]);
     const remove = el("button", {
-      class: "link-button", text: t("sessions.delete"),
+      class: "link-button",
+      text: selected && this.selected.length > 1
+        ? t("sessions.deleteSelected", this.selected.length) : t("sessions.delete"),
       onclick: (e) => { e.stopPropagation(); this.remove(record.id); },
     });
     return el("div", { class: `session${selected ? " selected" : ""}` }, [box.element, body, remove]);
@@ -131,7 +173,8 @@ export default {
   render() {
     const root = this.root;
     root.replaceChildren();
-    const ready = this.selected.length >= 2;
+    const picked = this.selected.length;
+    const ready = picked >= 2 && picked <= MAX_COMPARE;
     const compareButton = el("button", {
       class: "primary", text: t("sessions.compare"), disabled: !ready,
       onclick: () => this.showComparison(),
@@ -143,7 +186,9 @@ export default {
       this.records.length ? null : el("p", { class: "note-box", text: t("sessions.empty") }),
       this.records.length
         ? el("div", { class: "row" }, [compareButton,
-            el("span", { class: "muted", text: ready ? "" : t("sessions.selectTwo") })])
+            el("span", { class: "muted",
+              text: ready ? "" : picked > MAX_COMPARE
+                ? t("sessions.selectTooMany", picked, MAX_COMPARE) : t("sessions.selectTwo") })])
         : null,
       el("div", { class: "sessions" }, this.records.map((record) => this.row(record))),
       this.panel,
