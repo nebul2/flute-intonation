@@ -39,6 +39,23 @@ function tuningLabel(record) {
   return `A=${record.reference_hz} · ${temperament} · ${t(`mode.${record.mode}`)}`;
 }
 
+/* Was there a bass sounding? The one fact about a free-play session that
+ * changes what the numbers mean and is invisible in them -- and the reason
+ * this exists at all is that comparing a take with a drone against one
+ * without is the obvious thing to do with the setting, and until now the two
+ * rows were distinguishable only by the clock.
+ *
+ * Silent when the record predates the field rather than guessing: a session
+ * saved before 8.4, and every practice record, simply does not say. `drone_hz`
+ * is the shape 8.4 wrote for one day before the drone learned to follow a
+ * key change, when a single frequency stopped being able to describe it.
+ */
+function droneLabel(record) {
+  const had = record.drone ?? (typeof record.drone_hz === "number" ? true : record.drone_hz);
+  if (had === undefined || had === null) return null;
+  return t(had ? "sessions.withDrone" : "sessions.noDrone");
+}
+
 function when(record) {
   return (record.at ?? "").slice(0, 16).replace("T", " ");
 }
@@ -81,8 +98,8 @@ export default {
     const selected = this.selected.includes(record.id);
     const details = [
       kindLabel(record),
-      record.label ? null : null,
       record.tonic ? `${t("practice.tonic")} ${name(SpelledPitch.parse(record.tonic), settings.get())}` : null,
+      droneLabel(record),
       t("sessions.notes", (record.notes ?? []).length),
       // Recomputed rather than read from the record, so sessions saved before
       // scoring existed show one too.
@@ -139,7 +156,8 @@ export default {
     // Earliest first, so the letters run in the order they were played.
     const ordered = [...picked].sort((x, y) => ((x.at ?? "") < (y.at ?? "") ? -1 : 1));
     const letters = ordered.map((_, i) => String.fromCharCode(65 + i));
-    const labels = ordered.map((r, i) => r.label || `${kindLabel(r)} ${when(r)}`);
+    const labels = ordered.map((r) => [r.label || `${kindLabel(r)} ${when(r)}`, droneLabel(r)]
+      .filter(Boolean).join(" · "));
     const result = compare(ordered);
 
     const parts = [el("h2", { text: t("compare.title") })];
