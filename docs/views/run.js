@@ -29,6 +29,7 @@ import { intervalDrill, intervalInContext, enharmonicPair, intervalAdjust, stopp
 import { SessionSummary, analyseNote, judgeDirection, judgementTally, encouragement, CALL_DIRECTIONS,
          octavePairs, octaveBarGeometry, BAR_SPAN_CENTS, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
 import { NoteSegmenter, onsetThresholdFor } from "../audio/segmenter.js";
+import { BackgroundCalibration } from "../audio/calibration.js";
 import { highestFirst } from "../core/pitch.js";
 import { invitation } from "../ui/feedback.js";
 import { helpSection } from "../ui/help.js";
@@ -116,9 +117,6 @@ export const EXERCISES = {
 /* The stopper check: a tool, not an exercise, so it lives on its own page. */
 export const STOPPER = { build: () => stopperCheck(), feedback: "end", acceptance: 120, report: "stopper" };
 
-const ONSET_MARGIN_DB = 10.0;
-const CALIBRATE_MS = 1500;
-const PLAYING_LEVEL_DB = -20.0;   // typical playing level at the mic; sanity check only
 // During calibration and unison notes the drone is ducked to this fraction of
 // its level (about -12 dB): at the drone's own pitch the measured background
 // *is* the drone's bleed, and without ducking the player had to out-shout it.
@@ -205,7 +203,7 @@ export class ExerciseRun {
       exercises: Array.isArray(built) ? built : [built],
       resolver: new TargetResolver(Mode.PURE, tuning),
       exIdx: 0, noteIdx: -1, phase: "start",
-      droneHz: null, onsetDb: null, levels: [], calibrateUntil: 0,
+      droneHz: null, onsetDb: null, calib: null,
       seg: null, target: 0, note: null, exercise: null,
       summary: new SessionSummary(), judgements: [], rows: [], stopped: false,
       pendingResult: null, nextTimer: null,
@@ -307,7 +305,7 @@ export class ExerciseRun {
       run.spec.help ? helpSection(run.spec.help).element : null,
       run.spec.report === "stopper" ? el("p", { class: "note-box", text: t("practice.stopper.protocol") }) : null,
       (run.exercises.some((e) => e.drone) && !run.settings.headphones)
-        ? el("p", { class: "note-box", text: t("practice.bleed") }) : null,
+        ? el("p", { class: "note-box", text: t("drone.bleed") }) : null,
       u.status, u.nav.top, u.panel, u.summary, u.rows, u.nav.bottom,
     );
     // s / f / t on a keyboard, for the predict prompt.
@@ -358,9 +356,8 @@ export class ExerciseRun {
       if (needsGuard) {
         engine.setNotches(dronePartialsToNotch(run.droneHz, run.droneHz));
         run.phase = "calibrating";
-        run.levels = [];
-        run.calibrateUntil = performance.now() + CALIBRATE_MS;
-        this.ui.status.textContent = t("practice.calibrating");
+        run.calib = new BackgroundCalibration();
+        this.ui.status.textContent = t("drone.calibrating");
         return;
       }
     }
@@ -369,11 +366,9 @@ export class ExerciseRun {
 
   finishCalibration() {
     const run = this.run;
-    const sorted = [...run.levels].sort((a, b) => a - b);
-    const background = sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(0.9 * sorted.length))] : -60;
-    run.onsetDb = background + ONSET_MARGIN_DB;
-    let text = t("practice.calibrated", background.toFixed(1), run.onsetDb.toFixed(1));
-    if (run.onsetDb > PLAYING_LEVEL_DB) text += " — " + t("practice.calibratedWarn");
+    run.onsetDb = run.calib.onsetDb;
+    let text = t("practice.calibrated", run.calib.backgroundDb.toFixed(1), run.onsetDb.toFixed(1));
+    if (run.calib.tooLoud) text += " — " + t("drone.calibratedWarn");
     this.ui.status.textContent = text;
     this.nextNote();
   }
@@ -423,8 +418,7 @@ export class ExerciseRun {
     const run = this.run;
     if (!run) return;
     if (run.phase === "calibrating") {
-      run.levels.push(frame.levelDb);
-      if (frame.t >= run.calibrateUntil) this.finishCalibration();
+      if (run.calib.push(frame)) this.finishCalibration();
       return;
     }
     if (run.phase !== "playing" || !run.seg) return;
@@ -497,10 +491,9 @@ export class ExerciseRun {
       const fraction = Math.min(1, run.seg.elapsedSeconds / run.seg.requiredSeconds);
       u.progress.firstChild.style.width = `${fraction * 100}%`;
       u.progressText.textContent = `${run.seg.elapsedSeconds.toFixed(1)} / ${run.seg.requiredSeconds.toFixed(1)} s`;
-    } else if (run.phase === "calibrating") {
-      const left = Math.max(0, (run.calibrateUntil - performance.now()) / 1000);
-      u.progress.firstChild.style.width = `${(1 - left / (CALIBRATE_MS / 1000)) * 100}%`;
-      u.progressText.textContent = t("practice.stayQuiet", left.toFixed(1));
+    } else if (run.phase === "calibrating" && run.calib) {
+      u.progress.firstChild.style.width = `${run.calib.fraction * 100}%`;
+      u.progressText.textContent = t("drone.stayQuiet", run.calib.remainingSeconds.toFixed(1));
     }
     requestAnimationFrame(() => this.render());
   }

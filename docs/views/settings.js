@@ -12,9 +12,13 @@ import { t, setLanguage } from "../i18n.js";
 import { engine } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
-import { el, append, audioControl } from "../ui/widgets.js";
+import { el, append, audioControl, currentTuning, tunerCandidates, nearestCandidate } from "../ui/widgets.js";
 import { selectField, checkboxField, radioGroup, rangeField, segmentedField } from "../ui/fields.js";
 import { owner } from "../ui/owner.js";
+import { RegionTracker, driftCents, isOscillating, GLIDE_CENTS } from "../audio/regions.js";
+import { analyseNote, notePitch, postAttack } from "../core/scoring.js";
+import { aggregate, scorableRows, sessionScore } from "../core/stats.js";
+import { instrumentOffset, referenceFromOffset, referenceVerdict } from "../core/reference.js";
 
 const REFERENCES = [392, 415, 430, 440, 442];
 const DRONE_SECONDS = [4, 5, 6, 8, 10, 12];
@@ -45,6 +49,125 @@ export default {
         if (hz >= 380 && hz <= 470) settings.set({ referenceHz: hz });
       },
     });
+
+    /* ---- the reference, measured rather than chosen --------------------
+     *
+     * The reference is a number the player is expected to know, and on a
+     * baroque flute they often do not: the instrument sits where the
+     * headjoint and the room put it, not at the 415 printed on the box. When
+     * it is wrong, every session report opens by announcing an offset that is
+     * the tuning of the flute rather than anything about the playing.
+     *
+     * So: play, and the app reads the instrument's pitch off the playing. The
+     * one rule it will not bend -- see core/reference.js -- is that this is
+     * never taken from a single note. Several different notes, their common
+     * offset, and the disagreement between them shown next to it, because an
+     * average over notes that do not agree is not a pitch. Nothing is written
+     * until the player presses the button that names the number. */
+    let offFrame = null;
+    const measure = { tracker: null, notes: [], candidates: [], hz: null };
+    own.add(() => { if (offFrame) { offFrame(); offFrame = null; } });
+
+    const measureStatus = el("div", { class: "diag" });
+    const measureResult = el("p", { class: "note-box", hidden: true });
+    const applyButton = el("button", { class: "secondary", hidden: true });
+    const startButton = el("button", { class: "secondary", text: t("settings.measureStart") });
+
+    const setReference = (hz) => {
+      settings.set({ referenceHz: hz });
+      // The pill group is bound and re-reads itself; the custom box is not.
+      custom.value = REFERENCES.includes(hz) ? "" : String(hz);
+    };
+
+    function showMeasurement() {
+      const rows = scorableRows(aggregate(measure.notes));
+      const score = sessionScore(rows);
+      measureStatus.textContent = score
+        ? t("settings.measureHeard", score.notes, score.occurrences)
+        : t("settings.measureListening");
+      const verdict = referenceVerdict(score);
+      measure.hz = null;
+      if (!verdict.ready) {
+        measureResult.hidden = !score || verdict.reason !== "scattered";
+        if (verdict.reason === "scattered") measureResult.textContent = t("settings.measureScattered");
+        else if (score) measureStatus.textContent += ` ${t("settings.measureMore")}`;
+        applyButton.hidden = true;
+        return;
+      }
+      // The median of the notes, not sessionScore()'s mean: see instrumentOffset().
+      const offset = instrumentOffset(rows);
+      const hz = referenceFromOffset(Number(settings.get().referenceHz) || 415, offset);
+      measureResult.hidden = false;
+      if (hz === null) {
+        measureResult.textContent = t("settings.measureOutOfRange");
+        applyButton.hidden = true;
+        return;
+      }
+      measure.hz = hz;
+      measureResult.textContent = t("settings.measureResult",
+        Math.abs(offset).toFixed(1),
+        t(offset >= 0 ? "settings.measureSharp" : "settings.measureFlat"),
+        hz.toFixed(1), score.relative.toFixed(1));
+      applyButton.textContent = t("settings.measureApply", hz.toFixed(1));
+      applyButton.hidden = false;
+    }
+
+    /* One closed region becomes one sounding, or is thrown away. The same
+     * three exclusions free play makes: too short to measure, alternating
+     * rather than settling, and still travelling -- a slur read as a note
+     * would put its whole journey into the average. */
+    function addSounding(region) {
+      if (region.short || isOscillating(region)) return;
+      const frameSeconds = measure.tracker.frameSeconds;
+      const [settled] = postAttack(region.framesHz, frameSeconds);
+      if (Math.abs(driftCents(settled)) >= GLIDE_CENTS) return;
+      const played = notePitch(region.framesHz, frameSeconds);
+      if (!(played.hz > 0)) return;
+      const near = nearestCandidate(measure.candidates, played.hz);
+      const result = analyseNote(near.pitch, near.hz, region.framesHz, frameSeconds);
+      if (!result) return;
+      measure.notes.push({
+        pitch: near.pitch, primaryCents: result.meanCents, stdev: result.stdevCents,
+        seconds: region.seconds, meanDb: region.meanDb, index: measure.notes.length,
+      });
+      showMeasurement();
+    }
+
+    function stopMeasuring() {
+      if (offFrame) { offFrame(); offFrame = null; }
+      const last = measure.tracker ? measure.tracker.flush() : null;
+      if (last) addSounding(last);
+      startButton.textContent = t("settings.measureStart");
+      showMeasurement();
+    }
+
+    startButton.onclick = () => {
+      if (offFrame) { stopMeasuring(); return; }
+      if (!engine.listening) { measureStatus.textContent = t("settings.measureNeedsMic"); return; }
+      const tuning = currentTuning(settings.get());
+      measure.candidates = tunerCandidates(tuning);
+      measure.tracker = new RegionTracker({
+        frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
+      });
+      measure.notes = [];
+      measure.hz = null;
+      measureResult.hidden = true;
+      applyButton.hidden = true;
+      measureStatus.textContent = t("settings.measureListening");
+      startButton.textContent = t("settings.measureStop");
+      offFrame = engine.onFrame((frame) => {
+        const region = measure.tracker.push(frame);
+        if (region) addSounding(region);
+      });
+    };
+
+    applyButton.onclick = () => {
+      if (measure.hz === null) return;
+      setReference(measure.hz);
+      measureResult.textContent = t("settings.measureDone", measure.hz.toFixed(1));
+      applyButton.hidden = true;
+      measure.hz = null;
+    };
 
     const naming = own.add(radioGroup({
       name: "naming", bind: "naming",
@@ -137,6 +260,9 @@ export default {
     append(root,
       el("h2", { text: t("settings.reference") }),
       el("div", { class: "row" }, [refs.element, custom]),
+      el("p", { class: "note-box", text: t("settings.measureHelp") }),
+      el("div", { class: "controls left" }, [startButton, applyButton]),
+      measureStatus, measureResult,
       el("h2", { text: t("settings.naming") }), naming.element,
       el("h2", { text: t("settings.reading") }), explainToggle.element,
       scalesMinutes.element,

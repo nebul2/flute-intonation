@@ -22,6 +22,7 @@ export const DEFAULTS = Object.freeze({
   headphones: false,
   listenLog: false,      // Listen to me: show the note-by-note log
   listenGrounding: "key",  // "key" (state it) | "tonic" (play it first) | "none"
+  listenDrone: false,    // Listen to me: sound a drone on the tonic while playing
   listenKey: "D",
   listenQuality: "major",
   analytics: true,       // anonymous audience counts (section names only)

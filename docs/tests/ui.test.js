@@ -185,7 +185,7 @@ test("anything the app hides has a rule that lets it hide", () => {
     if (cls) elements.push(cls[1].split(/\s+/).filter(Boolean));
   }
   // The wrappers ui/ and the views toggle, each its own single-class element.
-  for (const name of ["meters", "level", "progress", "rows"]) elements.push([name]);
+  for (const name of ["meters", "level", "progress", "rows", "option"]) elements.push([name]);
 
   const setsDisplay = (name) =>
     new RegExp(`\\.${name}\\s*(?:,[^{]*)?\\{[^}]*display:\\s*(?!none)[a-z-]+`, "s").test(css);

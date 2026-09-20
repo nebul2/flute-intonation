@@ -23,6 +23,7 @@ import { spellInKey } from "../core/naming.js";
 import { HarmonicContext, PureIntervalTuning } from "../core/tuning.js";
 import { RegionTracker, driftCents, isOscillating, alternationRuns, GLIDE_CENTS } from "../audio/regions.js";
 import { NoteSegmenter } from "../audio/segmenter.js";
+import { BackgroundCalibration } from "../audio/calibration.js";
 import { aggregate, rowsToRecord, volumeVerdict, withinNoteVolumeLink, sessionScore, scorableRows, standouts, offsetAction } from "../core/stats.js";
 import { reviewSession, impossible } from "../core/bend.js";
 import * as profiles from "../profiles.js";
@@ -58,6 +59,9 @@ export default {
     this.mounted = false;
     if (this.own) this.own.dispose();
     this.own = owner();
+    // Leaving the page, starting again, finishing: the drone stops in every
+    // case, and it stops here so no path has to remember to.
+    engine.drone.stop();
   },
 
   /* ---- start screen ---------------------------------------------------- */
@@ -86,11 +90,22 @@ export default {
       options: () => ["key", "tonic", "none"].map((g) => ({ value: g, label: t(`listen.grounding.${g}`) })),
       onChange: refresh,
     }));
+    /* A bass to play against, on the tonic, for the whole session. Offered
+     * only where there *is* a tonic: an ungrounded session has no note to
+     * drone on, and a drone on a guess would be worse than none. */
+    const bleed = el("p", { class: "note-box", text: t("drone.bleed") });
+    const droneToggle = own.add(checkboxField({
+      look: "option", bind: "listenDrone", onChange: refresh,
+      label: t("listen.drone"), help: t("listen.droneHelp"),
+    }));
     const grounding = () => groundingField.value;
+    const droneWanted = () => droneToggle.value === true && grounding() !== "none";
     function refresh() {
       chooser.element.hidden = grounding() === "none";
       // The tonic gate needs a tonic, not a mode.
       chooser.quality.element.hidden = grounding() !== "key";
+      droneToggle.element.hidden = grounding() === "none";
+      bleed.hidden = !droneWanted() || settings.get().headphones === true;
       hint.textContent = t(`listen.grounding.${grounding()}.hint`);
       hint.classList.toggle("warn", grounding() === "none");
     }
@@ -102,6 +117,7 @@ export default {
       label: t("listen.start"), needMicNote: false,
       onStart: () => this.startSession({
         grounding: grounding(), key: chooser.key.key,
+        drone: droneWanted(),
         quality: grounding() === "key" ? chooser.quality.value : "major" }),
     }));
     append(root,
@@ -109,6 +125,8 @@ export default {
       groundingField.element,
       chooser.element,
       hint,
+      droneToggle.element,
+      bleed,
       row.element,
       el("div", { class: "row" }, [label.element]),
     );
@@ -116,8 +134,8 @@ export default {
 
   /* ---- a session ------------------------------------------------------- */
 
-  startSession({ grounding = "key", key = "D", quality = "major" } = {}) {
-    this.lastStart = { grounding, key, quality };
+  startSession({ grounding = "key", key = "D", quality = "major", drone = false } = {}) {
+    this.lastStart = { grounding, key, quality, drone };
     this.teardown();
     const s = settings.get();
     const tuning = currentTuning(s);
@@ -125,14 +143,28 @@ export default {
     // The signature to spell notes by. Minor keys borrow their relative major's.
     let keyName = null;
     if (grounding === "key") { try { keyName = scaleKeyFor(key, quality); } catch (_e) { keyName = null; } }
+    /* The drone sounds the tonic for the whole session, at one level from
+     * beginning to end. The exercises duck theirs for a note that sits at the
+     * drone's own pitch; free play cannot, because it never knows what is
+     * coming next -- and changing the level mid-session would invalidate the
+     * background measured at the start, which is the one thing separating
+     * playing from bleed here. No notches either: the exercises may notch the
+     * drone's partials because they know the note to spare, whereas a player
+     * improvising over a D drone will certainly play D, A and the octave --
+     * exactly the frequencies a notch would remove. Level does the work. */
+    const droneHz = drone && tonicPitch && s.droneLevel > 0 ? tuning.targetHz(tonicPitch) : null;
+    if (droneHz) engine.drone.start(droneHz, s.droneLevel);
     this.run = {
       settings: s, tuning, tonicPitch, grounding, key, quality, keyName,
       keyChanges: [],            // [{atIndex, key, quality}] -- a piece modulates
       pure: new PureIntervalTuning(tuning),
       context: tonicPitch ? new HarmonicContext(tonicPitch) : null,
       candidates: tunerCandidates(tuning),
-      // Only the tonic gate waits; stating the key, or nothing, starts at once.
-      phase: grounding === "tonic" ? "tonic" : "free", tonicSegs: [], label: this.label ? this.label.value : "",
+      // With a drone the room is measured first; otherwise only the tonic
+      // gate waits, and stating the key or nothing starts at once.
+      phase: droneHz ? "calibrating" : grounding === "tonic" ? "tonic" : "free",
+      tonicSegs: [], label: this.label ? this.label.value : "",
+      droneHz, calib: droneHz ? new BackgroundCalibration() : null, onsetDb: null,
       tracker: new RegionTracker({ frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100 }),
       notes: [], regions: [], shortCount: 0, glideCount: 0, trillCount: 0, lastVoiced: null,
     };
@@ -146,9 +178,7 @@ export default {
     }));
 
     this.ui = {
-      status: el("p", { class: "intro", text: grounding === "tonic"
-        ? t("listen.tonicPrompt", nameClass(tonicPitch, s))
-        : grounding === "key" ? t("listen.keyPrompt", nameClass(tonicPitch, s)) : t("listen.freePrompt") }),
+      status: el("p", { class: "intro", text: droneHz ? t("drone.calibrating") : this.prompt() }),
       nav: runNav({
         stopLabel: t("listen.stop"),
         onStop: () => this.finish(),
@@ -167,13 +197,7 @@ export default {
     const u = this.ui;
     u.panel = el("div", { class: "card panel" }, [u.note, u.readout, u.progress, u.meter.element]);
 
-    // The tonic may be played in any octave the flute has it in; whichever
-    // lands first opens the session.
-    const frameSeconds = engine.detector ? engine.detector.frameSeconds : 512 / 44100;
-    run.tonicSegs = tonicPitch === null || grounding !== "tonic" ? [] : run.candidates
-      .filter((c) => c.pitch.letter === tonicPitch.letter && c.pitch.alter === tonicPitch.alter
-                     && c.pitch.octave >= 4 && c.pitch.octave <= 6)
-      .map((c) => new NoteSegmenter({ targetHz: c.hz, frameSeconds, requiredSeconds: TONIC_SECONDS }));
+    this.armTonicGate();
     /* A piece modulates, and a practice session moves between keys. Notes
      * already scored keep the context they were scored in; only notes from
      * here on take the new one, and the change is written into the record
@@ -212,9 +236,56 @@ export default {
     requestAnimationFrame(() => this.render());
   },
 
+  /* What to tell the player once nothing is in the way any more. */
+  prompt() {
+    const run = this.run;
+    const s = run.settings;
+    if (run.grounding === "tonic") return t("listen.tonicPrompt", nameClass(run.tonicPitch, s));
+    if (run.grounding === "key") return t("listen.keyPrompt", nameClass(run.tonicPitch, s));
+    return t("listen.freePrompt");
+  },
+
+  /* The tonic may be played in any octave the flute has it in; whichever
+   * lands first opens the session. Armed after the room is measured rather
+   * than at build time, because with a drone on the tonic this gate is the
+   * unison case exactly -- the drone is already sounding the note being
+   * waited for, and only level can tell the two apart. */
+  armTonicGate() {
+    const run = this.run;
+    const frameSeconds = engine.detector ? engine.detector.frameSeconds : 512 / 44100;
+    run.tonicSegs = run.tonicPitch === null || run.grounding !== "tonic" ? [] : run.candidates
+      .filter((c) => c.pitch.letter === run.tonicPitch.letter && c.pitch.alter === run.tonicPitch.alter
+                     && c.pitch.octave >= 4 && c.pitch.octave <= 6)
+      .map((c) => new NoteSegmenter({
+        targetHz: c.hz, frameSeconds, requiredSeconds: TONIC_SECONDS,
+        // Every octave of it, not only the drone's own -- the drone carries
+        // two partials above its fundamental, sitting exactly where the tonic
+        // an octave and two octaves up would be, so the octave that is *not*
+        // the unison is bleed-prone in precisely the same way.
+        onsetDb: run.droneHz ? run.onsetDb : null,
+      }));
+  },
+
+  finishCalibration() {
+    const run = this.run;
+    run.onsetDb = run.calib.onsetDb;
+    // Every frame, not only an onset: see the floor's comment in regions.js.
+    run.tracker.floorDb = run.onsetDb;
+    this.armTonicGate();
+    run.phase = run.grounding === "tonic" ? "tonic" : "free";
+    let text = t("listen.calibrated", run.calib.backgroundDb.toFixed(1), run.onsetDb.toFixed(1));
+    if (run.calib.tooLoud) text += " — " + t("drone.calibratedWarn");
+    this.ui.status.textContent = `${text}. ${this.prompt()}`;
+    if (run.phase === "free") this.ui.progress.hidden = true;
+  },
+
   onFrame(frame) {
     const run = this.run;
     if (!run || run.phase === "finished") return;
+    if (run.phase === "calibrating") {
+      if (run.calib.push(frame)) this.finishCalibration();
+      return;
+    }
     if (frame.hz > 0) run.lastVoiced = frame;
 
     if (run.phase === "tonic") {
@@ -423,6 +494,9 @@ export default {
       const best = run.tonicSegs.reduce((most, seg) =>
         Math.max(most, seg.elapsedSeconds / seg.requiredSeconds), 0);
       u.progress.firstChild.style.width = `${Math.min(1, best) * 100}%`;
+    } else if (run.phase === "calibrating") {
+      u.progress.firstChild.style.width = `${run.calib.fraction * 100}%`;
+      u.readout.children[0].textContent = t("drone.stayQuiet", run.calib.remainingSeconds.toFixed(1));
     }
     requestAnimationFrame(() => this.render());
   },
@@ -435,6 +509,7 @@ export default {
     const last = run.tracker.flush();
     if (last && run.phase === "free") this.addRegion(last);
     run.phase = "finished";
+    engine.drone.stop();
     const u = this.ui, s = run.settings;
     u.note.textContent = "✓";
     u.readout.children[0].textContent = "";
@@ -550,6 +625,9 @@ export default {
         reference_hz: s.referenceHz, tonic: run.tonicPitch ? run.tonicPitch.name : null, lang: lang(),
         scoring: SCORING_RULE,
         grounding: run.grounding, key: run.key, quality: run.quality,
+        // A session played against a bass is a different session, and the
+        // comparison between two of them should be able to say so.
+        drone_hz: run.droneHz === null ? null : Math.round(run.droneHz * 1e4) / 1e4,
         key_changes: run.keyChanges,
         ...(run.label ? { label: run.label } : {}),
         notes: run.notes.map((n) => ({

@@ -184,6 +184,7 @@ button.secondary:disabled { border-color: var(--edge); color: var(--muted); curs
 
 .options { display: flex; flex-direction: column; gap: 0.5rem; }
 .option { display: grid; grid-template-columns: auto 1fr; gap: 0.7rem; align-items: start; background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius); padding: 0.75rem 0.9rem; cursor: pointer; }
+.option[hidden] { display: none; }
 .option input { accent-color: var(--brass); margin-top: 0.25rem; }
 .option-body { display: flex; flex-direction: column; gap: 0.2rem; }
 .option-label { font-weight: 600; }

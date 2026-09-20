@@ -192,12 +192,14 @@ export function alternationRuns(regions, {
 }
 
 export class RegionTracker {
-  constructor({ frameSeconds, splitCents = 70.0, confirmFrames = 3, gapFrames = 6, minSeconds = 0.12 }) {
+  constructor({ frameSeconds, splitCents = 70.0, confirmFrames = 3, gapFrames = 6, minSeconds = 0.12,
+                floorDb = null }) {
     this.frameSeconds = frameSeconds;
     this.splitCents = splitCents;
     this.confirmFrames = confirmFrames;
     this.gapFrames = gapFrames;
     this.minSeconds = minSeconds;
+    this.floorDb = floorDb;
     this.index = 0;
     this.current = null;      // { framesHz: [], framesDb: [], startIndex }
     this.pending = [];        // off-pitch frames not yet confirmed as a new note: [{hz, db}]
@@ -207,8 +209,16 @@ export class RegionTracker {
   /* Feed one frame {hz, levelDb}; returns a closed region or null. */
   push(frame) {
     const i = this.index++;
-    const hz = frame.hz;
     const db = frame.levelDb ?? -120;
+    // Below the floor is not playing, whatever pitch it has. Unlike the
+    // guided segmenter's onsetDb -- which gates the onset alone, so a note
+    // may decay freely -- this applies to every frame, and it has to: free
+    // play has no expected pitch, so the moment the player stops, a drone
+    // bleeding back into the microphone would keep the open region alive,
+    // then split off a phantom region sitting on the drone's own note. The
+    // cost is the quietest tail of a diminuendo, which scoredWindow()
+    // discards before scoring anyway.
+    const hz = this.floorDb !== null && db < this.floorDb ? 0 : frame.hz;
     if (hz > 0) {
       this.gap = 0;
       if (!this.current) {
