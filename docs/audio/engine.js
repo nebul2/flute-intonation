@@ -36,9 +36,19 @@ const NOTCH_Q = 25;
  * `targetHz` is expected: every partial more than `acceptanceCents` away from
  * the target. A partial at the target is the player's own note (the unison,
  * or the octave for 2*f0) and must stay -- ducking handles those. */
+/* What the drone actually puts into the room, and so what has to come back
+ * out of the microphone signal: the fundamental and the two partials the
+ * Drone class below synthesises. */
+export function dronePartials(droneHz) {
+  return droneHz > 0 ? [1, 2, 3].map((k) => droneHz * k) : [];
+}
+
+/* The same, minus any partial too close to a note that is about to be played:
+ * a guided exercise knows its target and must not notch it away. Free play
+ * has no target and notches all three -- see views/listen.js. */
 export function dronePartialsToNotch(droneHz, targetHz, acceptanceCents = 80.0) {
-  if (!(droneHz > 0) || !(targetHz > 0)) return [];
-  return [1, 2, 3].map((k) => droneHz * k)
+  if (!(targetHz > 0)) return [];
+  return dronePartials(droneHz)
     .filter((hz) => Math.abs(1200 * Math.log2(hz / targetHz)) > acceptanceCents);
 }
 

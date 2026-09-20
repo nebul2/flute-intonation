@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { BackgroundCalibration, ONSET_MARGIN_DB, CALIBRATE_MS,
          PLAYING_LEVEL_DB } from "../audio/calibration.js";
 import { RegionTracker } from "../audio/regions.js";
+import { dronePartials, dronePartialsToNotch } from "../audio/engine.js";
 
 const FS = 512 / 44100;
 const MS = FS * 1000;
@@ -96,4 +97,25 @@ test("without a floor nothing changes: it is off unless a drone is sounding", ()
   const closed = feed(tracker, [...Array(40).fill(frame(415.0, -80)),
                                 ...Array(6).fill(frame(0, -110))]);
   assert.equal(closed.length, 1, "a quiet note is still a note with no drone to fear");
+});
+
+/* ---- what gets notched --------------------------------------------- */
+
+test("free play notches the whole drone; a guided note keeps its own pitch", () => {
+  // The distinction that cost 8.4 most of its notes. An exercise knows which
+  // note is coming and must not notch it away, so it excludes any partial
+  // within the acceptance window of its target. Free play has no target and
+  // takes all three -- measured at 94% recall against 31% without, on real
+  // playing with the drone 12 dB under it (docs/tests/dronecost.js).
+  const drone = 310.5;
+  assert.deepEqual(dronePartials(drone), [drone, drone * 2, drone * 3]);
+  assert.deepEqual(dronePartials(0), [], "no drone, nothing to notch");
+
+  // A guided note at the drone's own pitch keeps its fundamental...
+  assert.deepEqual(dronePartialsToNotch(drone, drone), [drone * 2, drone * 3]);
+  // ...and its octave keeps the partial sitting on it.
+  assert.deepEqual(dronePartialsToNotch(drone, drone * 2), [drone, drone * 3]);
+  // A note nowhere near the drone notches all three, same as free play.
+  assert.deepEqual(dronePartialsToNotch(drone, drone * 1.26), dronePartials(drone));
+  assert.deepEqual(dronePartialsToNotch(drone, 0), [], "no target, no notches");
 });

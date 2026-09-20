@@ -14,7 +14,7 @@
  * Notes under ~120 ms are counted but not measured. */
 
 import { t, lang } from "../i18n.js";
-import { engine } from "../audio/engine.js";
+import { engine, dronePartials } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
@@ -60,8 +60,11 @@ export default {
     if (this.own) this.own.dispose();
     this.own = owner();
     // Leaving the page, starting again, finishing: the drone stops in every
-    // case, and it stops here so no path has to remember to.
+    // case, and it stops here so no path has to remember to. The notches go
+    // with it -- left engaged they would follow the player to the tuner and
+    // quietly remove three frequencies from it.
     engine.drone.stop();
+    engine.setNotches([]);
   },
 
   /* ---- start screen ---------------------------------------------------- */
@@ -147,13 +150,42 @@ export default {
      * beginning to end. The exercises duck theirs for a note that sits at the
      * drone's own pitch; free play cannot, because it never knows what is
      * coming next -- and changing the level mid-session would invalidate the
-     * background measured at the start, which is the one thing separating
-     * playing from bleed here. No notches either: the exercises may notch the
-     * drone's partials because they know the note to spare, whereas a player
-     * improvising over a D drone will certainly play D, A and the octave --
-     * exactly the frequencies a notch would remove. Level does the work. */
+     * background measured at the start.
+     *
+     * Its three partials are notched out of the microphone signal, and the
+     * notches are engaged *before* the background is measured, so that what
+     * is measured is what the detector will actually see.
+     *
+     * 8.4 shipped without notches, reasoning that a player improvising over a
+     * D drone will certainly play D, A and the octave -- exactly the
+     * frequencies a notch removes -- and that level alone could do the work.
+     * Measured, that was wrong, and badly. telemann8.wav is 234 notes of real
+     * slow playing, heard at 97% with no drone; mixed with this drone at
+     * several levels and run through the shipped detector:
+     *
+     *     drone, relative to playing    no notches    notched
+     *     -24 dB                            94%         94%
+     *     -18 dB                            73%         94%
+     *     -12 dB                            31%         94%
+     *      -6 dB                             4%         94%
+     *
+     * The worry was misplaced. A notch is about 70 cents wide at Q=25, and a
+     * flute note keeps its periodicity when its fundamental is taken away, so
+     * notes at the drone's own pitch survive: all 25 E naturals in that take
+     * were still found and their mean moved 1.1 cents. Every other pitch
+     * moved by less than a third of a cent.
+     *
+     * The simulation is kinder than a room -- its drone is exactly three
+     * sinusoids and the notches remove them exactly, where a real speaker
+     * adds distortion and the room its own colour. The direction is not in
+     * doubt; the ceiling is. The level floor stays for that residue, and now
+     * costs nothing: with the partials gone the background falls far below
+     * anything the player produces. */
     const droneHz = drone && tonicPitch && s.droneLevel > 0 ? tuning.targetHz(tonicPitch) : null;
-    if (droneHz) engine.drone.start(droneHz, s.droneLevel);
+    if (droneHz) {
+      engine.drone.start(droneHz, s.droneLevel);
+      engine.setNotches(dronePartials(droneHz));
+    }
     this.run = {
       settings: s, tuning, tonicPitch, grounding, key, quality, keyName,
       keyChanges: [],            // [{atIndex, key, quality}] -- a piece modulates
@@ -228,6 +260,7 @@ export default {
         if (run.droneHz !== null) {
           run.droneHz = run.tuning.targetHz(run.tonicPitch);
           engine.drone.start(run.droneHz, run.settings.droneLevel);
+          engine.setNotches(dronePartials(run.droneHz));
         }
         // Still waiting for the tonic to open the session? It is a different
         // note now, and the gate is listening for the old one.
@@ -535,6 +568,7 @@ export default {
     if (last && run.phase === "free") this.addRegion(last);
     run.phase = "finished";
     engine.drone.stop();
+    engine.setNotches([]);
     const u = this.ui, s = run.settings;
     u.note.textContent = "✓";
     u.readout.children[0].textContent = "";
