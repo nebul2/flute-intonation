@@ -212,6 +212,31 @@ export default {
         run.keyName = null;
         if (grounding === "key") { try { run.keyName = scaleKeyFor(nextKey, nextQuality); } catch (_e) { /* unspelled */ } }
         run.keyChanges.push({ atIndex: run.notes.length, key: nextKey, quality: nextQuality });
+        /* The bass follows the key. Without this the drone goes on sounding
+         * the note the session opened in while every note from here is scored
+         * as a pure interval over the new tonic -- the bass in the room and
+         * the bass in the arithmetic being different notes, which is the one
+         * thing this app exists not to do.
+         *
+         * The background measured at the start is kept rather than taken
+         * again: it is the same oscillator at the same level, and the gate it
+         * feeds is a coarse one (the room plus 10 dB). A speaker is not
+         * equally loud at every pitch, so this is an approximation -- but a
+         * 1.5 s "stay quiet" at every modulation would cost more than it
+         * bought. If a key change ever lands the drone somewhere the floor
+         * cannot hold, that is the measurement to take again. */
+        if (run.droneHz !== null) {
+          run.droneHz = run.tuning.targetHz(run.tonicPitch);
+          engine.drone.start(run.droneHz, run.settings.droneLevel);
+        }
+        // Still waiting for the tonic to open the session? It is a different
+        // note now, and the gate is listening for the old one.
+        if (run.phase === "tonic") this.armTonicGate();
+        /* Redo means "that again", and "that" is the key the session is in
+         * now, not the one it opened in. Only the two halves that changed:
+         * the grounding and the drone are the player's start-screen choices
+         * and are not what a modulation is about. */
+        this.lastStart = { ...this.lastStart, key: nextKey, quality: nextQuality };
         u.status.textContent = t("listen.keyChanged", nameClass(run.tonicPitch, s));
       };
       /* The same control as the start screen, with neither half bound: this
@@ -626,8 +651,11 @@ export default {
         scoring: SCORING_RULE,
         grounding: run.grounding, key: run.key, quality: run.quality,
         // A session played against a bass is a different session, and the
-        // comparison between two of them should be able to say so.
-        drone_hz: run.droneHz === null ? null : Math.round(run.droneHz * 1e4) / 1e4,
+        // comparison between two of them should be able to say so. A flag
+        // rather than a frequency: the drone follows the key, so a session
+        // that modulated had several, and every one of them is already
+        // derivable from the tonic, the key changes and the tuning.
+        drone: run.droneHz !== null,
         key_changes: run.keyChanges,
         ...(run.label ? { label: run.label } : {}),
         notes: run.notes.map((n) => ({
