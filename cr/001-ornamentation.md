@@ -112,6 +112,74 @@ level; it has no view of articulation. The guide can explain them and the app
 can stay quiet about whether they were done well. Saying so is better than
 inventing a score.
 
+## The sources
+
+Raised by the player while CR-008 was being written: there is *a great deal*
+of historical writing on ornamentation, and it is worth saying where it is
+rather than re-deriving the taxonomy above from memory a second time. This is
+the work stream those texts belong to; CR-008 needs only the ornaments
+Hotteterre marks in his own preludes and should point here for the rest.
+
+Verification convention as in `research/pedagogy.md`: *(not verified)* means
+it was not read or confirmed this session and must not be quoted in the app
+until it is.
+
+**French, and closest to this instrument**
+
+- **Hotteterre, *Principes de la flûte traversière*** (Paris, 1707;
+  trans. Lasocki 1968) — the *tremblement*, the *flattement* (finger vibrato),
+  the *port de voix*, fingered on the flute rather than described in the
+  abstract. Already cited in `research/pedagogy.md`.
+- **Hotteterre, *Premier livre de pièces pour la flûte*, Op. 2** (1715) —
+  carries an **ornament table** of its own. Listed in the Scroll Ensemble's
+  resource database; the table itself not read this session.
+- **Hotteterre, *L'Art de Préluder*, Op. 7** (1719) — the preludes come with
+  their agréments; this is the overlap with CR-008.
+- **Michel Corrette, *Méthode pour apprendre aisément à jouer de la flûte
+  traversière*** (c. 1735) (not verified beyond its existence).
+- **Montéclair, *Principes de musique*** (1736); **Couperin, *L'Art de toucher
+  le clavecin*** (1716) and **d'Anglebert's** table (1689) — the keyboard and
+  vocal tables are where the French ornament vocabulary is most completely
+  set out, and where several of the names in the taxonomy above come from
+  (not verified this session).
+
+**German and Italian, for the same ornaments seen from outside**
+
+- **Quantz, *Versuch*** (1752; Reilly trans.) — the fullest single treatment,
+  including the French/Italian distinction and, reportedly, eight or more
+  ways of ornamenting a common interval from plainest to most elaborate
+  (the "eight or more" is from a secondary summary; not verified).
+- **C. P. E. Bach, *Versuch*** (1753); **Leopold Mozart** (1756);
+  **Tosi (1723) / Agricola (1757)** for singing; **Georg Muffat,
+  *Florilegium Secundum*** (1698) explaining French style to Germans;
+  **Tromlitz** (1791), whose intonation content `research/pedagogy.md`
+  already flags as needing Powell's translation before quoting. All
+  (not verified) here.
+- **Telemann's *Methodical Sonatas*** (1728, 1732) — not a treatise but the
+  most useful object of all: slow movements printed twice, plain and
+  ornamented, by a composer whose fantasias are already bundled in this repo
+  (`flutetrainer/data/pieces/telemann-fantasias`). A written-out answer key.
+
+**Later English flute methods**, which restate the same material for a wider
+audience: Mahaut, *A New Method*; Granom, *Plain and Easy Instructions*; Gunn,
+*The Art of Playing the German-Flute*; Heron, *A Treatise on the German Flute*
+(all not verified; surfaced in one search).
+
+**Modern surveys** worth having before quoting any of the above: Neumann,
+*Ornamentation in Baroque and Post-Baroque Music* (1978); Donington, *The
+Interpretation of Early Music*; Rachel Brown, *The Early Flute* (2002), already
+used elsewhere in this project (all not verified for ornament content).
+
+Two cautions before any of this reaches the app:
+
+- **They disagree with each other**, and that is the interesting part, not a
+  problem to be averaged away. A trill that starts on the upper note in one
+  treatise starts on the main note in another. The guide should show the
+  disagreement rather than pick a winner and present it as fact.
+- **Naming is display-only**, as everywhere else in this app. A *tremblement*
+  and a *trill* are the same measurement; which word appears is a matter for
+  `ui/naming.js` and must never reach what is measured.
+
 ## Naming — decided
 
 The app is **Le Bon Goût**, tagline *le ton juste*: the French baroque ideal

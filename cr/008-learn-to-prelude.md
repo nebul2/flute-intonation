@@ -52,6 +52,57 @@ Sources and status:
 This matters for scope: the app can rest on a complete, free, primary source
 written for the traverso, and does not have to invent a curriculum.
 
+## The obstacle is not difficulty
+
+The player, who is the reason this CR exists and the best available evidence
+about who it is for:
+
+> As a flautist I had the book in my possession for almost 40 years before
+> having the maturity to face such a dry austere work. So a possible aim can
+> be to make studying preludes fun despite the methodological approach.
+
+Forty years is a measurement. It says the barrier is not technique, not
+theory, and not access — he owned the book — but **austerity**. A page of
+1719 prose about the species of meter is a wall, and the music behind it
+never gets played. Any version of this that reads like the treatise will sit
+unopened for another forty years, and that is the failure mode to design
+against, ahead of every technical question below.
+
+What "fun" can and cannot mean here. The app refuses points, badges and
+streaks, and that refusal is grounded (Deci, Koestner & Ryan 1999: expected
+tangible rewards undermine free-choice intrinsic motivation; the app's
+do-not-claim list also records that "gamification is proven harmful" is *not*
+the honest claim — the honest one is unstable benefit with documented harms).
+So making preludes fun cannot mean attaching rewards to them. It means making
+**the activity itself** worth doing, which the same literature supports:
+informational feedback that supports competence does not undermine intrinsic
+motivation, while contingent rewards do.
+
+Concretely, five principles that cost nothing and are all refusals as much as
+additions:
+
+1. **Sound in the first minute.** The bass sounds, you play three notes over
+   it, and it is already music. Hotteterre's rules arrive afterwards to
+   explain what you did — they never gate you before you start. The treatise
+   opens with the dissertation on meters; the app must not.
+2. **Play his preludes before writing your own.** The dryness is in the prose,
+   not in the notes. The preludes are short pieces by a professional flautist
+   and they are the most persuasive argument the source contains.
+3. **Keep it short.** A prelude is twenty to forty seconds. Nothing here needs
+   a practice session; it needs the two minutes before one.
+4. **Nothing is scored, so nothing can be failed.** Everywhere else in the app
+   that is a limitation to be honest about. Here it is the feature, and worth
+   saying out loud on the page: this is the one part of Le Bon Goût where
+   there is no right answer and no mark.
+5. **Variation is the game.** The same four bars in three keys; the same idea
+   *gai*, then *gracieusement*, then *lentement*. That is Hotteterre's own
+   method and it is also the playful part — a game that needs no points
+   because the reward is hearing the difference.
+
+The risk to watch is the opposite one: that "make it fun" quietly becomes
+"make it a game", and the app grows a streak counter for the one activity
+whose whole value is that nobody is counting.
+
 ## The constraint that shapes the whole thing
 
 **The app cannot judge an improvisation, and must not pretend to.**
@@ -156,6 +207,12 @@ the tuning of the notes, not the invention.
   and not from reasoning.
 - **Which order of keys?** Hotteterre's, the app's `PRACTICE_KEYS`, or by what
   the one-keyed flute finds easy? These give three quite different courses.
+- **Should a prelude you liked be keepable?** It is the single most obvious
+  way to make this rewarding — you made something, and you can hear it again
+  next week — and it is real new work: the web app captures no audio at all
+  today (`download.js` hands the browser text files and nothing else), so this
+  means `MediaRecorder`, storage, and a decision about how much of it to keep.
+  Worth asking whether it is the *first* thing to build rather than the last.
 - **Ornaments.** Hotteterre's preludes come *with* their agréments, and the
   app cannot yet tell one ornament from another. How much of this CR can
   proceed before CR-001 is a question worth answering early.
@@ -184,7 +241,15 @@ Per the discipline in `research/pedagogy.md`:
   the existing pieces; both need measuring against preluding rather than
   scales before being trusted with it.
 - CR-001 (ornamentation) gates the parts of the source that are about
-  agréments.
+  agréments — Hotteterre's preludes come *with* their ornaments, and the app
+  cannot yet tell one from another.
+- **The ornamentation treatises are their own work stream, and it is CR-001.**
+  There are a great many of them — Hotteterre's own two, Corrette, Montéclair,
+  Couperin, Quantz, and a century of others — far more material than this CR
+  needs or should carry. The list now lives under *The sources* in CR-001,
+  which already holds the taxonomy of agréments those texts describe. What
+  CR-008 needs from them is only what Hotteterre marks in his own preludes;
+  everything else belongs next door.
 - CR-007 (learning by heart) is the sibling: that one is about playing
   someone else's notes without the page, this one about playing your own. They
   want opposite things from the same machinery — one needs a score to align
