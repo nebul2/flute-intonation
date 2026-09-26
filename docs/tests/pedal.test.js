@@ -96,3 +96,62 @@ test("space and enter on a focused button stay the browser's", () => {
     assert.equal(pressIntent("ArrowLeft", { tagName }), BACK, `arrowleft on ${tagName}`);
   }
 });
+
+/* ---- where "again" lands -------------------------------------------- */
+
+import { takeBackTarget } from "../views/run.js";
+
+const entry = (exIdx, noteIdx) => ({ counted: true, judged: false, row: null, exIdx, noteIdx });
+
+test("after the run has moved on, back still reaches the note that was played", () => {
+  // Miki's report, and the bug behind it. 8.4.5 could only reach the note on
+  // screen, so a press arriving later than the 900 ms gap between notes hit
+  // the *next* note instead: nothing visibly happened and the previous note's
+  // reading was deleted. Playing note 1, letting note 2 start, then pressing
+  // back must land on note 1.
+  const target = takeBackTarget({
+    phase: "playing", log: [entry(0, 0)], exIdx: 0, noteIdx: 1, hasNote: true,
+  });
+  assert.deepEqual(target, { give: "logged", exIdx: 0, noteIdx: 0 });
+});
+
+test("back walks the history one note at a time", () => {
+  const log = [entry(0, 0), entry(0, 1), entry(0, 2)];
+  assert.equal(takeBackTarget({ phase: "playing", log, exIdx: 0, noteIdx: 3, hasNote: true }).noteIdx, 2);
+  log.pop();
+  assert.equal(takeBackTarget({ phase: "playing", log, exIdx: 0, noteIdx: 2, hasNote: true }).noteIdx, 1);
+  log.pop();
+  assert.equal(takeBackTarget({ phase: "playing", log, exIdx: 0, noteIdx: 1, hasNote: true }).noteIdx, 0);
+});
+
+test("back reaches across an exercise boundary", () => {
+  // Adjust to the drone is two one-note exercises over different basses, so
+  // its first note is always a segment behind by the time anyone decides to
+  // play it again. The target names the exercise as well as the note.
+  const target = takeBackTarget({
+    phase: "playing", log: [entry(0, 0)], exIdx: 1, noteIdx: 0, hasNote: true,
+  });
+  assert.deepEqual(target, { give: "logged", exIdx: 0, noteIdx: 0 });
+});
+
+test("with nothing finished, back starts the note in progress over", () => {
+  assert.deepEqual(
+    takeBackTarget({ phase: "playing", log: [], exIdx: 0, noteIdx: 0, hasNote: true }),
+    { give: "nothing", exIdx: 0, noteIdx: 0 });
+  // ...and with no note at all there is nothing to do rather than something odd.
+  assert.equal(takeBackTarget({ phase: "playing", log: [], hasNote: false }), null);
+});
+
+test("a call not yet made is taken back with its own note", () => {
+  // In judging the reading is already in the summary but has no row, so it
+  // comes back from there rather than from the log.
+  assert.deepEqual(
+    takeBackTarget({ phase: "judging", log: [entry(0, 0)], exIdx: 0, noteIdx: 1, hasNote: true }),
+    { give: "pending", exIdx: 0, noteIdx: 1 });
+});
+
+test("back does nothing while calibrating or once the run is over", () => {
+  for (const phase of ["calibrating", "finished"]) {
+    assert.equal(takeBackTarget({ phase, log: [entry(0, 0)], exIdx: 0, noteIdx: 1, hasNote: true }), null, phase);
+  }
+});

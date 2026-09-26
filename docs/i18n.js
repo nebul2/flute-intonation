@@ -346,7 +346,7 @@ export const STRINGS = {
     "check.diag": (frames, context, track, level) =>
       `frames received: ${frames} · audio context: ${context} · input: ${track} · last level: ${level} dBFS`,
     "check.pedalTitle": "Foot pedal",
-    "check.pedalIntro": "Press each pedal in turn. It shows what the pedal sent and what the app will do with it — a pedal is a keyboard as far as a browser is concerned, and they do not agree on what to send. If a press comes back unrecognised, the key name below is the useful thing: assign it here, or send it with a bug report.",
+    "check.pedalIntro": "Press each pedal in turn. It shows what the pedal sent and what the app will do with it — a pedal is a keyboard as far as a browser is concerned, and they do not agree on what to send. If a press comes back unrecognised, the key name below is the useful thing: assign it here. If a press shows nothing at all, that pedal is not sending a key the browser can see, which is a setting on the pedal rather than anything the app can reach.",
     "check.pedalWaiting": "press a pedal",
     "check.pedalForward": "go on",
     "check.pedalBack": "that again",
@@ -956,7 +956,7 @@ export const STRINGS = {
     "check.diag": (frames, context, track, level) =>
       `trames reçues : ${frames} · contexte audio : ${context} · entrée : ${track} · dernier niveau : ${level} dBFS`,
     "check.pedalTitle": "Pédale",
-    "check.pedalIntro": "Appuie sur chaque pédale tour à tour. Le panneau montre ce que la pédale a envoyé et ce que le programme en fera — pour un navigateur une pédale est un clavier, et elles ne s'accordent pas sur ce qu'il faut envoyer. Si un appui revient non reconnu, c'est le nom de la touche ci-dessous qui est utile : assigne-la ici, ou envoie-la avec un signalement.",
+    "check.pedalIntro": "Appuie sur chaque pédale tour à tour. Le panneau montre ce que la pédale a envoyé et ce que le programme en fera — pour un navigateur une pédale est un clavier, et elles ne s'accordent pas sur ce qu'il faut envoyer. Si un appui revient non reconnu, c'est le nom de la touche ci-dessous qui est utile : assigne-la ici. Si un appui n'affiche rien du tout, cette pédale n'envoie aucune touche visible par le navigateur : cela se règle sur la pédale, pas dans le programme.",
     "check.pedalWaiting": "appuie sur une pédale",
     "check.pedalForward": "on avance",
     "check.pedalBack": "encore celle-ci",

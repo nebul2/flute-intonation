@@ -47,6 +47,29 @@ function predictPass(entry, intervals, seconds) {
   return intervalDrill(entry.tonic, { key: entry.key, intervals, beats: seconds });
 }
 
+/* Which note "again" should land on, and what has to be given back to get
+ * there. Pure and exported, because this decision *is* the feature and it was
+ * got wrong once already.
+ *
+ * 8.4.5 could only reach the note still on screen. That gave the player the
+ * 900 ms between one note ending and the next beginning to decide they had
+ * fluffed it; past that the press did nothing visible and silently deleted
+ * the previous note's reading. It was reported, accurately, as "the left
+ * pedal does nothing" -- which is what a bug looks like from the other side
+ * of a flute.
+ *
+ * `give` says what the caller must hand back: "pending" is a reading already
+ * in the summary with no row yet (the judging phase), "logged" is the last
+ * finished note, "nothing" is a note in progress that has produced nothing. */
+export function takeBackTarget({ phase, log = [], exIdx = 0, noteIdx = 0, hasNote = false }) {
+  if (phase === "finished" || phase === "calibrating") return null;
+  if (phase === "judging") return { give: "pending", exIdx, noteIdx };
+  const last = log.length ? log[log.length - 1] : null;
+  if (last) return { give: "logged", exIdx: last.exIdx, noteIdx: last.noteIdx };
+  // Nothing finished yet: the only sensible "again" is this note over.
+  return hasNote ? { give: "nothing", exIdx, noteIdx } : null;
+}
+
 /* The note length a run started with. An endless run must keep it when the
  * key changes, or the exercise quietly changes pace mid-session. Seconds and
  * beats are the same thing at the 60 bpm these exercises all run at. */
@@ -206,7 +229,13 @@ export class ExerciseRun {
       exIdx: 0, noteIdx: -1, phase: "start",
       droneHz: null, onsetDb: null, calib: null,
       seg: null, target: 0, note: null, exercise: null,
-      summary: new SessionSummary(), judgements: [], rows: [], stopped: false,
+      summary: new SessionSummary(), judgements: [], stopped: false,
+      /* One entry per note the run has finished with: what it put in the
+       * summary, whether a call was recorded against it, its row, and where
+       * it sat. Taking a note back means undoing all four together, and the
+       * bare list of rows this replaces could not say which of them had a
+       * reading behind it. */
+      log: [], replayAt: null,
       pendingResult: null, nextTimer: null, lastJudged: false, retakes: 0,
     };
     this.own = owner();
@@ -365,6 +394,9 @@ export class ExerciseRun {
     }
     run.notes = [...exercise.notes];
     run.noteIdx = -1;
+    // A retake that reached back across a segment boundary says where in
+    // this exercise to land; nextNote() advances before it reads.
+    if (run.replayAt !== null) { run.noteIdx = run.replayAt - 1; run.replayAt = null; }
     run.droneHz = null;
     run.onsetDb = null;
 
@@ -414,6 +446,11 @@ export class ExerciseRun {
     }
     const note = run.notes[run.noteIdx];
     run.note = note;
+    // Belongs to the note just left, and leaving it behind is what let a
+    // press of "again" one note too late silently delete the previous note's
+    // reading while appearing to do nothing at all.
+    run.pendingResult = null;
+    run.lastJudged = false;
     run.target = run.resolver.resolve(note);
     if (engine.detector) engine.detector.reset();
     run.seg = new NoteSegmenter({
@@ -455,24 +492,48 @@ export class ExerciseRun {
    * attributed to the note it belongs to. */
   again() {
     const run = this.run;
-    if (!run || !run.note) return;
-    if (run.phase === "finished" || run.phase === "calibrating") return;
+    if (!run) return;
+    const target = takeBackTarget({
+      phase: run.phase, log: run.log,
+      exIdx: run.exIdx, noteIdx: run.noteIdx, hasNote: !!run.note,
+    });
+    if (!target) return;
     if (run.nextTimer) { clearTimeout(run.nextTimer); run.nextTimer = null; }
 
-    // Whatever the note already produced goes back with it. In "playing"
-    // there is nothing yet; in "judging" the reading exists but no row; in
-    // "between" both do.
-    if (run.pendingResult) { run.summary.dropLast(); run.retakes += 1; }
-    if (run.lastJudged) { run.judgements.pop(); run.lastJudged = false; }
-    if (run.phase === "between") {
-      const row = run.rows.pop();
-      if (row) row.remove();
+    if (target.give === "pending") {
+      // A reading already in the summary, with no row yet: the judging phase.
+      if (run.pendingResult) { run.summary.dropLast(); run.retakes += 1; }
+    } else if (target.give === "logged") {
+      const last = run.log.pop();
+      if (last.counted) { run.summary.dropLast(); run.retakes += 1; }
+      if (last.judged) run.judgements.pop();
+      last.row.remove();
     }
     run.pendingResult = null;
+    run.lastJudged = false;
     this.ui.judge.hidden = true;
+    this.replay(target.exIdx, target.noteIdx);
+  }
 
-    // nextNote() advances first, so step back to land on the same note.
-    run.noteIdx -= 1;
+  /* Put the run back on one particular note.
+   *
+   * Within the current exercise that is one line. Across a segment boundary
+   * the exercise has to be re-entered, because its drone, its key and its
+   * notes all changed when the run moved on -- and that boundary is not an
+   * edge case: Adjust to the drone is two one-note exercises over different
+   * basses, so the first note of it is always a segment behind by the time
+   * anyone decides to play it again. */
+  replay(exIdx, noteIdx) {
+    const run = this.run;
+    if (exIdx !== run.exIdx) {
+      run.exIdx = exIdx;
+      run.replayAt = noteIdx;
+      engine.drone.stop();
+      engine.setNotches([]);
+      this.nextSegment();
+      return;
+    }
+    run.noteIdx = noteIdx - 1;      // nextNote() advances before it reads
     this.nextNote();
   }
 
@@ -553,7 +614,8 @@ export class ExerciseRun {
       row = el("div", { class: "result-row" }, children);
     }
     this.ui.rows.prepend(row);
-    run.rows.push(row);
+    run.log.push({ counted: !!result, judged: !!called, row,
+                   noteIdx: run.noteIdx, exIdx: run.exIdx });
     run.phase = "between";
     run.nextTimer = setTimeout(() => { run.nextTimer = null; this.nextNote(); }, 900);
   }
