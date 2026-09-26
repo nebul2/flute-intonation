@@ -38,6 +38,7 @@ import { el, append, needle, meters, bandClass, settleLabel, currentTuning, name
 import { checkboxField } from "../ui/fields.js";
 import { keyControl } from "../ui/controls.js";
 import { owner } from "../ui/owner.js";
+import { pedal, FORWARD, BACK } from "../ui/pedal.js";
 
 /* One pass of "Predict, then see": the given intervals over one key's own
  * drone. The shape belongs to this exercise rather than to the generator --
@@ -206,7 +207,7 @@ export class ExerciseRun {
       droneHz: null, onsetDb: null, calib: null,
       seg: null, target: 0, note: null, exercise: null,
       summary: new SessionSummary(), judgements: [], rows: [], stopped: false,
-      pendingResult: null, nextTimer: null,
+      pendingResult: null, nextTimer: null, lastJudged: false, retakes: 0,
     };
     this.own = owner();
     this.buildUi();
@@ -219,7 +220,6 @@ export class ExerciseRun {
   unmount() {
     this.mounted = false;
     if (this.own) { this.own.dispose(); this.own = null; }
-    if (this.keyHandler) { window.removeEventListener("keydown", this.keyHandler); this.keyHandler = null; }
     if (this.run?.nextTimer) clearTimeout(this.run.nextTimer);
     engine.drone.stop();
     engine.setNotches([]);
@@ -288,6 +288,7 @@ export class ExerciseRun {
         onStop: () => this.finish(true),
         onRedo: () => this.restart(),
         onBack: () => this.onBack(),
+        onAgain: () => this.again(),
       }),
     };
     const u = this.ui;
@@ -303,18 +304,40 @@ export class ExerciseRun {
       // than usual, since the instruction on its own sounds like nonsense.
       run.spec.explain ? explainer(...run.spec.explain.map((k) => t(k))) : null,
       run.spec.help ? helpSection(run.spec.help).element : null,
+      el("p", { class: "muted small", text: t("practice.pedal") }),
       run.spec.report === "stopper" ? el("p", { class: "note-box", text: t("practice.stopper.protocol") }) : null,
       (run.exercises.some((e) => e.drone) && !run.settings.headphones)
         ? el("p", { class: "note-box", text: t("drone.bleed") }) : null,
       u.status, u.nav.top, u.panel, u.summary, u.rows, u.nav.bottom,
     );
-    // s / f / t on a keyboard, for the predict prompt.
-    this.keyHandler = (e) => {
-      if (!this.run || this.run.phase !== "judging") return;
-      const call = { s: "sharp", f: "flat", t: "in tune", i: "in tune" }[e.key.toLowerCase()];
-      if (call) this.judge(call);
-    };
-    window.addEventListener("keydown", this.keyHandler);
+    /* Two feet-sized intentions, and the letters for a keyboard.
+     *
+     * BACK is the one this was built for: another go at the note just played,
+     * without restarting the exercise. FORWARD is its opposite and is what
+     * makes the pair usable -- a note you cannot get today is abandoned with
+     * the other pedal rather than by waiting the segmenter out.
+     *
+     * Registered on the owner like every other subscription, so the listener
+     * cannot outlive the run: the old hand-rolled keydown had to be
+     * remembered and removed in unmount(), and was the only thing in this
+     * view that did. */
+    own.add(pedal((intent) => {
+      if (!this.run || this.run.phase === "finished" || this.run.phase === "calibrating") return false;
+      if (intent === BACK) this.again();
+      else if (intent === FORWARD) this.skip();
+      return true;
+    }));
+    // s / f / t on a keyboard, for the predict prompt. Three calls need three
+    // keys, which is exactly what two pedals cannot offer -- see CR-009.
+    own.add((() => {
+      const onKey = (e) => {
+        if (!this.run || this.run.phase !== "judging") return;
+        const call = { s: "sharp", f: "flat", t: "in tune", i: "in tune" }[e.key.toLowerCase()];
+        if (call) this.judge(call);
+      };
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    })());
   }
 
   contextTag(note, exercise) {
@@ -414,6 +437,60 @@ export class ExerciseRun {
     }
   }
 
+  /* Another go at the note just played.
+   *
+   * The request this was built for: mid-exercise the thing most often wanted
+   * is one more attempt at the note that just went by, and the only way to
+   * get it was to restart the whole exercise -- which is a strange price for
+   * a fluffed note, and the reason it was being paid was that nobody had
+   * given "again" a name.
+   *
+   * The retake *replaces* the attempt before it rather than joining it. That
+   * is not squeamishness about the score: several reports index the results
+   * positionally against the exercise's notes -- the adjust comparison reads
+   * the first two as its two basses, the stopper check pairs them by octave
+   * -- and an appended retake would have adjust comparing two goes at the
+   * same bass and announcing that the note had not moved. The count of
+   * retakes is kept and shown at the end, so nothing is hidden, only
+   * attributed to the note it belongs to. */
+  again() {
+    const run = this.run;
+    if (!run || !run.note) return;
+    if (run.phase === "finished" || run.phase === "calibrating") return;
+    if (run.nextTimer) { clearTimeout(run.nextTimer); run.nextTimer = null; }
+
+    // Whatever the note already produced goes back with it. In "playing"
+    // there is nothing yet; in "judging" the reading exists but no row; in
+    // "between" both do.
+    if (run.pendingResult) { run.summary.dropLast(); run.retakes += 1; }
+    if (run.lastJudged) { run.judgements.pop(); run.lastJudged = false; }
+    if (run.phase === "between") {
+      const row = run.rows.pop();
+      if (row) row.remove();
+    }
+    run.pendingResult = null;
+    this.ui.judge.hidden = true;
+
+    // nextNote() advances first, so step back to land on the same note.
+    run.noteIdx -= 1;
+    this.nextNote();
+  }
+
+  /* Its opposite: this one is not happening today, move on. Without it the
+   * pedal's other button would have nothing to do, and a note the player
+   * cannot produce would have to be waited out or the exercise abandoned. A
+   * skipped note is not scored -- it was not played -- and says so in the
+   * log, which is the honest reading of an empty attempt. */
+  skip() {
+    const run = this.run;
+    if (!run || run.phase === "finished" || run.phase === "calibrating") return;
+    if (run.nextTimer) { clearTimeout(run.nextTimer); run.nextTimer = null; }
+    if (run.phase === "playing") { this.reveal(null, null); return; }
+    // Already revealed or waiting for a call: stop waiting and go on.
+    if (run.phase === "judging") { this.ui.judge.hidden = true; this.reveal(run.pendingResult, null); return; }
+    this.nextNote();
+  }
+
   onFrame(frame) {
     const run = this.run;
     if (!run) return;
@@ -468,6 +545,7 @@ export class ExerciseRun {
         const actual = judgeDirection(result.meanCents);
         const agreed = called === actual;
         run.judgements.push({ called, actual, agreed });
+        run.lastJudged = true;
         children.push(el("div", { class: `muted ${agreed ? "good" : ""}`,
           text: `${t("practice.youSaid", t(`practice.call.${called}`))} — ` +
                 (agreed ? t("practice.agreed") : t("practice.measured", t(`practice.call.${actual}`))) }));
@@ -527,6 +605,10 @@ export class ExerciseRun {
     const parts = [];
     if (summary.results.length) {
       parts.push(el("p", { class: "mono", text: t("practice.meanAbs", summary.meanAbsoluteCents.toFixed(1)) }));
+      // Said out loud rather than folded away: a retake replaces the attempt
+      // before it, so the figures above are the attempts that were kept, and
+      // a reader is entitled to know how many there were to choose from.
+      if (run.retakes) parts.push(el("p", { class: "muted small", text: t("practice.retakes", run.retakes) }));
       const byClass = summary.byPitchClass();
       parts.push(el("p", { class: "mono", text: `${t("practice.byNote")} ` + Object.entries(byClass).map(([k, v]) =>
         `${nameClass(SpelledPitch.parse(`${k}4`), s)} ${v >= 0 ? "+" : ""}${v.toFixed(1)}`).join("  ") }));

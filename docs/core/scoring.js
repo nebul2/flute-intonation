@@ -234,6 +234,14 @@ export class SessionSummary {
 
   add(result) { if (result) this.results.push(result); }
 
+  /* Take back the most recent reading. A note played again replaces the
+   * attempt before it rather than joining it, because several reports index
+   * these positionally against the exercise's notes -- the adjust comparison
+   * takes the first two results as the two basses, and the stopper check
+   * pairs them by octave. An appended retake would silently compare two goes
+   * at the same bass and call it a failure to move the note. */
+  dropLast() { return this.results.pop() ?? null; }
+
   get meanAbsoluteCents() {
     return this.results.length ? mean(this.results.map((r) => Math.abs(r.meanCents))) : 0.0;
   }

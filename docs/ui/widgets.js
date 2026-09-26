@@ -157,14 +157,23 @@ async function historyLabels() {
  * while running, then Redo and Back to the list once finished. Rendered
  * twice -- `top` and `bottom` -- from one state, so both ends of a long page
  * always agree. `extras` (e.g. a toggle) appear in the top bar only. */
-export function runNav({ onStop, onRedo, onBack, stopLabel = t("nav.stop"), backLabel = null, extras = [] }) {
+/* `onAgain` is optional and the button appears only where it is given: "that
+ * again" means something inside a guided run and nothing in free play, where
+ * there is no "that" the app chose. Where it does appear it is the primary
+ * button, because mid-exercise it is the one being reached for -- Stop is
+ * the exit, not the verb. */
+export function runNav({ onStop, onRedo, onBack, onAgain = null,
+                         stopLabel = t("nav.stop"), backLabel = null, extras = [] }) {
   const make = (withExtras) => {
+    const again = onAgain
+      ? el("button", { class: "primary", text: t("nav.again"), onclick: () => onAgain() })
+      : null;
     const stop = el("button", { class: "secondary", text: stopLabel, onclick: () => onStop() });
     const redo = el("button", { class: "primary", text: t("nav.redo"), onclick: () => onRedo(), hidden: true });
     const back = el("button", { class: "secondary", text: backLabel ?? t("nav.backToList"), onclick: () => onBack(), hidden: true });
     const bar = el("div", { class: `controls runnav${withExtras ? " top" : ""}` },
-      [el("div", { class: "runnav-buttons" }, [stop, redo, back]), ...(withExtras ? extras : [])]);
-    return { bar, stop, redo, back };
+      [el("div", { class: "runnav-buttons" }, [again, stop, redo, back].filter(Boolean)), ...(withExtras ? extras : [])]);
+    return { bar, stop, redo, back, again };
   };
   const top = make(true), bottom = make(false);
   return {
@@ -175,6 +184,7 @@ export function runNav({ onStop, onRedo, onBack, stopLabel = t("nav.stop"), back
         side.stop.hidden = true;
         side.redo.hidden = false;
         side.back.hidden = false;
+        if (side.again) side.again.hidden = true;     // nothing left to repeat
       }
     },
   };
