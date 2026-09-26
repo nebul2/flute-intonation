@@ -3,6 +3,22 @@
 import { SpelledPitch } from "./pitch.js";
 
 export const IN_TUNE_CENTS = 5.0;
+/* The line between a little off and very off.
+ *
+ * Asked for by the player so the app can tell someone they were nearly right
+ * instead of merely wrong: "when you really were sharp, 9/15" says nothing
+ * about whether those were nine cents or ninety. One number for the whole
+ * app, adjustable in Settings, because where it sits is a judgement about
+ * the instrument and not a fact -- ten cents is roughly where a baroque
+ * flute's third stops being a colour and starts being a mistake.
+ *
+ * This is also the middle band every number in the app is coloured by, which
+ * is deliberate: a figure shown amber and described as "very sharp" in the
+ * same summary would be the app disagreeing with itself. It used to be 15,
+ * and moving it here is what makes the words and the colours one decision. */
+export const NEARLY_CENTS = 10.0;
+/* Kept for the saved-record schema and for anything still asking the old
+ * question. Not a display band any more -- see NEARLY_CENTS. */
 export const CLOSE_CENTS = 15.0;
 export const SETTLE_CENTS = 10.0;
 export const SCORING_RULE = "settled";
@@ -57,18 +73,29 @@ export const CALL_DIRECTIONS = Object.freeze(["sharp", "flat", "in tune"]);
  * "I never hear myself flat" is a specific, fixable blind spot, and an overall
  * percentage hides it completely. `played` is how many notes really came out
  * that way; `agreed` is how many of those the ear named correctly. */
-export function judgementTally(judgements) {
+export function judgementTally(judgements, bands = {}) {
   const byActual = {};
   for (const direction of CALL_DIRECTIONS) byActual[direction] = { played: 0, agreed: 0 };
-  let agreed = 0;
+  const byMagnitude = {};
+  for (const key of MAGNITUDES) byMagnitude[key] = { played: 0, agreed: 0 };
+  let agreed = 0, nearly = 0;
   for (const j of judgements) {
     if (j.agreed) agreed += 1;
+    else if (nearMiss(j.called, j.actual, j.cents ?? 0, bands.nearlyCents)) nearly += 1;
     const bucket = byActual[j.actual];
-    if (!bucket) continue;
-    bucket.played += 1;
-    if (j.agreed) bucket.agreed += 1;
+    if (bucket) {
+      bucket.played += 1;
+      if (j.agreed) bucket.agreed += 1;
+    }
+    // Older judgements carry no cents; they land in "in tune" rather than
+    // throwing, and a report shows the split only where it has notes.
+    const size = byMagnitude[judgeMagnitude(j.cents ?? 0, bands)];
+    if (size) {
+      size.played += 1;
+      if (j.agreed) size.agreed += 1;
+    }
   }
-  return { total: judgements.length, agreed, byActual };
+  return { total: judgements.length, agreed, nearly, byActual, byMagnitude };
 }
 
 /* Which closing line a run has earned.
@@ -86,9 +113,39 @@ export function encouragement({ total, agreed }) {
   return "keepGoing";
 }
 
-export function band(meanCents) {
+export function band(meanCents, { inTuneCents = IN_TUNE_CENTS, nearlyCents = NEARLY_CENTS } = {}) {
   const m = Math.abs(meanCents);
-  return m <= IN_TUNE_CENTS ? "in tune" : m <= CLOSE_CENTS ? "close" : "off";
+  return m <= inTuneCents ? "in tune" : m <= nearlyCents ? "close" : "off";
+}
+
+/* The same distance said in words, with its direction and its size: "in
+ * tune", "a little sharp", "very flat". What the band cannot say is which way
+ * -- and which way is most of what a player can act on. */
+export function judgeMagnitude(meanCents, { inTuneCents = IN_TUNE_CENTS,
+                                            nearlyCents = NEARLY_CENTS } = {}) {
+  const m = Math.abs(meanCents);
+  if (m <= inTuneCents) return "in tune";
+  return `${m <= nearlyCents ? "little" : "very"} ${meanCents > 0 ? "sharp" : "flat"}`;
+}
+
+/* Every bucket judgeMagnitude() can return, flat to sharp, so a report can
+ * lay them out in an order that means something. */
+export const MAGNITUDES = Object.freeze(
+  ["very flat", "little flat", "in tune", "little sharp", "very sharp"]);
+
+/* Was a wrong call nearly a right one?
+ *
+ * Two conditions, and the second is the one that makes it worth saying.
+ * Calling a note sharp when it was flat is not a near miss however small the
+ * error -- the direction is the thing being learned, and getting it backwards
+ * is the whole failure. What counts is a call that landed on the wrong side
+ * of a line the note itself was sitting close to: "in tune" for a note seven
+ * cents sharp is an ear working at the edge of its resolution, not an ear
+ * that cannot hear. */
+export function nearMiss(called, actual, meanCents, nearlyCents = NEARLY_CENTS) {
+  if (called === actual) return false;
+  if ((called === "sharp" && actual === "flat") || (called === "flat" && actual === "sharp")) return false;
+  return Math.abs(meanCents) <= nearlyCents;
 }
 
 export class NoteResult {

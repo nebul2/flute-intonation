@@ -237,6 +237,20 @@ export default {
     const headphones = own.add(checkboxField({
       look: "option", bind: "headphones", label: t("settings.headphones"),
     }));
+    /* The two lines the whole app judges by, and the only settings here that
+     * change what a number *means* rather than how it is named or heard. Kept
+     * behind a fold for that reason: everything above is a preference, these
+     * two are a judgement about the instrument, and a player who moves them
+     * without meaning to will not recognise their own readings. */
+    const inTuneCents = own.add(selectField({
+      label: t("settings.inTuneCents"), bind: "inTuneCents", parse: Number,
+      options: () => [2, 3, 5, 7, 10].map((c) => ({ value: c, label: t("settings.cents", c) })),
+    }));
+    const nearlyCents = own.add(selectField({
+      label: t("settings.nearlyCents"), bind: "nearlyCents", parse: Number,
+      options: () => [8, 10, 12, 15, 20].map((c) => ({ value: c, label: t("settings.cents", c) })),
+    }));
+
     const analyticsToggle = own.add(checkboxField({
       look: "option", bind: "analytics",
       label: t("settings.analytics"), help: t("settings.analyticsHelp"),
@@ -281,6 +295,12 @@ export default {
       historyNote,
       el("h2", { text: t("settings.privacy") }),
       analyticsToggle.element,
+      el("h2", { text: t("settings.advanced") }),
+      // A note-box, not an explainer(): that fold is labelled "what this page
+      // is for", which is the wrong question under a heading called Advanced.
+      el("p", { class: "note-box", text: t("settings.advancedHelp") }),
+      inTuneCents.element,
+      nearlyCents.element,
     );
   },
 

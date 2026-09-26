@@ -24,6 +24,11 @@ export const DEFAULTS = Object.freeze({
   pedalForward: null,
   pedalBack: null,
   headphones: false,
+  // The two lines the whole app judges by: within the first a note is in
+  // tune, within the second it is only a little off. Adjustable because
+  // where they sit is a judgement about the instrument, not a fact.
+  inTuneCents: 5,
+  nearlyCents: 10,
   listenLog: false,      // Listen to me: show the note-by-note log
   listenGrounding: "key",  // "key" (state it) | "tonic" (play it first) | "none"
   listenDrone: false,    // Listen to me: sound a drone on the tonic while playing

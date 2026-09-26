@@ -27,14 +27,14 @@ import { Mode, TargetResolver } from "../core/resolver.js";
 import { intervalDrill, intervalInContext, enharmonicPair, intervalAdjust, stopperCheck,
          shuffled, pickKey, PRACTICE_KEYS, CYCLE_KEYS, CYCLE_INTERVALS } from "../core/generator.js";
 import { SessionSummary, analyseNote, judgeDirection, judgementTally, encouragement, CALL_DIRECTIONS,
-         octavePairs, octaveBarGeometry, BAR_SPAN_CENTS, IN_TUNE_CENTS, CLOSE_CENTS } from "../core/scoring.js";
+         octavePairs, octaveBarGeometry, BAR_SPAN_CENTS, nearMiss, MAGNITUDES } from "../core/scoring.js";
 import { NoteSegmenter, onsetThresholdFor } from "../audio/segmenter.js";
 import { BackgroundCalibration } from "../audio/calibration.js";
 import { highestFirst } from "../core/pitch.js";
 import { invitation } from "../ui/feedback.js";
 import { helpSection } from "../ui/help.js";
 import { compareAdjustment } from "../core/adjust.js";
-import { el, append, needle, meters, bandClass, settleLabel, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
+import { el, append, needle, meters, bandClass, bands, settleLabel, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
 import { checkboxField } from "../ui/fields.js";
 import { keyControl } from "../ui/controls.js";
 import { owner } from "../ui/owner.js";
@@ -146,10 +146,14 @@ export const STOPPER = { build: () => stopperCheck(), feedback: "end", acceptanc
 // *is* the drone's bleed, and without ducking the player had to out-shout it.
 const UNISON_DUCK = 0.25;
 
+/* This page's own wording: where the shared label says "off", a note being
+ * scored against a target says which way it went, which is the thing the
+ * player can act on. Same two lines as everywhere else. */
 function bandLabel(cents) {
+  const { inTuneCents, nearlyCents } = bands();
   const m = Math.abs(cents);
-  if (m <= IN_TUNE_CENTS) return t("band.inTune");
-  if (m <= CLOSE_CENTS) return t("band.close");
+  if (m <= inTuneCents) return t("band.inTune");
+  if (m <= nearlyCents) return t("band.close");
   return cents > 0 ? t("band.sharp") : t("band.flat");
 }
 
@@ -603,13 +607,18 @@ export class ExerciseRun {
       const children = [el("div", { class: "result-head" }, [el("span", { class: "result-name", text: label }), cents]), gauge.element,
                         el("div", { class: "muted small", text: settleLabel(result.settleSeconds) })];
       if (called) {
-        const actual = judgeDirection(result.meanCents);
+        const { inTuneCents, nearlyCents } = bands(run.settings);
+        const actual = judgeDirection(result.meanCents, inTuneCents);
         const agreed = called === actual;
-        run.judgements.push({ called, actual, agreed });
+        // The cents travel with the call: without them a summary can say how
+        // often the ear was right and never how nearly.
+        run.judgements.push({ called, actual, agreed, cents: result.meanCents });
         run.lastJudged = true;
-        children.push(el("div", { class: `muted ${agreed ? "good" : ""}`,
+        const nearly = !agreed && nearMiss(called, actual, result.meanCents, nearlyCents);
+        children.push(el("div", { class: `muted ${agreed ? "good" : nearly ? "close" : ""}`,
           text: `${t("practice.youSaid", t(`practice.call.${called}`))} — ` +
-                (agreed ? t("practice.agreed") : t("practice.measured", t(`practice.call.${actual}`))) }));
+                (agreed ? t("practice.agreed")
+                        : `${t("practice.measured", t(`practice.call.${actual}`))}${nearly ? ` · ${t("practice.almost")}` : ""}`) }));
       }
       row = el("div", { class: "result-row" }, children);
     }
@@ -727,21 +736,39 @@ export class ExerciseRun {
    * flat one scores fifty per cent and has one specific thing to practise;
    * the overall figure alone would never say so. */
   judgementReport(judgements) {
-    const tally = judgementTally(judgements);
+    const tally = judgementTally(judgements, bands(this.run.settings));
     const box = el("div", { class: "judgement" });
     box.append(el("p", { class: "headline", text: t(`practice.score.${encouragement(tally)}`) }));
     box.append(el("p", { text: t("practice.judgement", tally.agreed, tally.total) }));
+    /* The misses that were nearly hits, said before the table rather than
+     * left to be worked out from it. "Eight of fifteen" reads as a failure;
+     * "eight, and four of the others were within ten cents" is the same
+     * session described accurately. */
+    if (tally.nearly) {
+      box.append(el("p", { class: "close", text: t("practice.nearlyRight", tally.nearly,
+                                                   bands(this.run.settings).nearlyCents) }));
+    }
+    const row = (label, { played, agreed }) => el("tr", {}, [
+      el("td", { text: label }),
+      el("td", { class: "num", text: `${agreed} / ${played}` }),
+      el("td", { class: "muted", text: `${Math.round((100 * agreed) / played)}%` }),
+    ]);
     const rows = CALL_DIRECTIONS
       .filter((direction) => tally.byActual[direction].played > 0)
-      .map((direction) => {
-        const { played, agreed } = tally.byActual[direction];
-        return el("tr", {}, [
-          el("td", { text: t("practice.score.whenYouWere", t(`practice.call.${direction}`)) }),
-          el("td", { class: "num", text: `${agreed} / ${played}` }),
-          el("td", { class: "muted", text: `${Math.round((100 * agreed) / played)}%` }),
-        ]);
-      });
-    if (rows.length) box.append(el("div", { class: "stats scroll" }, [el("table", {}, [el("tbody", {}, rows)])]));
+      .map((direction) => row(t("practice.score.whenYouWere", t(`practice.call.${direction}`)),
+                              tally.byActual[direction]));
+    /* And the same session split by how far out the note actually was. This
+     * is where the useful finding lives: an ear that catches every note
+     * twenty cents out and misses every note eight cents out is not a bad
+     * ear, it is an ear with a resolution -- and the aggregate row above
+     * cannot tell the two apart. "in tune" is left out, being already a row
+     * of its own above. */
+    const detail = MAGNITUDES
+      .filter((key) => key !== "in tune" && tally.byMagnitude[key].played > 0)
+      .map((key) => row(t("practice.score.whenYouWere", t(`magnitude.${key.replace(" ", ".")}`)),
+                        tally.byMagnitude[key]));
+    const all = detail.length ? [...rows, ...detail] : rows;
+    if (all.length) box.append(el("div", { class: "stats scroll" }, [el("table", {}, [el("tbody", {}, all)])]));
     box.append(el("p", { class: "muted small", text: t("practice.score.note") }));
     return box;
   }
@@ -764,6 +791,7 @@ export class ExerciseRun {
     const fmt = (c) => `${c >= 0 ? "+" : ""}${c.toFixed(1)}`;
 
     box.append(el("p", { class: "headline", text: t(`practice.adjust.${compared.verdict}`, noteName) }));
+    if (compared.nearly) box.append(el("p", { class: "close", text: t("practice.adjust.nearly") }));
     box.append(el("div", { class: "stats scroll" }, [
       el("table", {}, [
         el("tbody", {}, [

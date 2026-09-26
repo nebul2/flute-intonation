@@ -12,6 +12,7 @@ import { SpelledPitch } from "../core/pitch.js";
 import { tunerCandidates, nearestCandidate } from "../core/naming.js";
 import { ReferencePitch, TemperamentTuning, parseScala } from "../core/tuning.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
+import { IN_TUNE_CENTS, NEARLY_CENTS } from "../core/scoring.js";
 import { noteName, REGISTER, DEFAULT_REGISTER_BREAK } from "./naming.js";
 
 /* The DOM primitives live in dom.js so the control layer can have them
@@ -275,8 +276,10 @@ export function meters({ intonation = false } = {}) {
 export { tunerCandidates, nearestCandidate };
 
 export function bandLabel(cents) {
+  const { inTuneCents, nearlyCents } = bands();
   const magnitude = Math.abs(cents);
-  return magnitude <= 5 ? t("band.inTune") : magnitude <= 15 ? t("band.close") : t("band.far");
+  return magnitude <= inTuneCents ? t("band.inTune")
+       : magnitude <= nearlyCents ? t("band.close") : t("band.far");
 }
 
 /* How long the note took to arrive, in words. Null means it never did, which
@@ -288,7 +291,18 @@ export function settleLabel(settleSeconds) {
   return settleSeconds < 0.05 ? t("note.settledAtOnce") : t("note.settled", settleSeconds.toFixed(1));
 }
 
+/* The two lines the player has set, or the defaults. Read here rather than
+ * passed in, so every existing call site keeps working and no view can drift
+ * onto a different pair. */
+export function bands(s = settings.get()) {
+  return {
+    inTuneCents: Number(s.inTuneCents) || IN_TUNE_CENTS,
+    nearlyCents: Number(s.nearlyCents) || NEARLY_CENTS,
+  };
+}
+
 export function bandClass(cents) {
+  const { inTuneCents, nearlyCents } = bands();
   const m = Math.abs(cents);
-  return m <= 5 ? "good" : m <= 15 ? "close" : "off";
+  return m <= inTuneCents ? "good" : m <= nearlyCents ? "close" : "off";
 }

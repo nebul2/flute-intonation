@@ -94,8 +94,9 @@ Both of her pedals are recognised in both directions, on a Mac and an iPad,
 
 Two things follow, and the second is the more useful.
 
-**The built-in key table covers real page-turner pedals.** Two makes, two
-platforms, no assignment. The guess was a good one. Note what that also means:
+**The built-in key table covers real page-turner pedals.** Three makes now --
+her two plus a Thomann Pageturner tried by the player, which also worked with
+no changes -- across two platforms, with nothing assigned. The guess was a good one. Note what that also means:
 the `pedalForward` / `pedalBack` assignment path added in 8.4.6 has never been
 exercised by a real player, so it is insurance rather than a proven route, and
 should not be described as though it were load-bearing.

@@ -23,6 +23,13 @@ export const SAME_NOTE_CENTS = 3.0;
 export const ENOUGH = 0.45;
 /** Beyond this share, the note has been pushed further than the harmony asks. */
 export const TOO_FAR = 1.8;
+/* How near a verdict has to come to the good band before it is worth calling
+ * it near rather than simply wrong. Most of the way there, or barely past --
+ * either is a player who has the direction and the ear and is out on the
+ * amount, which is the easiest of the three things to fix and the one least
+ * worth being discouraged about. */
+export const NEARLY_ENOUGH = 0.3;
+export const NEARLY_TOO_FAR = 2.3;
 
 /**
  * Compare two soundings of one written note under two different basses.
@@ -47,8 +54,15 @@ export function compareAdjustment(first, second) {
   else if (share > TOO_FAR) verdict = "far";
   else verdict = "moved";
 
+  /* Wrong, but only just: the move went the right way and landed close to
+   * the band that counts. Reported separately from the verdict rather than
+   * as a fourth one, so the copy for "short" stays the copy for "short" and
+   * the encouragement is an addition to it. */
+  const nearly = (verdict === "short" && share >= NEARLY_ENOUGH)
+              || (verdict === "far" && share <= NEARLY_TOO_FAR);
+
   return {
-    required, actual, share, verdict,
+    required, actual, share, verdict, nearly,
     // How each sounding sat against its own target, kept so a player who
     // moved correctly but sat sharp throughout can be told which is which.
     firstCents: first.meanCents,
