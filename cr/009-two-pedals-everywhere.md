@@ -1,7 +1,9 @@
 # CR-009 — Two pedals, everywhere: a standard forward / again
 
-Status: **partly built** (the practice runner in 8.4.5, the hardware check in
-8.4.6). Raised 26 September 2026, by the player, relaying a regular user.
+Status: **working in daily use** for the case it was raised for; the rest of
+the surface is still proposed. Built over 8.4.5 (the practice runner), 8.4.6
+(the hardware check) and 8.4.7 (the bug below). Raised 26 September 2026, by
+the player, relaying a regular user.
 
 ## Why
 
@@ -82,6 +84,32 @@ Note the standing project lesson applies to hardware as much as to audio: the
 table was reasoned out, not measured, and is exactly the sort of thing that
 turns out to be wrong in a room with the real device. The check page is how
 the room answers back.
+
+**Confirmed on real hardware, 26 September 2026.** Both of her pedals are
+recognised, in both directions, on a Mac and an iPad. Her message does not say
+whether that was the built-in table or an assignment made on the check page,
+so the open question below stands — but the mechanism as a whole has now met
+two real devices on two platforms and works.
+
+## The bug in between
+
+Worth recording because it cost her two testing sessions and because the shape
+of it will recur. 8.4.5's "again" could only reach the note still on screen,
+and a note is followed 900 ms later by the next one. That was the whole window
+in which a player could decide they had fluffed something — while holding a
+flute. Later presses landed on the note already showing, so nothing visibly
+happened, and a stale `pendingResult` meant the press also deleted the
+*previous* note's reading from the summary.
+
+She reported it as "the left pedal does nothing", tested two pedals and two
+machines to rule out her own hardware, and apologised for having explained
+herself badly. She had explained it exactly right. The lesson is the one
+CR-004 is built on: the failure was invisible from the inside, because the
+person who wrote it tests by pressing the key immediately, and a player
+reaching for a pedal mid-phrase does not.
+
+8.4.7 made `takeBackTarget()` a pure exported function so the decision is
+pinned by tests rather than by a browser session.
 
 ## The three-way problem, unresolved
 
