@@ -1,7 +1,7 @@
 # CR-009 — Two pedals, everywhere: a standard forward / again
 
-Status: **partly built** (the practice runner, phase 8.4.5). Raised
-26 September 2026, by the player, relaying a regular user.
+Status: **partly built** (the practice runner in 8.4.5, the hardware check in
+8.4.6). Raised 26 September 2026, by the player, relaying a regular user.
 
 ## Why
 
@@ -65,19 +65,23 @@ own app. 8.4.5 accepts every plausible key and maps them all onto the two
 intentions, which spares the player having to find out which they own — but it
 is a guess made without the hardware in the room.
 
-What would settle it, in order of cost:
+**Settled in 8.4.6**, on the player's suggestion that a pedal is hardware and
+belongs on the hardware-check page beside the microphone and the speakers.
+That page now reports the raw key before it reports any verdict — which is the
+useful output when the key is one nobody predicted — and offers to assign an
+unrecognised key to either intention. Assignments live in `pedalForward` /
+`pedalBack` and beat the built-in table, so a pedal sending ArrowLeft can be
+pointed forwards if that is which way round it sits under the foot.
 
-1. **Ask the user what hers sends.** One question, and it either confirms the
-   table or adds a row. This should happen before anything else here is built.
-2. **A "press your pedal" step** in Settings: listen for a keydown, store the
-   key, show it back. Robust against pedals nobody predicted, and it is the
-   only design that can honestly say it supports *a* pedal rather than *some*
-   pedals.
-3. **Say nothing and hope.** What is shipped now.
+So the question "what does her pedal send?" can now be answered by her, in the
+app, without a round trip through a release. It is still worth asking: if it
+is a key the table should have had, the table should get it, so the next
+player never has to assign anything.
 
-Note the standing project lesson applies to hardware as much as to audio: this
-table was reasoned out, not measured, and it is exactly the sort of thing that
-turns out to be wrong in a room with the real device.
+Note the standing project lesson applies to hardware as much as to audio: the
+table was reasoned out, not measured, and is exactly the sort of thing that
+turns out to be wrong in a room with the real device. The check page is how
+the room answers back.
 
 ## The three-way problem, unresolved
 
@@ -124,8 +128,9 @@ has to be able to press either one without wondering what it will cost.
 
 ## Open questions for the player
 
-- **What does her pedal actually send?** Blocking for step 2 above, and cheap
-  to answer.
+- **What does her pedal actually send?** No longer blocking — the hardware
+  check will tell her, and she can assign it herself — but still worth
+  knowing, because a key the table should have had should go in the table.
 - **Should "again" also exist in free play**, as "forget that last note"? It is
   a different verb wearing the same coat, and giving them the same button may
   be worse than giving the second one no button at all.

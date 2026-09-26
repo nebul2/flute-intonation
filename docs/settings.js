@@ -19,6 +19,10 @@ export const DEFAULTS = Object.freeze({
   droneNoteSeconds: 6,   // how long a note lasts in the drone exercises;
                          // ear training, so there is no hurry
   deviceId: null,
+  // What a foot pedal sends, when it sends something the built-in table does
+  // not know. Set on the hardware-check page; null means "use the table".
+  pedalForward: null,
+  pedalBack: null,
   headphones: false,
   listenLog: false,      // Listen to me: show the note-by-note log
   listenGrounding: "key",  // "key" (state it) | "tonic" (play it first) | "none"

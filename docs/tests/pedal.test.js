@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { intentFor, FORWARD, BACK } from "../ui/pedal.js";
+import { intentFor, pressIntent, tableIntent, FORWARD, BACK } from "../ui/pedal.js";
 import { SessionSummary, NoteResult } from "../core/scoring.js";
 import { SpelledPitch } from "../core/pitch.js";
 
@@ -52,4 +52,47 @@ test("taking back from an empty summary is harmless", () => {
   const summary = new SessionSummary();
   assert.equal(summary.dropLast(), null);
   assert.deepEqual(summary.results, []);
+});
+
+/* ---- what an assignment changes ------------------------------------- */
+
+test("a pedal nobody predicted can be assigned, and the assignment wins", () => {
+  // Some page-turners send letters. The table cannot grow fast enough to
+  // cover every one, so the hardware-check page lets the player name it.
+  assert.equal(tableIntent("b"), null, "not in the table");
+  assert.equal(intentFor("b", { forward: "b", back: "n" }), FORWARD);
+  assert.equal(intentFor("n", { forward: "b", back: "n" }), BACK);
+
+  // And an assignment beats the table, so a pedal sending ArrowLeft can be
+  // pointed forwards if that is which way round it sits under the foot.
+  assert.equal(tableIntent("arrowleft"), BACK);
+  assert.equal(intentFor("arrowleft", { forward: "arrowleft", back: null }), FORWARD);
+
+  // Assignments are compared case-insensitively, like the table.
+  assert.equal(intentFor("B", { forward: "b", back: null }), FORWARD);
+  // An empty assignment is not a key that matches everything.
+  assert.equal(intentFor("q", { forward: null, back: null }), null);
+});
+
+test("typing is not pedalling", () => {
+  // A pedal press and a space bar in a text field are the same event, and
+  // stealing it would make the session label unfillable.
+  for (const tagName of ["INPUT", "TEXTAREA", "SELECT"]) {
+    assert.equal(pressIntent(" ", { tagName }), null, tagName);
+    assert.equal(pressIntent("PageDown", { tagName }), null, tagName);
+  }
+  assert.equal(pressIntent(" ", { tagName: "DIV", contentEditable: true }), null);
+  assert.equal(pressIntent(" ", { tagName: "DIV" }), FORWARD, "an ordinary page is fair game");
+});
+
+test("space and enter on a focused button stay the browser's", () => {
+  // Swallow these and a keyboard user cannot press Stop. The hardware-check
+  // page is a panel full of buttons, which is how this came to light.
+  for (const tagName of ["BUTTON", "A"]) {
+    assert.equal(pressIntent(" ", { tagName }), null, `space on ${tagName}`);
+    assert.equal(pressIntent("Enter", { tagName }), null, `enter on ${tagName}`);
+    // The pedal-shaped keys still work there: no button is activated by them.
+    assert.equal(pressIntent("PageDown", { tagName }), FORWARD, `pagedown on ${tagName}`);
+    assert.equal(pressIntent("ArrowLeft", { tagName }), BACK, `arrowleft on ${tagName}`);
+  }
 });
