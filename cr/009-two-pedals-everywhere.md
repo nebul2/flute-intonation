@@ -85,11 +85,32 @@ table was reasoned out, not measured, and is exactly the sort of thing that
 turns out to be wrong in a room with the real device. The check page is how
 the room answers back.
 
-**Confirmed on real hardware, 26 September 2026.** Both of her pedals are
-recognised, in both directions, on a Mac and an iPad. Her message does not say
-whether that was the built-in table or an assignment made on the check page,
-so the open question below stands — but the mechanism as a whole has now met
-two real devices on two platforms and works.
+**Confirmed on real hardware, 26 September 2026, and the table is enough.**
+Both of her pedals are recognised in both directions, on a Mac and an iPad,
+**with nothing assigned in the app**. Asked directly:
+
+> Pour un des deux pédales (AirTurn) j'ai dû réinitialiser l'appareil pour
+> faire marcher deux pédales. Mais c'est tout.
+
+Two things follow, and the second is the more useful.
+
+**The built-in key table covers real page-turner pedals.** Two makes, two
+platforms, no assignment. The guess was a good one. Note what that also means:
+the `pedalForward` / `pedalBack` assignment path added in 8.4.6 has never been
+exercised by a real player, so it is insurance rather than a proven route, and
+should not be described as though it were load-bearing.
+
+**A pedal can arrive with one button dead, and a device reset fixes it.** This
+matters far more than it looks, because it is a *second, independent* cause of
+the exact symptom she first reported — "only the right pedal works". Her first
+report was very likely both faults at once: the 8.4.5 bug below on one pedal,
+and an AirTurn needing a reset on the other. Two causes, one symptom, and no
+way to tell them apart from inside the app.
+
+That is precisely what the hardware-check page is for, and it is the argument
+for having built it: a press that shows a key name and a verdict is the app's
+problem, a press that shows nothing at all is the pedal's. Without that page
+this would have been a long correspondence.
 
 ## The bug in between
 
@@ -156,9 +177,10 @@ has to be able to press either one without wondering what it will cost.
 
 ## Open questions for the player
 
-- **What does her pedal actually send?** No longer blocking — the hardware
-  check will tell her, and she can assign it herself — but still worth
-  knowing, because a key the table should have had should go in the table.
+- ~~**What does her pedal actually send?**~~ **Answered:** something already in
+  the table, on both of her pedals. No new key is needed and nothing had to be
+  assigned. The remaining unknown is the opposite one — whether the assignment
+  path works for anybody, since no real player has needed it.
 - **Should "again" also exist in free play**, as "forget that last note"? It is
   a different verb wearing the same coat, and giving them the same button may
   be worse than giving the second one no button at all.
