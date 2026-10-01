@@ -36,9 +36,10 @@ async function copyReport(page, prompt, note) {
  *
  * @param page which part of the app this is being sent from
  */
-export function feedbackLinks(page, { prompt = t("feedback.prompt") } = {}) {
+export function feedbackLinks(page, { prompt = t("feedback.prompt"),
+                                      subject = t("feedback.subject") } = {}) {
   const note = el("div", { class: "muted small" });
-  const href = feedback.mailto(t("feedback.subject"), context(page), prompt);
+  const href = feedback.mailto(subject, context(page), prompt);
   const buttons = [];
 
   if (href) {

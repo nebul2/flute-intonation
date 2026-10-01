@@ -40,6 +40,13 @@ const SECTIONS = [
     { route: "temperaments", icon: iconCompare },
     { route: "settings", icon: iconSettings },
   ] },
+  /* Last, and a section of its own rather than tucked in beside Settings:
+   * what it asks for is a favour, and a favour filed under "tuning" reads as
+   * a chore. One card is a thin section, which is the right weight -- this
+   * sits there for whoever goes looking and is never promoted past that. */
+  { key: "help", cards: [
+    { route: "contribute", icon: iconContribute },
+  ] },
 ];
 
 function svg(paths) {
@@ -56,6 +63,7 @@ function iconCompare() { return svg('<path d="M4 7h6M4 12h6M4 17h6M14 7h6M14 12h
 function iconBend() { return svg('<path d="M4 18c4 0 4-12 8-12s4 12 8 12"/><path d="M2 12h20" stroke-dasharray="2 3"/>'); }
 function iconSessions() { return svg('<path d="M4 6h16M4 12h16M4 18h10"/><circle cx="18.5" cy="18" r="2.5"/>'); }
 function iconListen() { return svg('<path d="M7 9a5 5 0 0110 0c0 3-3 4-3 7a2 2 0 01-4 0"/><path d="M4 12h2M18 12h2"/>'); }
+function iconContribute() { return svg('<path d="M12 20s-7-4.5-7-9a4 4 0 017-2.6A4 4 0 0119 11c0 4.5-7 9-7 9z"/>'); }
 function iconScales() { return svg('<path d="M3 20h3v-4h3v-4h3V8h3V4h3"/>'); }
 
 function card({ route, icon, soon, experimental }) {

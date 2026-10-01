@@ -18,6 +18,7 @@ export const ROUTES = Object.freeze({
   bend: "bend",
   scales: "scales",
   feedback: "feedback",
+  contribute: "contribute",
   help: "help",
 });
 

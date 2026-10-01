@@ -4,6 +4,7 @@
  * here. */
 
 import { t } from "../i18n.js";
+import { navigate } from "../router.js";
 import { el, append, explainer } from "../ui/widgets.js";
 import { feedbackLinks } from "../ui/feedback.js";
 
@@ -23,6 +24,13 @@ export default {
       el("p", { class: "note-box", text: t("feedback.trainedOn") }),
       el("p", { class: "note-box", text: t("feedback.sendRecording") }),
       feedbackLinks("feedback"),
+      // The specific version of the same request, for someone who would
+      // rather be told what to play than find a failure of their own.
+      el("p", { class: "intro", text: t("feedback.alsoContribute") }),
+      el("div", { class: "controls left" }, [
+        el("button", { class: "secondary", text: t("home.card.contribute.title"),
+                       onclick: () => navigate("contribute") }),
+      ]),
     );
   },
 };

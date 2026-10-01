@@ -22,11 +22,12 @@ import temperaments from "./views/temperaments.js";
 import bend from "./views/bend.js";
 import scales from "./views/scales.js";
 import feedbackView from "./views/feedback.js";
+import contribute from "./views/contribute.js";
 import helpView from "./views/help.js";
 
 export { VERSION } from "./app-version.js";
 
-const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments, bend, scales, feedback: feedbackView, help: helpView };
+const VIEWS = { home, tuner, practice, tuning, settings: settingsView, check, listen, stopper, sessions, temperament, temperaments, bend, scales, feedback: feedbackView, contribute, help: helpView };
 
 function $(id) { return document.getElementById(id); }
 

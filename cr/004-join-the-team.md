@@ -1,6 +1,22 @@
 # CR-004 — Join the team: volunteers sharing their sessions and recordings
 
-Status: **proposed**, not started. Raised 5 September 2026, by the player.
+Status: **partly built** — steps 1 and the asking half of 2 shipped in 8.6 as
+the *Help me improve it* page. The bundle, the review screen and in-app
+capture are still proposed. Raised 5 September 2026, by the player.
+
+**8.6, 1 October 2026.** The footer promise was softened first, as sequenced
+below, and a page now asks for two named recordings rather than for a failure
+the volunteer has to notice themselves. That is a change of emphasis this CR
+did not have: it was written before the Telemann corpus existed, and "record
+something that went wrong" asks the volunteer to do the diagnosis. "Play these
+two movements" asks them to play, and the app's own takes of those two are the
+baseline, so what comes back lines up against a known answer note for note.
+
+What shipped is only the asking. There is no bundle, no review screen and no
+in-app capture, so a volunteer attaches a file from their own voice recorder
+and nothing is assembled for them. The session that goes with the recording,
+the flute profile, the label-blanking and the consent-per-item design below
+are all still to do, and all still right.
 
 ## Why
 
