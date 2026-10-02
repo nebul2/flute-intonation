@@ -10,6 +10,26 @@ Ce qu'il faut, c'est entendre où est ton partenaire et y aller.
 Tous les autres exercices de l'appli s'accordent sur une basse qui ne bouge
 jamais. Celle-ci bouge.
 
+## Comment il commence
+
+L'appli écoute d'abord la pièce un instant, le partenaire jouant. Reste
+silencieux pendant ce temps : c'est ainsi qu'elle apprend à distinguer le
+partenaire qui revient par les haut-parleurs de ta propre note.
+
+Vient ensuite l'**échauffement** : un bloc où le partenaire est juste, ce que
+le panneau affiche quel que soit le réglage de l'indication. Accorde chaque
+note avec lui. À la fin, tu vois chaque note, où elle était, et dans quel sens
+aller. Le bloc recommence, les mêmes notes dans un autre ordre, jusqu'à ce que
+les quatre soient à moins de ta limite « un peu faux » (10¢ sauf si tu l'as
+changée dans les Réglages) dans le même essai.
+
+Si une note ne veut pas venir, **Continuer quand même** est toujours là ;
+c'est un bouton et non la pédale, pour ne jamais être pressé par accident. Ton
+dernier essai sert alors de référence, et la carte dit de combien il était
+décalé. Si toutes les notes sont trop hautes (ou trop basses) essai après
+essai, la carte le dit aussi. C'est plus probablement la flûte que l'oreille :
+vérifie le diapason, ou la tête, avant de continuer.
+
 ## Comment il se déroule
 
 - Le partenaire joue chaque note **d'abord, seul**, un instant. Puis tu le
@@ -19,8 +39,9 @@ jamais. Celle-ci bouge.
   bloc d'une séance, dans un ordre différent à chaque fois. Dans un bloc, le
   partenaire ne bouge pas. Entre deux blocs, il peut baisser, monter, ou
   rester où il est.
-- Le **premier bloc est toujours juste**, et c'est ta référence : jusqu'où tu
-  suis se mesure à partir de là où tu jouais ces mêmes notes à ce moment-là.
+- Le **premier bloc est l'échauffement, juste**, et c'est ta référence :
+  jusqu'où tu suis se mesure à partir de là où tu jouais ces mêmes notes à ce
+  moment-là.
 - Ensuite, environ **un bloc sur quatre est juste aussi**. Sans eux, la leçon
   serait « bouge toujours » au lieu de « écoute ».
 - Le partenaire ne demande jamais à une note d'aller où ta flûte ne peut pas

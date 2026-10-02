@@ -10,6 +10,26 @@ to hear where your partner is and to go there.
 Every other exercise in this app tunes against a bass that never moves. This
 one moves.
 
+## How it starts
+
+The app first listens to the room for a moment with the partner sounding.
+Stay quiet for that. It is how it learns to tell the partner coming back
+through the speakers from your own note.
+
+Then comes the **warm-up**: a block with the partner in tune, which is the
+panel's message whatever the cue setting. Match each note with the partner.
+At the end you see every note, where it sat, and which way to go. The block
+comes round again, the same notes in a new order, until all four are within
+your "a little off" line (10¢ unless you have changed it in Settings) in the
+same attempt.
+
+If a note will not come in, **Move on anyway** is always there; it is a
+button rather than the pedal, so it is never pressed by accident. Your last
+attempt then stands as the reference, and the card says how far off it was.
+If every note sits sharp (or flat) attempt after attempt, the card says that
+too. It is more likely the flute than the ear: check the reference pitch, or
+the headjoint, before going on.
+
 ## How it runs
 
 - The partner plays each note **first, alone**, for a moment. Then you join
@@ -17,8 +37,8 @@ one moves.
 - Notes come in **blocks of four**: the same four notes in every block of a
   session, in a different order each time. Within a block the partner stays
   where it is. Between blocks it may go flat, go sharp, or stay put.
-- The **first block is always in tune**, and it is your reference: how far
-  you follow is measured from where you played those same notes then.
+- The **first block is the warm-up, in tune**, and it is your reference: how
+  far you follow is measured from where you played those same notes then.
 - About **one block in four after that is in tune too**. Without those, the
   lesson would be "always move" instead of "listen".
 - The partner never asks a note to bend the way your flute cannot take it.

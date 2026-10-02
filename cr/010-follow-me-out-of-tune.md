@@ -34,6 +34,20 @@ it in every lead-in, so the audio path is sound. Three findings:
   gate ≈ −20 dB, and the quiet low notes (F♯4, G4, E4) and B5 only 2-4 dB
   above it. One B5 dipped below and split. Watch this on the iPad.
 
+**8.7.2, after the player's first session.** "I was pretty lost at the
+beginning and saw no visual cue." The cue was a few words at the end of the
+status line above the buttons, away from the panel the eyes are on; it is
+now a line in the panel under the note name. The opening explains itself
+(stay quiet, then the partner plays first, then a warm-up). The first block
+is now a **warm-up** at the player's suggestion: partner in tune, played
+until every note is within the "a little off" line (10 ¢) in one attempt,
+with each note's direction shown after every attempt. A **Move on anyway**
+button (not the pedal) leaves it with the last attempt as the reference, and
+three attempts all off the same way suggest checking the reference pitch or
+the headjoint. Only the kept attempt is scored; the count goes in the
+record. The green box at the end of every exercise is the finished panel; it
+now says "Finished — your results are below".
+
 ## Why
 
 > Idea for a new exercise: "Follow me out of tune". This is supposed to

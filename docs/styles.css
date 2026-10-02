@@ -125,6 +125,11 @@ h2 { font-size: 0.95rem; font-weight: 600; color: var(--ink); margin-top: 0.4rem
 .readout { display: flex; justify-content: center; gap: 1.2rem; font-family: var(--mono); font-size: 1rem; color: var(--muted); min-height: 1.3rem; }
 .readout .good { color: var(--good); } .readout .close { color: var(--close); } .readout .off { color: var(--off); }
 .target, .held { text-align: center; font-family: var(--mono); font-size: 0.8rem; color: var(--muted); min-height: 1.1rem; }
+/* Follow me: what the partner is doing, under the note name. The direction
+ * in brass, so it is the second thing the eye lands on. */
+.partner-cue { text-align: center; font-size: 1.4rem; color: var(--ink); }
+.partner-cue[data-where="sharp"], .partner-cue[data-where="flat"] { color: var(--brass); }
+.partner-cue[data-where="warmup"], .partner-cue[data-where="same"] { color: var(--good); }
 
 .track { position: relative; height: 10px; background: var(--ground); border: 1px solid var(--edge); border-radius: 5px; }
 .track .mark { position: absolute; top: -4px; bottom: -4px; left: 50%; width: 2px; background: var(--muted); border-radius: 1px; }

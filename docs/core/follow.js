@@ -239,3 +239,28 @@ export function followPattern(blocks) {
   }
   return result;
 }
+
+/* The warm-up: the first block, partner in tune, played until every note is
+ * with the partner -- the player's own request after the first session,
+ * which started lost. It doubles as the reference every later block is
+ * measured from, so a reference taken while the player was nowhere near the
+ * partner was not much of one.
+ *
+ * Passes when every one of the `expected` notes was played and sat within
+ * `withinCents` of the partner. `allSame` names the direction when every
+ * note played missed, and all the same way -- the shape a flute set up sharp or flat leaves,
+ * which no amount of listening fixes. */
+export function warmupVerdict(readings, withinCents, expected = readings.length) {
+  const notes = readings.map((r) => {
+    const played = Number.isFinite(r.vsPartner);
+    const ok = played && Math.abs(r.vsPartner) <= withinCents;
+    const way = !played || ok ? null : r.vsPartner > 0 ? "sharp" : "flat";
+    return { name: r.name, vsPartner: played ? r.vsPartner : null, ok, way };
+  });
+  const passed = notes.length >= expected && notes.every((n) => n.ok);
+  // Every note played, every one out, all the same way: the whole flute.
+  const played = notes.filter((n) => n.vsPartner !== null);
+  const ways = new Set(played.map((n) => n.way));
+  const allSame = played.length && played.every((n) => !n.ok) && ways.size === 1 ? [...ways][0] : null;
+  return { passed, notes, allSame };
+}

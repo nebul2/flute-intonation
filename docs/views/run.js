@@ -45,8 +45,9 @@ import { owner } from "../ui/owner.js";
 import { pedal, FORWARD, BACK } from "../ui/pedal.js";
 import * as profiles from "../profiles.js";
 import { isRigid, validEntry } from "../core/bend.js";
-import { followRun, followPattern, blockFollow, referenceFrom, shiftedHz, directionOf, unmeasuredCanBend,
-         MIN_FOLLOW_OFFSET } from "../core/follow.js";
+import { followRun, followPattern, blockFollow, referenceFrom, warmupVerdict, shiftedHz, directionOf,
+         unmeasuredCanBend, MIN_FOLLOW_OFFSET } from "../core/follow.js";
+import { Exercise } from "../core/resolver.js";
 import { soundingTimbre } from "../audio/timbres.js";
 
 /* What this flute can bend, for Follow me: the measured profile where there
@@ -289,6 +290,7 @@ export class ExerciseRun {
       // Follow me: each finished block's reading and card, by exercise index,
       // and the timbre the partner actually sounds in.
       blocks: new Map(),
+      warmup: { attempts: 0, ways: [], passed: false, card: null },
       timbre: soundingTimbre(s.followTimbre, s.headphones === true),
     };
     this.own = owner();
@@ -378,6 +380,14 @@ export class ExerciseRun {
         el("button", { class: "secondary big", text: t(`follow.call.${call}`), onclick: () => this.estimate(call) }))),
       // A finished block's card waits here until the player moves on.
       onward: el("button", { class: "primary", hidden: true, text: t("follow.next"), onclick: () => this.onward() }),
+      // The warm-up's way out when a note will not come in: a button, never
+      // the pedal, so it cannot be pressed by accident.
+      moveOn: el("button", { class: "secondary", hidden: true, text: t("follow.warmup.moveOn"),
+                             onclick: () => this.moveOnAnyway() }),
+      // What the partner is doing, in the panel where the eyes are: the cue
+      // used to be a few words at the end of the status line above the
+      // buttons, and the first player to use it never saw it.
+      partner: el("div", { class: "partner-cue", hidden: true }),
       blocks: el("div", { class: "rows" }),
       rows: el("div", { class: "rows" }),
       summary: el("div", { class: "summary" }),
@@ -393,8 +403,8 @@ export class ExerciseRun {
       }),
     };
     const u = this.ui;
-    u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.meter.element,
-                                                    u.judge, u.estimate, u.onward]);
+    u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.partner, u.target, u.progress, u.progressText,
+                                                    u.meter.element, u.judge, u.estimate, u.onward, u.moveOn]);
     // Block feedback keeps the per-note readings out of sight until the end:
     // the block card is the feedback, and a row per note beside it would be
     // every-note feedback by the back door.
@@ -497,7 +507,9 @@ export class ExerciseRun {
         engine.setNotches(this.partnerNotches(hz, hz));
         run.phase = "calibrating";
         run.calib = new BackgroundCalibration();
-        this.ui.status.textContent = t("drone.calibrating");
+        this.ui.status.textContent = t("follow.calibrating");
+        this.ui.partner.hidden = false;
+        this.ui.partner.textContent = t("follow.cueLine.quiet");
         return;
       }
     } else if (exercise.drone && run.settings.droneLevel > 0) {
@@ -628,16 +640,25 @@ export class ExerciseRun {
       }
     }
     run.phase = "leadin";
+    // The warm-up is in tune by definition and says so whatever the cue
+    // setting; after it, the direction is shown only when asked for.
+    const warmup = run.exIdx === 0;
     const direction = directionOf(exercise.offsetCents);
-    const cue = run.settings.followCue
-      ? ` ${t(`follow.cue.${direction === "up" ? "sharp" : direction === "down" ? "flat" : "same"}`)}` : "";
-    this.ui.status.textContent = t("follow.listen") + cue;
+    const where = warmup ? "warmup"
+      : !run.settings.followCue ? "hidden"
+      : direction === "up" ? "sharp" : direction === "down" ? "flat" : "same";
+    const cue = this.ui.partner;
+    cue.hidden = false;
+    cue.dataset.where = where;
+    cue.textContent = `${t("follow.cueLine.listen")} — ${t(`follow.cueLine.${where}`)}`;
+    this.ui.status.textContent = warmup ? t("follow.warmup.status") : t("follow.listen");
     run.nextTimer = setTimeout(() => {
       run.nextTimer = null;
       if (this.run !== run || run.phase !== "leadin") return;
       if (unison) engine.drone.setLevel(run.settings.droneLevel * UNISON_DUCK);   // in case the duck timer was late
       run.phase = "playing";
-      this.ui.status.textContent = (unison ? t("follow.joinUnison") : t("follow.join")) + cue;
+      cue.textContent = `${t("follow.cueLine.join")} — ${t(`follow.cueLine.${where}`)}`;
+      this.ui.status.textContent = unison ? t("follow.joinUnison") : t("follow.join");
     }, leadIn * 1000);
   }
 
@@ -645,6 +666,8 @@ export class ExerciseRun {
    * the card. */
   endBlock() {
     const run = this.run;
+    this.ui.partner.hidden = true;
+    if (run.exIdx === 0) { this.showWarmup(); return; }
     if (run.settings.followEstimate) {
       run.phase = "estimating";
       this.ui.estimate.hidden = false;
@@ -686,6 +709,101 @@ export class ExerciseRun {
     run.phase = "block";
     this.ui.onward.hidden = false;
     this.ui.status.textContent = t("follow.blockDone");
+  }
+
+  /* The end of a warm-up attempt.
+   *
+   * Every note, with where it sat against the partner and which way to go --
+   * per-note feedback, on purpose and only here: this is tuning together
+   * before playing, not the exercise. Passed, it becomes the reference and
+   * the session goes on. Missed, the same notes come round again in a new
+   * order, for as long as it takes, with a way out for a note the flute
+   * will not bring in. */
+  showWarmup() {
+    const run = this.run;
+    const readings = this.blockReadings(0);
+    const within = bands(run.settings).nearlyCents;
+    const verdict = warmupVerdict(readings, within, run.exercise.notes.length);
+    run.warmup.attempts += 1;
+    run.warmup.ways.push(verdict.allSame);
+    const s = run.settings;
+    const lines = verdict.notes.map((n) => el("div", { class: `mono ${n.ok ? "good" : bandClass(n.vsPartner ?? 99)}`,
+      text: `${name(SpelledPitch.parse(n.name), s)}  ` + (n.vsPartner === null ? t("practice.notPlayed")
+        : `${n.vsPartner >= 0 ? "+" : ""}${n.vsPartner.toFixed(0)}¢ — ` +
+          (n.ok ? t("follow.warmup.with") : t(`follow.warmup.${n.way}`))) }));
+    const recent = run.warmup.ways.slice(-3);
+    const setup = !verdict.passed && recent.length === 3 && recent[0] && recent.every((w) => w === recent[0]);
+    const card = el("div", { class: "result-row" }, [
+      el("div", { class: "result-head" }, [
+        el("span", { class: "result-name", text: t("follow.warmup.title", run.warmup.attempts) }),
+      ]),
+      ...lines,
+      el("p", { text: verdict.passed ? t("follow.warmup.passed") : t("follow.warmup.missed", within) }),
+      setup ? el("p", { class: "note-box", text: t(`follow.warmup.checkSetup.${recent[0]}`) }) : null,
+    ]);
+    if (run.warmup.card) run.warmup.card.remove();
+    run.warmup.card = card;
+    this.ui.blocks.prepend(card);
+    this.ui.noteLabel.textContent = t("follow.warmup.label");
+    if (verdict.passed) {
+      run.warmup.passed = true;
+      this.acceptWarmup(readings, card);
+      this.ui.status.textContent = t("follow.warmup.passedStatus");
+      return;
+    }
+    run.phase = "warmup";
+    this.ui.onward.textContent = t("follow.warmup.tryAgain");
+    this.ui.onward.hidden = false;
+    this.ui.moveOn.hidden = false;
+    this.ui.status.textContent = t("follow.warmup.again", within);
+  }
+
+  /* The warm-up's last attempt stands as the reference. */
+  acceptWarmup(readings, card) {
+    const run = this.run;
+    const reading = blockFollow(readings, 0, new Map());
+    run.blocks.set(0, { reading, readings, called: null, actual: "same", card, offsetCents: 0 });
+    run.phase = "block";
+    this.ui.onward.textContent = t("follow.next");
+    this.ui.onward.hidden = false;
+    this.ui.moveOn.hidden = true;
+  }
+
+  /* The same notes again, in a new order. The attempt just missed is taken
+   * out of the summary and the log, so only the attempt kept is scored; how
+   * many there were is said at the end. */
+  retryWarmup() {
+    const run = this.run;
+    if (!run || run.phase !== "warmup") return;
+    for (let i = run.log.length - 1; i >= 0; i--) {
+      if (run.log[i].exIdx !== 0) continue;
+      const [entry] = run.log.splice(i, 1);
+      if (entry.counted) run.summary.dropLast();
+      entry.row.remove();
+    }
+    const ex = run.exercises[0];
+    run.exercises[0] = new Exercise({ name: ex.name, notes: shuffled(ex.notes), drone: ex.drone,
+                                      tempoBpm: ex.tempoBpm, key: ex.key, offsetCents: ex.offsetCents });
+    this.ui.onward.hidden = true;
+    this.ui.moveOn.hidden = true;
+    run.exIdx = 0;
+    this.nextSegment();
+  }
+
+  /* Out of the warm-up without passing it: the last attempt is the
+   * reference, and its card says that reference is off the partner. */
+  moveOnAnyway() {
+    const run = this.run;
+    if (!run || run.phase !== "warmup") return;
+    const readings = this.blockReadings(0);
+    const card = run.warmup.card;
+    const reading = blockFollow(readings, 0, new Map());
+    if (card && reading) {
+      card.append(el("p", { class: "muted", text: t("follow.warmup.offReference",
+        Math.abs(reading.vsPartner).toFixed(0), t(reading.vsPartner >= 0 ? "follow.above" : "follow.below")) }));
+    }
+    this.acceptWarmup(readings, card);
+    this.onward();
   }
 
   /* The notes of one block as played: name and reading against the partner. */
@@ -736,6 +854,7 @@ export class ExerciseRun {
     const run = this.run;
     if (!run || run.phase !== "block") return;
     this.ui.onward.hidden = true;
+    this.ui.moveOn.hidden = true;
     run.exIdx += 1;
     this.nextSegment();
   }
@@ -746,8 +865,18 @@ export class ExerciseRun {
     const run = this.run;
     const block = run.blocks.get(exIdx);
     if (block) { block.card?.remove(); run.blocks.delete(exIdx); }
+    if (exIdx === 0 && run.warmup?.card) {
+      // Taking a note back out of a warm-up attempt that was being judged:
+      // the attempt is not over, so it is not counted either.
+      run.warmup.card.remove();
+      run.warmup.card = null;
+      run.warmup.attempts = Math.max(0, run.warmup.attempts - 1);
+      run.warmup.ways.pop();
+      run.warmup.passed = false;
+    }
     this.ui.estimate.hidden = true;
     this.ui.onward.hidden = true;
+    this.ui.moveOn.hidden = true;
   }
 
   /* Another go at the note just played.
@@ -830,6 +959,7 @@ export class ExerciseRun {
     // Follow me: no call this time, or past a block's card.
     if (run.phase === "estimating") { this.ui.estimate.hidden = true; this.showBlock(null); return; }
     if (run.phase === "block") { this.onward(); return; }
+    if (run.phase === "warmup") { this.retryWarmup(); return; }
     this.nextNote();
   }
 
@@ -948,9 +1078,13 @@ export class ExerciseRun {
     u.judge.hidden = true;
     u.estimate.hidden = true;
     u.onward.hidden = true;
+    u.moveOn.hidden = true;
+    u.partner.hidden = true;
     u.rows.hidden = false;
     u.noteLabel.textContent = stopped ? "■" : "✓";
-    u.target.textContent = "";
+    // Said, because a green box with a tick in it and nothing else was read,
+    // fairly, as a box with no meaning.
+    u.target.textContent = t(stopped ? "practice.stoppedHere" : "practice.finishedHere");
     u.progress.hidden = true;
     u.progressText.textContent = "";
     u.meter.element.hidden = true;
@@ -1107,6 +1241,7 @@ export class ExerciseRun {
     const s = run.settings;
     return {
       level: run.spec.follow, cents: Number(s.followCents) || 20, cue: s.followCue === true,
+      warmup_attempts: run.warmup.attempts, warmup_passed: run.warmup.passed,
       estimate: s.followEstimate === true, timbre: run.timbre,
       blocks: [...run.blocks.entries()].sort(([a], [b]) => a - b).map(([, b]) => ({
         offset_cents: b.offsetCents,

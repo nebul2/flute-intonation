@@ -269,3 +269,30 @@ test("a measured flute decides what may bend; unmeasured notes use the list", as
   assert.equal(can(P("G4"), "up"), true);
   profiles.remove("test flute");
 });
+
+/* ---- the warm-up --------------------------------------------------------- */
+
+test("the warm-up passes only when every note is within the line", async () => {
+  const { warmupVerdict } = await import("../core/follow.js");
+  const pass = warmupVerdict([R("A4", 4), R("E5", -9), R("F#4", 0), R("D5", 10)], 10, 4);
+  assert.equal(pass.passed, true);
+  assert.equal(pass.allSame, null);
+  const one = warmupVerdict([R("A4", 4), R("E5", -9), R("F#4", 0), R("D5", 14)], 10, 4);
+  assert.equal(one.passed, false);
+  assert.deepEqual(one.notes.filter((n) => !n.ok).map((n) => [n.name, n.way]), [["D5", "sharp"]]);
+  assert.equal(one.allSame, null, "one miss among passes is not the whole flute");
+});
+
+test("a skipped note fails the warm-up; too few notes fails it", async () => {
+  const { warmupVerdict } = await import("../core/follow.js");
+  assert.equal(warmupVerdict([R("A4", 1), R("E5", NaN)], 10, 2).passed, false);
+  assert.equal(warmupVerdict([R("A4", 1)], 10, 4).passed, false);
+});
+
+test("every note out the same way is named, as the 8.7 take would have been", async () => {
+  const { warmupVerdict } = await import("../core/follow.js");
+  const take = [R("E5", 34.2), R("F#4", 13.4), R("F#5", 27.2), R("A4", 55.1)];
+  assert.equal(warmupVerdict(take, 10, 4).allSame, "sharp");
+  assert.equal(warmupVerdict([R("A4", -20), R("E5", -15)], 10, 2).allSame, "flat");
+  assert.equal(warmupVerdict([R("A4", -20), R("E5", 15)], 10, 2).allSame, null);
+});
