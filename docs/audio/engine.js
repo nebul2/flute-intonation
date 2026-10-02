@@ -86,24 +86,29 @@ class Drone {
     master.connect(ctx.destination);
 
     const oscillators = [];
-    for (const f of voices) {
+    // Every frequency that belongs to a voice, with the multiple of that
+    // voice's pitch it sounds at, so glide() can move the whole sound.
+    const tuned = [];
+    voices.forEach((f, voice) => {
       let out = master;
       if (voices.length > 1) {
         out = ctx.createGain();
         out.gain.value = 1 / Math.sqrt(voices.length);
         out.connect(master);
       }
-      oscillators.push(...(this.timbre === "plain"
-        ? this.plain(ctx, f, out) : this.rich(ctx, f, out, TIMBRES[this.timbre])));
-    }
-    this.nodes = { master, oscillators };
+      const made = this.timbre === "plain"
+        ? this.plain(ctx, f, out) : this.rich(ctx, f, out, TIMBRES[this.timbre]);
+      oscillators.push(...made.sources ?? made);
+      for (const t of made.tuned ?? []) tuned.push({ ...t, voice });
+    });
+    this.nodes = { master, oscillators, tuned };
     this.engine.emit();
   }
 
   plain(ctx, hz, master) {
     const weights = TIMBRES.plain.partials;
     const total = weights.reduce((a, b) => a + b, 0);
-    return weights.map((w, i) => {
+    const sources = weights.map((w, i) => {
       const osc = ctx.createOscillator();
       osc.frequency.value = hz * (i + 1);
       const gain = ctx.createGain();
@@ -112,6 +117,7 @@ class Drone {
       osc.start();
       return osc;
     });
+    return { sources, tuned: sources.map((osc, i) => ({ param: osc.frequency, mult: i + 1 })) };
   }
 
   /* Everything in one periodic wave per copy: the partials are locked to the
@@ -146,6 +152,7 @@ class Drone {
       osc.start();
       return osc;
     });
+    const tuned = sources.map((osc) => ({ param: osc.frequency, mult: 1 }));
     if (breath > 0) {
       // Two seconds of white noise, looped, through a band around the note.
       const length = 2 * ctx.sampleRate;
@@ -158,6 +165,7 @@ class Drone {
       const band = ctx.createBiquadFilter();
       band.type = "bandpass";
       band.frequency.value = hz * 2;
+      tuned.push({ param: band.frequency, mult: 2 });
       band.Q.value = 0.8;
       const gain = ctx.createGain();
       gain.gain.value = breath;
@@ -165,7 +173,24 @@ class Drone {
       noise.start();
       sources.push(noise);
     }
-    return [...sources, ...extra];
+    return { sources: [...sources, ...extra], tuned };
+  }
+
+  /* Move a sounding drone or chord to new pitches over `seconds`, every
+   * partial with its voice: Follow me's held note, where the partner drifts
+   * while the player holds. `hz` is one frequency or one per voice. */
+  glide(hz, seconds) {
+    const ctx = this.engine.context;
+    if (!this.nodes || !ctx) return;
+    const voices = Array.isArray(hz) ? hz : [hz];
+    const now = ctx.currentTime;
+    for (const { param, mult, voice } of this.nodes.tuned) {
+      const to = voices[voice] ?? voices[0];
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      param.linearRampToValueAtTime(to * mult, now + Math.max(0.01, seconds));
+    }
+    this.hz = voices[0];
   }
 
   /* Smoothly change the level of a playing drone (used to duck it during a

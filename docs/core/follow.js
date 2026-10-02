@@ -266,3 +266,19 @@ export function warmupVerdict(readings, withinCents, expected = readings.length)
   const allSame = played.length && played.every((n) => !n.ok) && ways.size === 1 ? [...ways][0] : null;
   return { passed, notes, allSame };
 }
+
+/* The held note: the partner starts in tune, you join and settle, and partway
+ * through the note it glides to the block's offset while you hold. The real
+ * case is a long note sagging under you in a duo. One note long, it needs
+ * room: `before` seconds of settled playing to measure from, a `glide` of the
+ * partner, and enough after it to settle again -- so a note of `seconds`,
+ * of which the segmenter asks for 60%, which must exceed before + glide. */
+export const HELD = Object.freeze({ seconds: 12, before: 3.0, glide: 1.5 });
+
+/* Where each note sat before the partner moved, as the reference for the
+ * same note after -- the reference is inside the note itself, so nothing
+ * from any other block is needed. `readings` are {name, before} with
+ * `before` analyseNote's meanCents over the frames before the glide. */
+export function heldReference(readings) {
+  return new Map(readings.filter((r) => Number.isFinite(r.before)).map((r) => [r.name, r.before]));
+}

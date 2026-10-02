@@ -1,6 +1,7 @@
 # CR-010 — Follow me out of tune
 
-Status: **phases 2–4 built for the first two rungs** (8.7): exercise A at
+Status: **built** (8.7–8.9); the sample pack dropped. The history below
+starts from the first rungs: **phases 2–4 built for the first two rungs** (8.7): exercise A at
 unison and octave, the core for every level, the synthesised timbres and the
 headphones fallback. Fifth and thirds are in `core/follow.js` but not on the
 list yet; exercise B and the sample pack are not started. Not yet played on a
@@ -92,6 +93,25 @@ wherever a strong partial (≥ 0.1 of the fundamental) of the sound actually
 chosen lands on the note, generalising the 8.8 octave fix. The flute partner
 now has a strong octave and twelfth, more breath and a slow 0.3 Hz swell in
 level (about 2 dB), never in pitch.
+
+**8.9, the rest of the ladder.** On the list now: the fifth, the major and
+minor thirds, and the **held note** -- the level left for later in the
+design. In the held note the partner starts in tune and, 3 s after the
+player has settled, glides to the block's offset over 1.5 s while the
+player holds. It is measured inside each note, as two `analyseNote()` calls
+on the frames before and after the glide: the before reading is the
+reference, the after reading's settle time is how long the player took to
+follow, and that time is shown only when they did follow. The note is at
+least 12 s long, whatever the note-length setting (`minSeconds`). The drone
+gained `glide()`, which moves every partial of every voice together.
+
+The flat-key bug is fixed at its root: the generator now takes a key's
+name as well as a letter, so every exercise builds in B♭, E♭ and A♭ major,
+and a test builds each one in every key the Practice page offers.
+
+**The sample pack is dropped**, at the player's decision; the synthesised
+sounds stand. With that, everything in this CR is built except what was
+always conditional.
 
 ## Why
 

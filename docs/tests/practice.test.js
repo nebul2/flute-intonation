@@ -446,8 +446,11 @@ test("every drone exercise takes its note length from one setting", () => {
     for (const seconds of [4, 6, 12]) {
       const built = spec.build("D", "major", spec.keys ? spec.keys[0] : null, { seconds });
       for (const exercise of (Array.isArray(built) ? built : [built])) {
+        // An exercise that cannot work below some length says so with
+        // `minSeconds` (Follow me's held note) and is held to it.
+        const want = Math.max(seconds, spec.minSeconds ?? 0);
         for (const note of exercise.notes) {
-          assert.ok(Math.abs(exercise.durationSeconds(note) - seconds) < 1e-9,
+          assert.ok(Math.abs(exercise.durationSeconds(note) - want) < 1e-9,
             `${key}: asked for ${seconds}s, got ${exercise.durationSeconds(note)}s`);
         }
       }
@@ -606,4 +609,25 @@ test("the closing line is earned, and generous at the bottom", () => {
   assert.equal(at(5, 10), "progress");
   assert.equal(at(4, 10), "keepGoing");
   assert.equal(at(0, 10), "keepGoing", "and it still does not scold");
+});
+
+test("every practice exercise builds in every key the Practice page offers", async () => {
+  // The page passes a flat key by name ("Bb"); the builders took a letter,
+  // so Calibration and Interval in context threw on B flat, E flat and A flat
+  // major from the day the page offered them.
+  const { EXERCISES } = run_exercises();
+  for (const quality of ["major", "minor"]) {
+    for (const { key } of generator.keysForQuality(quality)) {
+      for (const [name, spec] of Object.entries(EXERCISES)) {
+        if (!spec.build) continue;
+        const built = spec.build(key, quality, null, { seconds: 6, cents: 20, canBend: () => true });
+        const first = Array.isArray(built) ? built[0] : built;
+        assert.ok(first.notes.length > 0, `${name} in ${key} ${quality}`);
+        if (quality === "major" && name === "calibration") {
+          assert.equal(first.drone.letter, key[0]);
+          assert.equal(first.drone.alter, key.length > 1 ? -1 : 0, `${key}: the drone is the key's own tonic`);
+        }
+      }
+    }
+  }
 });

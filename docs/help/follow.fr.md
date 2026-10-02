@@ -54,6 +54,22 @@ vérifie le diapason, ou la tête, avant de continuer.
   au fa de baisser, ni au do et au fa♯ graves de monter. Cette liste vient
   d'un seul traverso, d'après le jeu, pas d'une mesure.
 
+## Les niveaux
+
+- **Unisson et octave** : le partenaire sur ta note, ou une octave en dessous.
+- **Quinte, tierce majeure, tierce mineure** : le partenaire sous toi, et ta
+  cible l'intervalle *pur* au-dessus de là où est le partenaire. Quand il
+  dérive de 20¢ vers le bas, la tierce pure au-dessus dérive de 20¢ aussi ;
+  suis le partenaire et garde l'intervalle.
+- **Note tenue** : sons filés à l'unisson où le partenaire commence juste et,
+  trois secondes après que ta note s'est installée, glisse vers sa nouvelle
+  place en une seconde et demie pendant que tu tiens. Le suivi se mesure à
+  l'intérieur de chaque note -- là où était ta note avant la glissade contre
+  là où elle s'est posée après -- et la carte dit le temps qu'il lui a fallu
+  pour se stabiliser. Ce temps n'est donné que si tu as suivi. Les notes durent au
+  moins douze secondes, quel que soit le réglage de durée, pour laisser la
+  place à tout cela.
+
 ## La cadence
 
 Le troisième exercice du groupe. Chaque cadence a trois accords, joués par des

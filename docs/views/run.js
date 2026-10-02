@@ -46,7 +46,7 @@ import { pedal, FORWARD, BACK } from "../ui/pedal.js";
 import * as profiles from "../profiles.js";
 import { isRigid, validEntry } from "../core/bend.js";
 import { followRun, followPattern, blockFollow, referenceFrom, warmupVerdict, shiftedHz, directionOf,
-         unmeasuredCanBend, MIN_FOLLOW_OFFSET } from "../core/follow.js";
+         unmeasuredCanBend, MIN_FOLLOW_OFFSET, HELD, heldReference } from "../core/follow.js";
 import { Exercise } from "../core/resolver.js";
 import { cadenceRun } from "../core/cadence.js";
 import { soundingTimbre, partialsOf } from "../audio/timbres.js";
@@ -173,11 +173,28 @@ export const EXERCISES = {
    * note-by-note runner here cannot express. Experimental until it has
    * been used by someone other than the player it was calibrated on. */
   scales: { route: "scales", experimental: true },
-  /* Follow me: the first two rungs of the ladder in cr/010. The fifth and the
-   * thirds are built in core/follow.js and wait for these two to have been
-   * used for a while. */
+  /* Follow me: the ladder in cr/010, in the order it is offered -- unison and
+   * octave, where matching is plainest, then the fifth, then the thirds,
+   * where the target is a pure interval above a partner who has moved. */
   followUnison: followLevel("unison"),
   followOctave: followLevel("octave"),
+  followFifth: followLevel("fifth"),
+  followMajorThird: followLevel("majorThird"),
+  followMinorThird: followLevel("minorThird"),
+  /* The held note: unison long tones where the partner starts in tune and,
+   * once you have settled, glides to the block's offset while you hold --
+   * a long note sagging under you. Follow is measured inside each note,
+   * before against after, and how long you took to settle again is said. */
+  followHeld: {
+    ...followLevel("unison"), follow: "held", held: true,
+    // The shared note length, but never shorter than the note needs to hold
+    // a settle, a slide and a settle again.
+    minSeconds: HELD.seconds,
+    explain: ["follow.held.what", "follow.how", "follow.why"],
+    build: (tonic, quality, chosen, opts = {}) =>
+      followRun(tonic, quality, "unison", { cents: opts.cents, canBend: opts.canBend,
+                                            beats: Math.max(Number(opts.seconds) || 0, HELD.seconds) }),
+  },
   /* The cadence: approach and dominant in tune, the arrival moved. The flute
    * plays the top voice or the bass; strings by default, since a keyboard
    * cannot arrive out of tune and a string band can. Chords put many
@@ -555,7 +572,9 @@ export class ExerciseRun {
   /* How far note `i` is moved: the exercise's offset, or -- at a cadence,
    * where only the arrival moves -- that note's own. */
   noteOffset(exercise, i) {
-    return exercise.accompaniment ? exercise.accompaniment[i].offsetCents : exercise.offsetCents;
+    if (exercise.accompaniment) return exercise.accompaniment[i].offsetCents;
+    // A held note's partner starts in tune and only moves once you are on it.
+    return this.run.spec.held ? 0 : exercise.offsetCents;
   }
 
   /* What sounds under note `i`, in Hz: the bass alone, or the chord, each
@@ -628,6 +647,8 @@ export class ExerciseRun {
     // reading while appearing to do nothing at all.
     run.pendingResult = null;
     run.lastJudged = false;
+    run.glideAt = null;
+    run.pendingHeld = null;
     run.target = run.resolver.resolve(note);
     if (run.spec.follow) {
       run.target = this.followTarget(note, exercise, run.noteIdx);
@@ -713,6 +734,25 @@ export class ExerciseRun {
     }, leadIn * 1000);
   }
 
+  /* The held note's move: the partner glides from in tune to the block's
+   * offset while the player holds. Said in the panel as it starts when the
+   * cue is on; otherwise only "hold, and listen". */
+  partnerMoves() {
+    const run = this.run;
+    const off = run.exercise.offsetCents;
+    run.glideAt = run.seg.framesHz.length;
+    if (run.partnerHzs) {
+      const to = run.partnerHzs.map((hz) => shiftedHz(hz, off));
+      engine.drone.glide(to, HELD.glide);
+      engine.setNotches(this.partnerNotches(to, shiftedHz(run.target, off)));
+    }
+    const direction = directionOf(off);
+    const where = !run.settings.followCue || run.exIdx === 0 ? "hold"
+      : direction === "up" ? "movingSharp" : direction === "down" ? "movingFlat" : "staying";
+    this.ui.partner.dataset.where = where === "movingSharp" ? "sharp" : where === "movingFlat" ? "flat" : "same";
+    this.ui.partner.textContent = t(`follow.held.cue.${where}`);
+  }
+
   /* The end of a block: the call first if the player asked to make one, then
    * the card. */
   endBlock() {
@@ -742,7 +782,7 @@ export class ExerciseRun {
     const exercise = run.exercise;
     const exIdx = run.exIdx;
     const readings = this.blockReadings(exIdx);
-    const reading = blockFollow(this.followed(exercise, readings), exercise.offsetCents, this.referenceBefore(exIdx));
+    const reading = blockFollow(this.followed(exercise, readings), exercise.offsetCents, this.referenceFor(exIdx));
     const actual = { up: "sharp", down: "flat" }[directionOf(exercise.offsetCents)] ?? "same";
     const card = el("div", { class: "result-row" }, [
       el("div", { class: "result-head" }, [
@@ -750,6 +790,7 @@ export class ExerciseRun {
       ]),
       exercise.accompaniment ? el("div", { class: "muted small", text: exercise.name }) : null,
       el("p", { text: this.blockText(reading, exercise.offsetCents) }),
+      this.settleLine(exIdx, exercise.offsetCents, reading),
       called ? el("p", { class: `muted ${called === actual ? "good" : ""}`,
                          text: `${t("follow.youHeard", t(`${run.spec.cadence ? "cadence" : "follow"}.call.${called}`))} — ` +
                                (called === actual ? t("practice.agreed")
@@ -879,6 +920,22 @@ export class ExerciseRun {
     this.onward();
   }
 
+  /* How long the held note took to settle after the partner began to move:
+   * the mean over the block's notes of the after-window's settle time. */
+  settleLine(exIdx, offsetCents, reading) {
+    if (!this.run.spec.held || Math.abs(offsetCents) < MIN_FOLLOW_OFFSET) return null;
+    // Only when you moved: settling "0.0 s after" a slide you never followed
+    // is a true figure that reads as praise.
+    if (!reading || reading.shift === null
+        || Math.abs(reading.shift) <= bands(this.run.settings).inTuneCents
+        || Math.sign(reading.shift) !== Math.sign(offsetCents)) return null;
+    const settles = this.run.log.filter((e) => e.exIdx === exIdx && e.held && Number.isFinite(e.held.settle))
+      .map((e) => e.held.settle);
+    if (!settles.length) return null;
+    const mean = settles.reduce((a, b) => a + b, 0) / settles.length;
+    return el("p", { class: "muted", text: t("follow.held.settled", mean.toFixed(1)) });
+  }
+
   /* The notes of one block as played: name and reading against the partner. */
   blockReadings(exIdx) {
     return this.run.log.filter((e) => e.exIdx === exIdx && e.result)
@@ -905,6 +962,14 @@ export class ExerciseRun {
   /* Where each note was last played with the partner in tune, before this
    * block. Recomputed rather than kept, so a block taken back with "again"
    * and replayed is read against the same reference as the first time. */
+  /* The reference a block is read against: the held note carries its own,
+   * from before the partner moved; everything else uses earlier blocks. */
+  referenceFor(exIdx) {
+    if (!this.run.spec.held) return this.referenceBefore(exIdx);
+    return heldReference(this.run.log.filter((e) => e.exIdx === exIdx && e.held)
+      .map((e) => ({ name: e.result.pitch.name, before: e.held.before })));
+  }
+
   referenceBefore(exIdx) {
     return referenceFrom([...this.run.blocks.entries()]
       .filter(([i]) => i < exIdx).sort(([a], [b]) => a - b)
@@ -1079,12 +1144,28 @@ export class ExerciseRun {
     }
     if (run.phase !== "playing" || !run.seg) return;
     run.seg.push(frame.hz, frame.levelDb);
+    if (run.spec.held && run.glideAt === null && run.seg.state === "sounding"
+        && run.seg.elapsedSeconds >= HELD.before) this.partnerMoves();
     if (run.seg.complete) this.noteDone();
   }
 
   noteDone() {
     const run = this.run;
-    const result = analyseNote(run.note.pitch, run.target, run.seg.framesHz, run.seg.frameSeconds);
+    let result = analyseNote(run.note.pitch, run.target, run.seg.framesHz, run.seg.frameSeconds);
+    if (run.spec.held && run.glideAt !== null && run.glideAt < run.seg.framesHz.length) {
+      // Two readings from one note, each through analyseNote: before the
+      // partner moved, against it in tune; after, against where it went --
+      // with no attack to skip, so the settled window starts where you
+      // stopped moving, and its settle time is how long that took.
+      const frames = run.seg.framesHz, fs = run.seg.frameSeconds;
+      const before = analyseNote(run.note.pitch, run.target, frames.slice(0, run.glideAt), fs);
+      const after = analyseNote(run.note.pitch, shiftedHz(run.target, run.exercise.offsetCents),
+                                frames.slice(run.glideAt), fs, 0);
+      if (after) {
+        result = after;
+        run.pendingHeld = { before: before ? before.meanCents : NaN, settle: after.settleSeconds };
+      }
+    }
     run.summary.add(result);
     run.pendingResult = result;
     if (run.spec.feedback === "predict" && result) {
@@ -1143,8 +1224,9 @@ export class ExerciseRun {
       row = el("div", { class: "result-row" }, children);
     }
     this.ui.rows.prepend(row);
-    run.log.push({ counted: !!result, judged: !!called, row, result,
+    run.log.push({ counted: !!result, judged: !!called, row, result, held: run.pendingHeld,
                    noteIdx: run.noteIdx, exIdx: run.exIdx });
+    run.pendingHeld = null;
     run.phase = "between";
     run.nextTimer = setTimeout(() => { run.nextTimer = null; this.nextNote(); }, 900);
   }
@@ -1235,7 +1317,7 @@ export class ExerciseRun {
       if (exercise && !run.blocks.has(run.exIdx)) {
         const readings = this.blockReadings(run.exIdx);
         const reading = blockFollow(this.followed(exercise, readings), exercise.offsetCents,
-                                    this.referenceBefore(run.exIdx));
+                                    this.referenceFor(run.exIdx));
         if (reading) run.blocks.set(run.exIdx, { reading, parts: this.blockParts(exercise, readings), called: null,
                                                  actual: null, card: null, offsetCents: exercise.offsetCents });
       }

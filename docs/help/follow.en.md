@@ -51,6 +51,21 @@ the headjoint, before going on.
   flat, and low C and low F♯ will not be asked to go sharp. The list comes
   from one traverso, as reported in playing, not measured.
 
+## The levels
+
+- **Unison and octave**: the partner on your note, or an octave below it.
+- **Fifth, major third, minor third**: the partner below you, and your
+  target the *pure* interval above wherever the partner is. When the partner
+  drifts 20¢ flat, the pure third above it drifts 20¢ flat too; follow the
+  partner and keep the interval.
+- **Held note**: unison long tones where the partner starts in tune and,
+  three seconds after you have settled, slides to its new place over a
+  second and a half while you hold. Following is measured inside each note
+  -- where you were before the slide against where you settled after it --
+  and the card says how long you took to settle again. That time is shown
+  only when you followed. Notes are at least twelve seconds long, whatever
+  the note-length setting, to leave room for all of it.
+
 ## The cadence
 
 The third exercise in the group. Each cadence is three chords, played by

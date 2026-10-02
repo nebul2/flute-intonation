@@ -337,3 +337,14 @@ test("every sound plays as chosen, and its strong partials are what the gate gua
   // The flute partner differs from plain where it can be heard: the octave.
   assert.ok(TIMBRES.flute.partials[1] / TIMBRES.plain.partials[1] > 2);
 });
+
+test("the held note leaves room to settle before and after the partner moves", async () => {
+  const { HELD, heldReference } = await import("../core/follow.js");
+  const required = 0.6 * HELD.seconds;
+  assert.ok(required - HELD.before - HELD.glide >= 2.0, "at least two seconds after the glide");
+  // Followed all the way: 4 above in tune before, 4 above the moved partner after.
+  const ref = heldReference([{ name: "A4", before: 4 }, { name: "E5", before: NaN }]);
+  assert.ok(!ref.has("E5"));
+  approx(blockFollow([R("A4", 4)], -20, ref).ratio, 1, 1e-9);
+  approx(blockFollow([R("A4", 24)], -20, ref).ratio, 0, 1e-9);
+});

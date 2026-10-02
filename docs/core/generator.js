@@ -135,9 +135,15 @@ export function inRange(pitch, low = DEFAULT_LOW, high = DEFAULT_HIGH) {
   return low.chromaticIndex <= pitch.chromaticIndex && pitch.chromaticIndex <= high.chromaticIndex;
 }
 
+/* `tonic` may be a letter ("B") or a key's name ("Bb"), which is what the
+ * Practice page passes since it offered flat keys: the letter is the first
+ * character and the signature supplies the flat. Taking only the letter, as
+ * this did, threw on B flat, E flat and A flat major for every exercise
+ * built through here. */
 function rootOf(tonic, startOctave, signature, low, high) {
-  const root = spell(tonic, startOctave, signature);
-  return inRange(root, low, high) ? root : spell(tonic, startOctave + 1, signature);
+  const letter = tonic[0];
+  const root = spell(letter, startOctave, signature);
+  return inRange(root, low, high) ? root : spell(letter, startOctave + 1, signature);
 }
 
 export function scale(tonic, { key = "", octaves = 1, startOctave = 4, descending = true,
