@@ -39,6 +39,9 @@ class Exercise:
     drone: SpelledPitch | None = None
     tempo_bpm: float = 60.0
     key: str = ""
+    # How far the bass sounds from where the tuning puts it. Zero except in
+    # the web app's "Follow me", whose partner drifts and is to be followed.
+    offset_cents: float = 0.0
 
     def __post_init__(self) -> None:
         if self.tempo_bpm <= 0.0:

@@ -47,6 +47,15 @@ export const DEFAULTS = Object.freeze({
   practiceRandom: false, // predict-then-see: random keys and intervals
   practiceTonic: "D",    // the tonic the exercise list is set to
   practiceQuality: "major",
+  // Follow me (cr/010): how far the partner drifts, whether its direction is
+  // shown while it plays alone, whether you call it before seeing the block,
+  // what it sounds like (anything but plain needs headphones), and how long
+  // it plays alone before you join.
+  followCents: 20,
+  followCue: true,
+  followEstimate: false,
+  followTimbre: "flute",
+  followLeadIn: 1.5,
 });
 
 let state = null;

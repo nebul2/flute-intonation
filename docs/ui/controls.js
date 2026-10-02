@@ -27,6 +27,7 @@ import { SpelledPitch } from "../core/pitch.js";
 import { PRACTICE_KEYS, keysForQuality } from "../core/generator.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
 import { parseScala } from "../core/tuning.js";
+import { TIMBRE_ORDER, TIMBRES } from "../audio/timbres.js";
 
 /* The sounding pitch of a key, for naming and for drones.
  *
@@ -226,6 +227,39 @@ export function pitchControl({ pitches, label = t("music.pitch"), ...rest } = {}
     options: () => pitches.map((p) => ({
       value: p, label: name(SpelledPitch.parse(p), rest.source ? rest.source() : settings.get()),
     })),
+    ...rest,
+  });
+}
+
+/* ---- the partner ------------------------------------------------------ */
+
+/* How far the partner drifts in Follow me. Three steps rather than a number
+ * field: 20 is plainly audible and is where everyone starts, the others are
+ * for an ear that has got there. */
+export const FOLLOW_CENTS = Object.freeze([20, 12, 8]);
+
+export function followCentsControl({ label = t("follow.cents"), ...rest } = {}) {
+  return selectField({
+    label, parse: Number,
+    options: () => FOLLOW_CENTS.map((c) => ({ value: c, label: t("follow.centsValue", c) })),
+    ...rest,
+  });
+}
+
+/* What the drone or partner sounds like. A rich timbre through speakers puts
+ * more partials into the microphone than can be notched out, so without
+ * headphones the choice is shown but says it will sound plain -- the same
+ * fallback audio/timbres.js applies when it plays. */
+export function timbreControl({ label = t("timbre.label"), ...rest } = {}) {
+  const headphones = () => (rest.source ? rest.source() : settings.get()).headphones === true;
+  return selectField({
+    label, watch: ["headphones"],
+    options: () => TIMBRE_ORDER.map((name) => ({
+      value: name,
+      label: TIMBRES[name].headphones && !headphones()
+        ? `${t(`timbre.${name}`)} — ${t("timbre.needsHeadphones")}` : t(`timbre.${name}`),
+    })),
+    hint: (value) => (TIMBRES[value]?.headphones && !headphones() ? t("timbre.fallback") : null),
     ...rest,
   });
 }

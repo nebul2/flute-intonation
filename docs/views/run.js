@@ -10,6 +10,10 @@
  *              number is revealed, and the agreement is scored
  *   end     -- nothing per note at all ("captured"); the stopper check, where
  *              seeing one note's deviation would invite correcting the next
+ *   block   -- Follow me: nothing per note while playing; at the end of each
+ *              block of notes, one card saying where the partner went and how
+ *              far you went with it (summary feedback -- research/pedagogy.md).
+ *              The per-note rows are kept and shown when the run ends.
  *
  * The drone-unison guard is the desktop rule: with the drone sounding and
  * nobody playing, 1.5 s of background is measured and a note *at the drone's
@@ -36,9 +40,40 @@ import { helpSection } from "../ui/help.js";
 import { compareAdjustment } from "../core/adjust.js";
 import { el, append, needle, meters, bandClass, bands, settleLabel, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
 import { checkboxField } from "../ui/fields.js";
-import { keyControl } from "../ui/controls.js";
+import { keyControl, followCentsControl, timbreControl } from "../ui/controls.js";
 import { owner } from "../ui/owner.js";
 import { pedal, FORWARD, BACK } from "../ui/pedal.js";
+import * as profiles from "../profiles.js";
+import { isRigid, validEntry } from "../core/bend.js";
+import { followRun, followPattern, blockFollow, shiftedHz, directionOf, unmeasuredCanBend,
+         MIN_FOLLOW_OFFSET } from "../core/follow.js";
+import { soundingTimbre } from "../audio/timbres.js";
+
+/* What this flute can bend, for Follow me: the measured profile where there
+ * is one -- the run's own label if a flute by that name has been measured,
+ * else the only flute measured on this device -- and the built-in list for
+ * every note it does not cover. A partner who asks a note to go where the
+ * instrument cannot take it is not teaching anything. */
+export function canBendOn(label) {
+  const names = profiles.names();
+  const flute = profiles.get(label) ? label : (names.length === 1 ? names[0] : null);
+  const measured = new Map(flute === null ? []
+    : profiles.entries(flute).filter(validEntry).map((e) => [e.pitch, e]));
+  return (pitch, direction) => (measured.has(pitch.name)
+    ? !isRigid(measured.get(pitch.name), direction)
+    : unmeasuredCanBend(pitch, direction));
+}
+
+/* One level of Follow me. Long tones over a partner who enters first; the
+ * level says at what interval. See cr/010. */
+function followLevel(level) {
+  return {
+    follow: level, feedback: "block", help: "follow",
+    explain: ["follow.what", "follow.how", "follow.why"],
+    build: (tonic, quality, chosen, opts = {}) =>
+      followRun(tonic, quality, level, { cents: opts.cents, beats: opts.seconds, canBend: opts.canBend }),
+  };
+}
 
 /* One pass of "Predict, then see": the given intervals over one key's own
  * drone. The shape belongs to this exercise rather than to the generator --
@@ -136,6 +171,11 @@ export const EXERCISES = {
    * note-by-note runner here cannot express. Experimental until it has
    * been used by someone other than the player it was calibrated on. */
   scales: { route: "scales", experimental: true },
+  /* Follow me: the first two rungs of the ladder in cr/010. The fifth and the
+   * thirds are built in core/follow.js and wait for these two to have been
+   * used for a while. */
+  followUnison: followLevel("unison"),
+  followOctave: followLevel("octave"),
 };
 
 /* The stopper check: a tool, not an exercise, so it lives on its own page. */
@@ -220,8 +260,10 @@ export class ExerciseRun {
     this.root = root;
     const s = settings.get();
     const random = this.spec.randomisable ? s.practiceRandom === true : false;
-    const built = this.spec.build(this.tonic, this.quality, this.chosenKey(),
-                                  { seconds: Number(s.droneNoteSeconds) || 6, random });
+    const built = this.spec.build(this.tonic, this.quality, this.chosenKey(), {
+      seconds: Number(s.droneNoteSeconds) || 6, random,
+      ...(this.spec.follow ? { cents: Number(s.followCents) || 20, canBend: canBendOn(this.label) } : {}),
+    });
     const tuning = currentTuning(s);
     this.run = {
       key: this.key, spec: this.spec, settings: s, tuning,
@@ -241,6 +283,10 @@ export class ExerciseRun {
        * reading behind it. */
       log: [], replayAt: null,
       pendingResult: null, nextTimer: null, lastJudged: false, retakes: 0,
+      // Follow me: each finished block's reading and card, by exercise index,
+      // and the timbre the partner actually sounds in.
+      blocks: new Map(),
+      timbre: soundingTimbre(s.followTimbre, s.headphones === true),
     };
     this.own = owner();
     this.buildUi();
@@ -300,6 +346,17 @@ export class ExerciseRun {
         label: t("practice.random"), look: "toggle", bind: "practiceRandom",
         onChange: (on) => { run.random = on; },
       })) : null,
+      // Follow me's choices. Each restarts the run, like the key picker: a
+      // session is one offset, one sound, cue or no cue, or its blocks cannot
+      // be compared with each other or with the next session's.
+      follow: run.spec.follow ? [
+        own.add(followCentsControl({ bind: "followCents", onChange: () => this.restart() })),
+        own.add(timbreControl({ bind: "followTimbre", onChange: () => this.restart() })),
+        own.add(checkboxField({ label: t("follow.cue"), look: "toggle", bind: "followCue",
+                                onChange: () => this.restart() })),
+        own.add(checkboxField({ label: t("follow.estimate"), look: "toggle", bind: "followEstimate",
+                                onChange: () => this.restart() })),
+      ] : null,
       // Which key we are in now. Only exercises that change key on their own
       // show it -- everywhere else the player chose the key and knows.
       keyLine: run.spec.nextExercise ? el("p", { class: "intro key-now" }) : null,
@@ -311,6 +368,13 @@ export class ExerciseRun {
       meter: meters(),
       judge: el("div", { class: "judge", hidden: true }, ["sharp", "flat", "in tune"].map((call) =>
         el("button", { class: "secondary big", text: t(`practice.call.${call}`), onclick: () => this.judge(call) }))),
+      // Follow me: which way did the partner go? Asked at the end of a block,
+      // before its card, when the player has chosen to be asked.
+      estimate: el("div", { class: "judge", hidden: true }, ["flat", "same", "sharp"].map((call) =>
+        el("button", { class: "secondary big", text: t(`follow.call.${call}`), onclick: () => this.estimate(call) }))),
+      // A finished block's card waits here until the player moves on.
+      onward: el("button", { class: "primary", hidden: true, text: t("follow.next"), onclick: () => this.onward() }),
+      blocks: el("div", { class: "rows" }),
       rows: el("div", { class: "rows" }),
       summary: el("div", { class: "summary" }),
       nav: runNav({
@@ -325,11 +389,17 @@ export class ExerciseRun {
       }),
     };
     const u = this.ui;
-    u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.meter.element, u.judge]);
+    u.panel = el("div", { class: "card panel" }, [u.noteLabel, u.target, u.progress, u.progressText, u.meter.element,
+                                                    u.judge, u.estimate, u.onward]);
+    // Block feedback keeps the per-note readings out of sight until the end:
+    // the block card is the feedback, and a row per note beside it would be
+    // every-note feedback by the back door.
+    u.rows.hidden = run.spec.feedback === "block";
     append(root,
       u.heading,
       u.keyPicker ? u.keyPicker.element : null,
       u.random ? el("div", { class: "row" }, [u.random.element]) : null,
+      u.follow ? el("div", { class: "row" }, u.follow.map((c) => c.element)) : null,
       u.keyLine,
       // Short version folded away, sources behind it. The page stays clean and
       // nothing that explains WHY this exercise exists is more than a tap
@@ -339,9 +409,9 @@ export class ExerciseRun {
       run.spec.help ? helpSection(run.spec.help).element : null,
       el("p", { class: "muted small", text: t("practice.pedal") }),
       run.spec.report === "stopper" ? el("p", { class: "note-box", text: t("practice.stopper.protocol") }) : null,
-      (run.exercises.some((e) => e.drone) && !run.settings.headphones)
+      ((run.exercises.some((e) => e.drone) || run.spec.follow) && !run.settings.headphones)
         ? el("p", { class: "note-box", text: t("drone.bleed") }) : null,
-      u.status, u.nav.top, u.panel, u.summary, u.rows, u.nav.bottom,
+      u.status, u.nav.top, u.panel, u.summary, u.blocks, u.rows, u.nav.bottom,
     );
     /* Two feet-sized intentions, and the letters for a keyboard.
      *
@@ -364,8 +434,15 @@ export class ExerciseRun {
     // keys, which is exactly what two pedals cannot offer -- see CR-009.
     own.add((() => {
       const onKey = (e) => {
-        if (!this.run || this.run.phase !== "judging") return;
-        const call = { s: "sharp", f: "flat", t: "in tune", i: "in tune" }[e.key.toLowerCase()];
+        if (!this.run) return;
+        const key = e.key.toLowerCase();
+        if (this.run.phase === "estimating") {
+          const call = { s: "sharp", f: "flat", t: "same", i: "same" }[key];
+          if (call) this.estimate(call);
+          return;
+        }
+        if (this.run.phase !== "judging") return;
+        const call = { s: "sharp", f: "flat", t: "in tune", i: "in tune" }[key];
         if (call) this.judge(call);
       };
       window.addEventListener("keydown", onKey);
@@ -402,9 +479,22 @@ export class ExerciseRun {
     // this exercise to land; nextNote() advances before it reads.
     if (run.replayAt !== null) { run.noteIdx = run.replayAt - 1; run.replayAt = null; }
     run.droneHz = null;
-    run.onsetDb = null;
+    // Follow me measures the background once per run, not once per block:
+    // the partner moving twenty cents does not change what it bleeds.
+    if (!run.spec.follow) run.onsetDb = null;
 
-    if (exercise.drone && run.settings.droneLevel > 0) {
+    if (run.spec.follow) {
+      const unison = exercise.notes.find((n) => this.followUnison(n, exercise));
+      if (unison && run.onsetDb === null && run.settings.droneLevel > 0) {
+        const hz = this.partnerHz(unison, exercise);
+        engine.drone.start(hz, run.settings.droneLevel * UNISON_DUCK, run.timbre);
+        engine.setNotches(this.partnerNotches(hz, hz));
+        run.phase = "calibrating";
+        run.calib = new BackgroundCalibration();
+        this.ui.status.textContent = t("drone.calibrating");
+        return;
+      }
+    } else if (exercise.drone && run.settings.droneLevel > 0) {
       run.droneHz = run.tuning.targetHz(exercise.drone);
       // The background measurement exists only for the drone-unison guard,
       // taken with the drone ducked and the notches as they will be for the
@@ -421,6 +511,25 @@ export class ExerciseRun {
       }
     }
     this.nextNote();
+  }
+
+  /* Follow me's partner for one note: the bass of its harmonic context,
+   * where the tuning puts it, moved by the block's offset. */
+  partnerHz(note, exercise) {
+    return shiftedHz(this.run.tuning.targetHz(note.context.bass), exercise.offsetCents);
+  }
+
+  followUnison(note, exercise) {
+    const target = shiftedHz(this.run.resolver.resolve(note), exercise.offsetCents);
+    return Math.abs(centsBetween(this.partnerHz(note, exercise), target)) <= 80.0;
+  }
+
+  /* The plain partner is the drone the speaker notches were built for; any
+   * richer one is only offered with headphones, where there is nothing in
+   * the microphone to notch. */
+  partnerNotches(partnerHz, targetHz) {
+    return this.run.timbre === "plain"
+      ? dronePartialsToNotch(partnerHz, targetHz, this.run.spec.acceptance ?? 80.0) : [];
   }
 
   finishCalibration() {
@@ -443,6 +552,7 @@ export class ExerciseRun {
       } else {
         engine.drone.stop();
         engine.setNotches([]);
+        if (run.spec.feedback === "block" && !run.blocks.has(run.exIdx)) { this.endBlock(); return; }
         run.exIdx += 1;
         this.nextSegment();
         return;
@@ -456,6 +566,10 @@ export class ExerciseRun {
     run.pendingResult = null;
     run.lastJudged = false;
     run.target = run.resolver.resolve(note);
+    if (run.spec.follow) {
+      run.target = shiftedHz(run.target, exercise.offsetCents);
+      run.droneHz = run.settings.droneLevel > 0 ? this.partnerHz(note, exercise) : null;
+    }
     if (engine.detector) engine.detector.reset();
     run.seg = new NoteSegmenter({
       targetHz: run.target,
@@ -467,6 +581,7 @@ export class ExerciseRun {
     run.phase = "playing";
     this.ui.noteLabel.textContent = name(note.pitch, run.settings) + this.contextTag(note, exercise);
     this.ui.target.textContent = `${run.target.toFixed(2)} Hz`;
+    if (run.spec.follow) { this.partnerEnters(); return; }
     const isStopper = run.spec.report === "stopper";
     if (run.droneHz) {
       const unison = run.seg.onsetDb !== null;
@@ -476,6 +591,125 @@ export class ExerciseRun {
     } else if (!isStopper) {
       this.ui.status.textContent = t("practice.playNow");
     }
+  }
+
+  /* Follow me: the partner plays alone first, then you join.
+   *
+   * A duo entry rather than a drone already sounding: the ear gets a moment
+   * to hear where the partner is before committing to an attack, which is
+   * where a partner's drift is first met. The target in Hz is not shown --
+   * it would give the offset away to an ear that was meant to find it. With
+   * the cue on, the direction is said while the partner plays alone: a cue
+   * about the task, never a reading of the playing. */
+  partnerEnters() {
+    const run = this.run;
+    const exercise = run.exercise;
+    this.ui.target.textContent = "";
+    const unison = run.seg.onsetDb !== null;
+    if (run.droneHz) {
+      engine.drone.start(run.droneHz, run.settings.droneLevel * (unison ? UNISON_DUCK : 1), run.timbre);
+      engine.setNotches(this.partnerNotches(run.droneHz, run.target));
+    }
+    run.phase = "leadin";
+    const direction = directionOf(exercise.offsetCents);
+    const cue = run.settings.followCue
+      ? ` ${t(`follow.cue.${direction === "up" ? "sharp" : direction === "down" ? "flat" : "same"}`)}` : "";
+    this.ui.status.textContent = t("follow.listen") + cue;
+    const leadIn = Number(run.settings.followLeadIn) || 1.5;
+    run.nextTimer = setTimeout(() => {
+      run.nextTimer = null;
+      if (this.run !== run || run.phase !== "leadin") return;
+      run.phase = "playing";
+      this.ui.status.textContent = (unison ? t("follow.joinUnison") : t("follow.join")) + cue;
+    }, leadIn * 1000);
+  }
+
+  /* The end of a block: the call first if the player asked to make one, then
+   * the card. */
+  endBlock() {
+    const run = this.run;
+    if (run.settings.followEstimate) {
+      run.phase = "estimating";
+      this.ui.estimate.hidden = false;
+      this.ui.status.textContent = t("follow.whichWay");
+      return;
+    }
+    this.showBlock(null);
+  }
+
+  estimate(called) {
+    const run = this.run;
+    if (!run || run.phase !== "estimating") return;
+    this.ui.estimate.hidden = true;
+    this.showBlock(called);
+  }
+
+  /* One card for the block just played, and a wait for the player to move
+   * on -- there is no hurry, and reading it is the point. */
+  showBlock(called) {
+    const run = this.run;
+    const exercise = run.exercise;
+    const exIdx = run.exIdx;
+    const readings = run.log.filter((e) => e.exIdx === exIdx && e.result).map((e) => e.result.meanCents);
+    const reading = blockFollow(readings, exercise.offsetCents);
+    const actual = { up: "sharp", down: "flat" }[directionOf(exercise.offsetCents)] ?? "same";
+    const card = el("div", { class: "result-row" }, [
+      el("div", { class: "result-head" }, [
+        el("span", { class: "result-name", text: t("follow.blockN", exIdx + 1, run.exercises.length) }),
+      ]),
+      el("p", { text: this.blockText(reading, exercise.offsetCents) }),
+      called ? el("p", { class: `muted ${called === actual ? "good" : ""}`,
+                         text: `${t("follow.youHeard", t(`follow.call.${called}`))} — ` +
+                               (called === actual ? t("practice.agreed")
+                                                  : t("follow.itWent", t(`follow.call.${actual}`))) }) : null,
+    ]);
+    this.ui.blocks.prepend(card);
+    this.ui.noteLabel.textContent = t("follow.blockN", exIdx + 1, run.exercises.length);
+    run.blocks.set(exIdx, { reading, called, actual, card, offsetCents: exercise.offsetCents });
+    run.phase = "block";
+    this.ui.onward.hidden = false;
+    this.ui.status.textContent = t("follow.blockDone");
+  }
+
+  blockText(reading, offsetCents) {
+    if (!reading) return t("follow.noReading");
+    const fmt = (c) => Math.abs(c).toFixed(0);
+    const way = (c) => t(c >= 0 ? "follow.sharp" : "follow.flat");
+    if (Math.abs(offsetCents) < MIN_FOLLOW_OFFSET) {
+      return Math.abs(reading.moved) <= bands(this.run.settings).inTuneCents
+        ? t("follow.stayedWith")
+        : t("follow.movedAnyway", fmt(reading.moved), way(reading.moved));
+    }
+    const partner = t("follow.partnerWent", fmt(offsetCents), way(offsetCents));
+    const towards = Math.sign(reading.moved) === Math.sign(offsetCents);
+    const stayed = Math.abs(reading.moved) <= bands(this.run.settings).inTuneCents;
+    const you = stayed ? t("follow.youStayed")
+      : towards
+      ? t("follow.youFollowed", fmt(reading.moved), Math.round(100 * reading.ratio))
+      : t("follow.youWentOther", fmt(reading.moved), way(reading.moved));
+    const landed = Math.abs(reading.vsPartner) <= bands(this.run.settings).inTuneCents
+      ? t("follow.landedWith")
+      : t("follow.landed", fmt(reading.vsPartner), t(reading.vsPartner >= 0 ? "follow.above" : "follow.below"));
+    return `${partner} ${you} ${landed}`;
+  }
+
+  /* Past a block card, on to the next block. */
+  onward() {
+    const run = this.run;
+    if (!run || run.phase !== "block") return;
+    this.ui.onward.hidden = true;
+    run.exIdx += 1;
+    this.nextSegment();
+  }
+
+  /* Taking a note back out of a block that has had its card: the card and
+   * its reading go with it, and come back when the block is finished again. */
+  dropBlock(exIdx) {
+    const run = this.run;
+    const block = run.blocks.get(exIdx);
+    if (block) { block.card?.remove(); run.blocks.delete(exIdx); }
+    this.ui.estimate.hidden = true;
+    this.ui.onward.hidden = true;
   }
 
   /* Another go at the note just played.
@@ -516,6 +750,7 @@ export class ExerciseRun {
     run.pendingResult = null;
     run.lastJudged = false;
     this.ui.judge.hidden = true;
+    if (run.spec.feedback === "block") this.dropBlock(target.exIdx);
     this.replay(target.exIdx, target.noteIdx);
   }
 
@@ -550,9 +785,12 @@ export class ExerciseRun {
     const run = this.run;
     if (!run || run.phase === "finished" || run.phase === "calibrating") return;
     if (run.nextTimer) { clearTimeout(run.nextTimer); run.nextTimer = null; }
-    if (run.phase === "playing") { this.reveal(null, null); return; }
+    if (run.phase === "playing" || run.phase === "leadin") { this.reveal(null, null); return; }
     // Already revealed or waiting for a call: stop waiting and go on.
     if (run.phase === "judging") { this.ui.judge.hidden = true; this.reveal(run.pendingResult, null); return; }
+    // Follow me: no call this time, or past a block's card.
+    if (run.phase === "estimating") { this.ui.estimate.hidden = true; this.showBlock(null); return; }
+    if (run.phase === "block") { this.onward(); return; }
     this.nextNote();
   }
 
@@ -592,6 +830,8 @@ export class ExerciseRun {
   reveal(result, called) {
     const run = this.run;
     const label = this.ui.noteLabel.textContent;
+    // The partner stops with the note: it entered first, and leaves with you.
+    if (run.spec.follow) { engine.drone.stop(); engine.setNotches([]); }
     let row;
     if (!result) {
       row = el("div", { class: "result-row" }, [el("span", { class: "result-name", text: label }),
@@ -623,7 +863,7 @@ export class ExerciseRun {
       row = el("div", { class: "result-row" }, children);
     }
     this.ui.rows.prepend(row);
-    run.log.push({ counted: !!result, judged: !!called, row,
+    run.log.push({ counted: !!result, judged: !!called, row, result,
                    noteIdx: run.noteIdx, exIdx: run.exIdx });
     run.phase = "between";
     run.nextTimer = setTimeout(() => { run.nextTimer = null; this.nextNote(); }, 900);
@@ -662,6 +902,9 @@ export class ExerciseRun {
     // progress bar, no meter, the summary above the per-note rows.
     const u = this.ui;
     u.judge.hidden = true;
+    u.estimate.hidden = true;
+    u.onward.hidden = true;
+    u.rows.hidden = false;
     u.noteLabel.textContent = stopped ? "■" : "✓";
     u.target.textContent = "";
     u.progress.hidden = true;
@@ -700,6 +943,18 @@ export class ExerciseRun {
     }
     if (run.spec.report === "stopper") parts.push((await this.stopperReport(summary, s)).element);
     if (run.spec.report === "adjust") parts.push(this.adjustReport(summary, s));
+    if (run.spec.follow) {
+      // A block stopped part-way still counts for the notes it has; it just
+      // never got a card.
+      const exercise = run.exercises[run.exIdx];
+      if (exercise && !run.blocks.has(run.exIdx)) {
+        const readings = run.log.filter((e) => e.exIdx === run.exIdx && e.result).map((e) => e.result.meanCents);
+        const reading = blockFollow(readings, exercise.offsetCents);
+        if (reading) run.blocks.set(run.exIdx, { reading, called: null, actual: null, card: null,
+                                                 offsetCents: exercise.offsetCents });
+      }
+      parts.push(this.followReport());
+    }
     u.summary.replaceChildren(el("h2", { text: t("practice.summary") }), ...parts,
       helpSection("numbers").element);
 
@@ -710,6 +965,7 @@ export class ExerciseRun {
         temperament: s.temperament, root: s.root, reference_hz: s.referenceHz,
         naming: s.naming, lang: lang(), stopped,
         ...(run.spec.randomisable ? { random: run.random } : {}),
+        ...(run.spec.follow ? { follow: this.followRecord() } : {}),
         ...(this.label ? { label: this.label } : {}),
       };
       if (run.judgements.length) {
@@ -771,6 +1027,50 @@ export class ExerciseRun {
     if (all.length) box.append(el("div", { class: "stats scroll" }, [el("table", {}, [el("tbody", {}, all)])]));
     box.append(el("p", { class: "muted small", text: t("practice.score.note") }));
     return box;
+  }
+
+  /* Follow me, over the whole session: how far you went with the partner
+   * each way, and what you did when it did not move. A difference between
+   * the two directions is named only when core/follow.js says the session
+   * can support one; otherwise the figures stand on their own. */
+  followReport() {
+    const run = this.run;
+    const blocks = [...run.blocks.values()].map((b) => b.reading).filter(Boolean);
+    const box = el("div", { class: "adjust" });
+    if (!blocks.length) { box.append(el("p", { text: t("follow.noBlocks") })); return box; }
+    const pattern = followPattern(blocks);
+    const pct = (r) => `${Math.round(100 * r)}%`;
+    const rows = [];
+    if (pattern.flatBlocks) rows.push([t("follow.whenFlat"), pct(pattern.flat), t("follow.blocks", pattern.flatBlocks)]);
+    if (pattern.sharpBlocks) rows.push([t("follow.whenSharp"), pct(pattern.sharp), t("follow.blocks", pattern.sharpBlocks)]);
+    if (pattern.catchBlocks) {
+      rows.push([t("follow.whenSame"), `${pattern.catchMoved >= 0 ? "+" : ""}${pattern.catchMoved.toFixed(1)}¢`,
+                 t("follow.blocks", pattern.catchBlocks)]);
+    }
+    box.append(el("div", { class: "stats scroll" }, [el("table", {}, [el("tbody", {}, rows.map(([what, value, n]) =>
+      el("tr", {}, [el("td", { text: what }), el("td", { class: "num", text: value }), el("td", { class: "muted", text: n })])))])]));
+    if (pattern.readier) box.append(el("p", { class: "headline", text: t(`follow.readier.${pattern.readier}`) }));
+    const calls = [...run.blocks.values()].filter((b) => b.called);
+    if (calls.length) {
+      box.append(el("p", { text: t("follow.calls", calls.filter((b) => b.called === b.actual).length, calls.length) }));
+    }
+    box.append(el("p", { class: "muted small", text: t("follow.note") }));
+    return box;
+  }
+
+  followRecord() {
+    const run = this.run;
+    const s = run.settings;
+    return {
+      level: run.spec.follow, cents: Number(s.followCents) || 20, cue: s.followCue === true,
+      estimate: s.followEstimate === true, timbre: run.timbre,
+      blocks: [...run.blocks.entries()].sort(([a], [b]) => a - b).map(([, b]) => ({
+        offset_cents: b.offsetCents,
+        vs_partner_cents: b.reading ? Math.round(b.reading.vsPartner * 100) / 100 : null,
+        ratio: b.reading?.ratio == null ? null : Math.round(b.reading.ratio * 1000) / 1000,
+        called: b.called, notes: b.reading?.notes ?? 0,
+      })),
+    };
   }
 
   /* Did the note move when the bass did?

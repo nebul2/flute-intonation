@@ -14,6 +14,7 @@
  */
 
 import { Detector } from "./yin.js";
+import { TIMBRES } from "./timbres.js";
 
 const STATES = ["idle", "starting", "listening", "refused", "error"];
 
@@ -63,22 +64,33 @@ class Drone {
   get playing() { return this.nodes !== null; }
 
   /* Fundamental plus two partials at -12 dB/octave (amplitude 1/n^2), gentle
-   * attack -- the Python drone's recipe. */
-  start(hz, level = this.level) {
+   * attack -- the Python drone's recipe. Any other timbre (audio/timbres.js)
+   * is one periodic wave per detuned copy, plus breath noise for the flute;
+   * the plain recipe is left exactly as it was, since the speaker notches
+   * and every level threshold were measured against it. */
+  start(hz, level = this.level, timbre = "plain") {
     const ctx = this.engine.context;
     if (!ctx) return;
     if (this.nodes) this.stop();
     this.hz = hz;
     this.level = level;
+    this.timbre = TIMBRES[timbre] ? timbre : "plain";
 
     const master = ctx.createGain();
     master.gain.setValueAtTime(0.0, ctx.currentTime);
     master.gain.linearRampToValueAtTime(level, ctx.currentTime + 0.3);
     master.connect(ctx.destination);
 
-    const weights = [1.0, 0.25, 1 / 9];
+    const oscillators = this.timbre === "plain"
+      ? this.plain(ctx, hz, master) : this.rich(ctx, hz, master, TIMBRES[this.timbre]);
+    this.nodes = { master, oscillators };
+    this.engine.emit();
+  }
+
+  plain(ctx, hz, master) {
+    const weights = TIMBRES.plain.partials;
     const total = weights.reduce((a, b) => a + b, 0);
-    const oscillators = weights.map((w, i) => {
+    return weights.map((w, i) => {
       const osc = ctx.createOscillator();
       osc.frequency.value = hz * (i + 1);
       const gain = ctx.createGain();
@@ -87,8 +99,49 @@ class Drone {
       osc.start();
       return osc;
     });
-    this.nodes = { master, oscillators };
-    this.engine.emit();
+  }
+
+  /* Everything in one periodic wave per copy: the partials are locked to the
+   * fundamental, so a later setHz() moves the whole sound at once. Each copy
+   * is scaled so the sum peaks near the plain drone's, and the level slider
+   * means the same thing whatever the timbre. */
+  rich(ctx, hz, master, { partials, detune, breath }) {
+    const real = new Float32Array(partials.length + 1);
+    const imag = new Float32Array(partials.length + 1);
+    partials.forEach((a, i) => { imag[i + 1] = a; });
+    const wave = ctx.createPeriodicWave(real, imag);
+    const share = ctx.createGain();
+    share.gain.value = 1 / detune.length;
+    share.connect(master);
+    const sources = detune.map((cents) => {
+      const osc = ctx.createOscillator();
+      osc.setPeriodicWave(wave);
+      osc.frequency.value = hz;
+      osc.detune.value = cents;
+      osc.connect(share);
+      osc.start();
+      return osc;
+    });
+    if (breath > 0) {
+      // Two seconds of white noise, looped, through a band around the note.
+      const length = 2 * ctx.sampleRate;
+      const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      noise.loop = true;
+      const band = ctx.createBiquadFilter();
+      band.type = "bandpass";
+      band.frequency.value = hz * 2;
+      band.Q.value = 0.8;
+      const gain = ctx.createGain();
+      gain.gain.value = breath;
+      noise.connect(band).connect(gain).connect(master);
+      noise.start();
+      sources.push(noise);
+    }
+    return sources;
   }
 
   /* Smoothly change the level of a playing drone (used to duck it during a

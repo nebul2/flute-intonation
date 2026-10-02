@@ -14,6 +14,7 @@ export const TOPICS = Object.freeze({
   temperaments: Object.freeze({ en: "help/temperaments.en.md", fr: "help/temperaments.fr.md" }),
   intervals: Object.freeze({ en: "help/intervals.en.md", fr: "help/intervals.fr.md" }),
   numbers: Object.freeze({ en: "help/numbers.en.md", fr: "help/numbers.fr.md" }),
+  follow: Object.freeze({ en: "help/follow.en.md", fr: "help/follow.fr.md" }),
 });
 
 const cache = new Map();

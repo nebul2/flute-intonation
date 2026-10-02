@@ -16,14 +16,18 @@ export class TargetNote {
   }
 }
 
+/* `offsetCents` is how far the bass sounds from where the tuning puts it:
+ * zero everywhere except "Follow me", whose partner goes flat or sharp and
+ * expects to be followed. Every target in the exercise moves with it. */
 export class Exercise {
-  constructor({ name, notes, drone = null, tempoBpm = 60.0, key = "" }) {
+  constructor({ name, notes, drone = null, tempoBpm = 60.0, key = "", offsetCents = 0 }) {
     if (!(tempoBpm > 0)) throw new Error("tempo_bpm must be positive");
     this.name = name;
     this.notes = Object.freeze([...notes]);
     this.drone = drone;
     this.tempoBpm = tempoBpm;
     this.key = key;
+    this.offsetCents = offsetCents;
     Object.freeze(this);
   }
   get secondsPerBeat() { return 60.0 / this.tempoBpm; }

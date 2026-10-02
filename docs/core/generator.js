@@ -122,8 +122,9 @@ function spell(letter, octave, signature) {
   return new SpelledPitch(letter, signature[letter] ?? 0, octave);
 }
 
-/* Move `degrees` diatonic steps above `start`, spelled by the key. */
-function ascend(start, degrees, signature) {
+/* Move `degrees` diatonic steps above `start` (negative: below), spelled by
+ * the key. */
+export function ascend(start, degrees, signature) {
   const index = LETTERS.indexOf(start.letter) + degrees;
   const letter = LETTERS[((index % 7) + 7) % 7];
   const octave = start.octave + Math.floor(index / 7);

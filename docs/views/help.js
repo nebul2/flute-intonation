@@ -9,7 +9,7 @@ import { t } from "../i18n.js";
 import { el, append, explainer } from "../ui/widgets.js";
 import { helpSection } from "../ui/help.js";
 
-const DOCS = ["numbers", "intervals", "temperaments", "stopper"];
+const DOCS = ["numbers", "intervals", "follow", "temperaments", "stopper"];
 
 export default {
   title: () => t("help.title"),
