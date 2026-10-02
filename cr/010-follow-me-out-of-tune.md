@@ -83,6 +83,16 @@ Also reported: the cadence on speakers, without headphones, heard the
 flute cleanly (MacBook, quiet room). "Needs headphones" became "headphones
 recommended", with that one setup named.
 
+**8.8.2.** "When I select different partner sounds, I hear no change." Two
+causes. Without headphones every sound fell back to plain, as designed in
+8.7 -- and said only in small print. And the flute partner was within a few
+per cent of plain anyway. Since the player's speaker sessions read cleanly,
+every sound now plays through speakers; the level gate and duck are applied
+wherever a strong partial (≥ 0.1 of the fundamental) of the sound actually
+chosen lands on the note, generalising the 8.8 octave fix. The flute partner
+now has a strong octave and twelfth, more breath and a slow 0.3 Hz swell in
+level (about 2 dB), never in pitch.
+
 ## Why
 
 > Idea for a new exercise: "Follow me out of tune". This is supposed to

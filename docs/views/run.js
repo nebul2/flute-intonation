@@ -23,7 +23,7 @@
  * the microphone wherever they are not the note being played. */
 
 import { t, lang } from "../i18n.js";
-import { engine, dronePartials, dronePartialsToNotch } from "../audio/engine.js";
+import { engine, dronePartialsToNotch } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
@@ -49,7 +49,7 @@ import { followRun, followPattern, blockFollow, referenceFrom, warmupVerdict, sh
          unmeasuredCanBend, MIN_FOLLOW_OFFSET } from "../core/follow.js";
 import { Exercise } from "../core/resolver.js";
 import { cadenceRun } from "../core/cadence.js";
-import { soundingTimbre } from "../audio/timbres.js";
+import { soundingTimbre, partialsOf } from "../audio/timbres.js";
 
 /* What this flute can bend, for Follow me: the measured profile where there
  * is one -- the run's own label if a flute by that name has been measured,
@@ -304,7 +304,7 @@ export class ExerciseRun {
       // and the timbre the partner actually sounds in.
       blocks: new Map(),
       warmup: { attempts: 0, ways: [], passed: false, card: null },
-      timbre: soundingTimbre(s[this.spec.timbreBind ?? "followTimbre"], s.headphones === true),
+      timbre: soundingTimbre(s[this.spec.timbreBind ?? "followTimbre"]),
     };
     this.own = owner();
     this.buildUi();
@@ -577,12 +577,14 @@ export class ExerciseRun {
   /* Does the partner put anything into the room at the note's own pitch?
    * The fundamental at unison -- and, as 8.7.4 on speakers showed, the
    * second partial at the octave, which opened the note on the partner
-   * alone before the player had begun. Any partial within the acceptance
-   * window counts; where one does, the level gate and the duck apply. */
+   * alone before the player had begun. Any strong partial of the sound
+   * actually chosen counts (a string bass's fourth partial lands on the top
+   * voice's tonic); where one does, the level gate and the duck apply. */
   partnerShares(note, exercise, i) {
     const target = this.followTarget(note, exercise, i);
+    const acceptance = this.run.spec.acceptance ?? 80.0;
     return this.partnerHzs(note, exercise, i).some((hz) =>
-      dronePartials(hz).some((p) => Math.abs(centsBetween(p, target)) <= (this.run.spec.acceptance ?? 80.0)));
+      partialsOf(hz, this.run.timbre).some((p) => Math.abs(centsBetween(p, target)) <= acceptance));
   }
 
   /* The plain partner is the drone the speaker notches were built for; any

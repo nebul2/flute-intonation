@@ -69,7 +69,7 @@ until all three notes are within the line.
 **Headphones are recommended.** A chord through speakers puts more partials
 into the microphone than the app can filter out. On a MacBook in a quiet
 room it has still heard the flute cleanly over them; that is one setup, not
-a promise. Without headphones the chords play as plain tones.
+a promise.
 
 With **Before each card, let me say where the final chord arrived** on, the
 question at the end of each cadence is about the *chord*, not about you:
@@ -117,10 +117,13 @@ session has at least two blocks each way and the gap is at least 25 points.
   at full level and drops by about 12 dB just before you come in, so that its
   bleed into the microphone cannot be mistaken for your note. With headphones
   it never drops.
-- **The partner's sound.** Plain drone, flute, strings or organ. Anything but
-  plain needs headphones. Through speakers, a richer sound comes back into
-  the microphone with more partials than the app can filter out, so without
-  headphones it plays plain.
+- **The partner's sound.** Plain drone, flute, strings or organ, through
+  speakers or headphones. Through speakers a richer sound comes back into the
+  microphone with more partials than the app can filter out; what keeps it
+  from being read as your note is the level gate, applied wherever one of the
+  sound's strong partials lands on your note. That has worked on a MacBook
+  in a quiet room. If notes start before you play, use headphones or the
+  plain drone.
 
 ## What it does not claim
 

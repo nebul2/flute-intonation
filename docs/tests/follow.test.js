@@ -324,3 +324,16 @@ test("the gate is set wherever the partner sounds at the note's pitch -- the oct
   assert.ok(shares("octave", 20).every(Boolean), "octave: the partner's second partial");
   assert.ok(!shares("majorThird", 0).some(Boolean), "a third shares nothing");
 });
+
+test("every sound plays as chosen, and its strong partials are what the gate guards", async () => {
+  // 8.8.1 on speakers: four sounds chosen, one heard -- everything but plain
+  // fell back to plain without headphones.
+  const { soundingTimbre, partialsOf, TIMBRES } = await import("../audio/timbres.js");
+  for (const name of Object.keys(TIMBRES)) assert.equal(soundingTimbre(name), name);
+  assert.equal(soundingTimbre("nonsense"), "plain");
+  assert.equal(partialsOf(200, "plain").length, 3);
+  // A string bass's fourth partial is strong enough to be guarded.
+  assert.ok(partialsOf(100, "strings").some((hz) => Math.abs(hz - 400) < 1e-9));
+  // The flute partner differs from plain where it can be heard: the octave.
+  assert.ok(TIMBRES.flute.partials[1] / TIMBRES.plain.partials[1] > 2);
+});

@@ -27,7 +27,7 @@ import { SpelledPitch } from "../core/pitch.js";
 import { PRACTICE_KEYS, keysForQuality } from "../core/generator.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
 import { parseScala } from "../core/tuning.js";
-import { TIMBRE_ORDER, TIMBRES } from "../audio/timbres.js";
+import { TIMBRE_ORDER } from "../audio/timbres.js";
 
 /* The sounding pitch of a key, for naming and for drones.
  *
@@ -246,20 +246,15 @@ export function followCentsControl({ label = t("follow.cents"), ...rest } = {}) 
   });
 }
 
-/* What the drone or partner sounds like. A rich timbre through speakers puts
- * more partials into the microphone than can be notched out, so without
- * headphones the choice is shown but says it will sound plain -- the same
- * fallback audio/timbres.js applies when it plays. */
+/* What the drone or partner sounds like. Every sound plays through speakers
+ * since 8.8.2; a richer one says, once, what that has and has not been
+ * tested on. */
 export function timbreControl({ label = t("timbre.label"), ...rest } = {}) {
   const headphones = () => (rest.source ? rest.source() : settings.get()).headphones === true;
   return selectField({
     label, watch: ["headphones"],
-    options: () => TIMBRE_ORDER.map((name) => ({
-      value: name,
-      label: TIMBRES[name].headphones && !headphones()
-        ? `${t(`timbre.${name}`)} — ${t("timbre.needsHeadphones")}` : t(`timbre.${name}`),
-    })),
-    hint: (value) => (TIMBRES[value]?.headphones && !headphones() ? t("timbre.fallback") : null),
+    options: () => TIMBRE_ORDER.map((name) => ({ value: name, label: t(`timbre.${name}`) })),
+    hint: (value) => (value !== "plain" && !headphones() ? t("timbre.speakers") : null),
     ...rest,
   });
 }

@@ -118,7 +118,7 @@ class Drone {
    * fundamental, so a later setHz() moves the whole sound at once. Each copy
    * is scaled so the sum peaks near the plain drone's, and the level slider
    * means the same thing whatever the timbre. */
-  rich(ctx, hz, master, { partials, detune, breath }) {
+  rich(ctx, hz, master, { partials, detune, breath, swell }) {
     const real = new Float32Array(partials.length + 1);
     const imag = new Float32Array(partials.length + 1);
     partials.forEach((a, i) => { imag[i + 1] = a; });
@@ -126,6 +126,17 @@ class Drone {
     const share = ctx.createGain();
     share.gain.value = 1 / detune.length;
     share.connect(master);
+    const extra = [];
+    if (swell) {
+      // A slow waver in level, added to the share's gain by a low oscillator.
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = swell.rate;
+      const depth = ctx.createGain();
+      depth.gain.value = share.gain.value * swell.depth;
+      lfo.connect(depth).connect(share.gain);
+      lfo.start();
+      extra.push(lfo);
+    }
     const sources = detune.map((cents) => {
       const osc = ctx.createOscillator();
       osc.setPeriodicWave(wave);
@@ -154,7 +165,7 @@ class Drone {
       noise.start();
       sources.push(noise);
     }
-    return sources;
+    return [...sources, ...extra];
   }
 
   /* Smoothly change the level of a playing drone (used to duck it during a

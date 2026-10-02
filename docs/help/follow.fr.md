@@ -73,8 +73,7 @@ recommencée jusqu'à ce que les trois notes soient à l'intérieur de la limite
 **Le casque est recommandé.** Un accord sur haut-parleurs envoie dans le micro
 plus d'harmoniques que l'appli ne sait en filtrer. Sur un MacBook dans une
 pièce calme, elle a quand même bien entendu la flûte par-dessus ; c'est un
-seul cas, pas une promesse. Sans casque, les accords sont joués en sons
-simples.
+seul cas, pas une promesse.
 
 Avec **Avant chaque carte, me laisser dire où l'accord final est arrivé**, la
 question à la fin de chaque cadence porte sur l'*accord*, pas sur toi : est-il
@@ -126,10 +125,13 @@ moins 25 points.
   joue seul à plein niveau et baisse d'environ 12 dB juste avant que tu
   entres, pour que ce qui revient dans le micro ne soit pas pris pour ta
   note. Au casque, il ne baisse jamais.
-- **Le son du partenaire.** Bourdon simple, flûte, cordes ou orgue. Tout sauf
-  le bourdon simple demande un casque. Sur haut-parleurs, un son plus riche
-  revient dans le micro avec plus d'harmoniques que l'appli ne sait en
-  filtrer : sans casque, c'est donc le bourdon simple qui joue.
+- **Le son du partenaire.** Bourdon simple, flûte, cordes ou orgue, sur
+  haut-parleurs ou au casque. Sur haut-parleurs, un son plus riche revient
+  dans le micro avec plus d'harmoniques que l'appli ne sait en filtrer ; ce
+  qui l'empêche d'être pris pour ta note, c'est le seuil de niveau, appliqué
+  partout où un harmonique fort du son tombe sur ta note. Cela a fonctionné
+  sur un MacBook dans une pièce calme. Si des notes démarrent avant que tu
+  joues, utilise un casque ou le bourdon simple.
 
 ## Ce qu'il ne prétend pas
 
