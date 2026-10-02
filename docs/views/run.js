@@ -852,6 +852,10 @@ export class ExerciseRun {
   /* Past a block card, on to the next block. */
   onward() {
     const run = this.run;
+    // The same button reads "Try again" on a missed warm-up. 8.7.2 shipped
+    // with this line missing: the pedal went through skip() and worked, the
+    // button did nothing.
+    if (run?.phase === "warmup") { this.retryWarmup(); return; }
     if (!run || run.phase !== "block") return;
     this.ui.onward.hidden = true;
     this.ui.moveOn.hidden = true;

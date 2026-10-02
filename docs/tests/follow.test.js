@@ -296,3 +296,15 @@ test("every note out the same way is named, as the 8.7 take would have been", as
   assert.equal(warmupVerdict([R("A4", -20), R("E5", -15)], 10, 2).allSame, "flat");
   assert.equal(warmupVerdict([R("A4", -20), R("E5", 15)], 10, 2).allSame, null);
 });
+
+test("the warm-up's Try again button retries, as the pedal does", async () => {
+  // 8.7.2 shipped with the button doing nothing: it called onward(), which
+  // only acted after a passed block, while the pedal went through skip().
+  const { ExerciseRun } = await import("../views/run.js");
+  for (const via of ["onward", "skip"]) {
+    let retried = 0;
+    const fake = { run: { phase: "warmup", nextTimer: null }, ui: {}, retryWarmup() { retried += 1; } };
+    ExerciseRun.prototype[via].call(fake);
+    assert.equal(retried, 1, `${via} on a missed warm-up`);
+  }
+});
