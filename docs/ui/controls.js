@@ -264,6 +264,16 @@ export function timbreControl({ label = t("timbre.label"), ...rest } = {}) {
   });
 }
 
+/* The flute's part at a cadence: the top voice, or the bass with the chord
+ * above it. */
+export function cadenceRoleControl({ label = t("cadence.role"), ...rest } = {}) {
+  return selectField({
+    label,
+    options: () => ["top", "bass"].map((role) => ({ value: role, label: t(`cadence.role.${role}`) })),
+    ...rest,
+  });
+}
+
 /* ---- the microphone ---------------------------------------------------- */
 
 /* What the engine is doing, as a chip. home.js and the audio control each

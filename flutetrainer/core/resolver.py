@@ -42,6 +42,8 @@ class Exercise:
     # How far the bass sounds from where the tuning puts it. Zero except in
     # the web app's "Follow me", whose partner drifts and is to be followed.
     offset_cents: float = 0.0
+    # Per-note chords for the web app's cadence exercise; unused here.
+    accompaniment: tuple | None = None
 
     def __post_init__(self) -> None:
         if self.tempo_bpm <= 0.0:

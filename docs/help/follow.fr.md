@@ -54,6 +54,25 @@ vérifie le diapason, ou la tête, avant de continuer.
   au fa de baisser, ni au do et au fa♯ graves de monter. Cette liste vient
   d'un seul traverso, d'après le jeu, pas d'une mesure.
 
+## La cadence
+
+Le troisième exercice du groupe. Chaque cadence a trois accords, joués par des
+cordes (ou un orgue) : une approche (IV, ii6 ou VI, tirée à chaque fois), la
+dominante (avec sa septième environ une fois sur deux), et la tonique.
+L'approche et la dominante sont toujours pures sur leur propre basse.
+L'**accord final**, en entier, peut arriver bas, haut, ou juste. Un clavier ne
+peut pas faire cela ; un ensemble de cordes qui arrive un peu bas, ensemble,
+le fait tout le temps.
+
+Tu joues la **voix supérieure** (1–7–1 sur IV, 2–7–1 sur ii6, 3–2–1 sur VI) ou
+la **basse** (4–5–1 ou 6–5–1). Chaque cadence finit sur la même note : le
+suivi se mesure sur cette seule note, à partir de là où tu la jouais quand
+l'arrivée était juste. La première cadence est l'échauffement : juste,
+recommencée jusqu'à ce que les trois notes soient à l'intérieur de la limite.
+
+Il faut un **casque** : un accord sur haut-parleurs envoie dans le micro plus
+d'harmoniques que l'appli ne sait en filtrer.
+
 ## Ce que tu vois
 
 Rien pendant que tu joues. À la fin de chaque bloc, une carte dit où est parti

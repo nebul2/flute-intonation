@@ -72,7 +72,11 @@ class Drone {
     const ctx = this.engine.context;
     if (!ctx) return;
     if (this.nodes) this.stop();
-    this.hz = hz;
+    // One frequency is a drone; several are a chord (Follow me's cadence),
+    // each voice the same timbre, scaled so the chord is about as loud as
+    // one voice rather than three times it.
+    const voices = Array.isArray(hz) ? hz : [hz];
+    this.hz = voices[0];
     this.level = level;
     this.timbre = TIMBRES[timbre] ? timbre : "plain";
 
@@ -81,8 +85,17 @@ class Drone {
     master.gain.linearRampToValueAtTime(level, ctx.currentTime + 0.3);
     master.connect(ctx.destination);
 
-    const oscillators = this.timbre === "plain"
-      ? this.plain(ctx, hz, master) : this.rich(ctx, hz, master, TIMBRES[this.timbre]);
+    const oscillators = [];
+    for (const f of voices) {
+      let out = master;
+      if (voices.length > 1) {
+        out = ctx.createGain();
+        out.gain.value = 1 / Math.sqrt(voices.length);
+        out.connect(master);
+      }
+      oscillators.push(...(this.timbre === "plain"
+        ? this.plain(ctx, f, out) : this.rich(ctx, f, out, TIMBRES[this.timbre])));
+    }
     this.nodes = { master, oscillators };
     this.engine.emit();
   }

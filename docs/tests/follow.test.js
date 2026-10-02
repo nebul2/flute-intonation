@@ -308,3 +308,19 @@ test("the warm-up's Try again button retries, as the pedal does", async () => {
     assert.equal(retried, 1, `${via} on a missed warm-up`);
   }
 });
+
+test("the gate is set wherever the partner sounds at the note's pitch -- the octave too", async () => {
+  // 8.7.4 on speakers: at the octave the partner's second partial is the
+  // note itself, and with no gate the partner alone started the note.
+  const { ExerciseRun } = await import("../views/run.js");
+  const tuning = vallotti();
+  const runner = Object.create(ExerciseRun.prototype);
+  runner.run = { tuning, resolver: new TargetResolver(Mode.PURE, tuning), spec: {} };
+  const shares = (level, offsetCents) => {
+    const ex = followBlock(followPool("D", "major", level), { offsetCents, rng: seeded(4) });
+    return ex.notes.map((n, i) => runner.partnerShares(n, ex, i));
+  };
+  assert.ok(shares("unison", -20).every(Boolean), "unison");
+  assert.ok(shares("octave", 20).every(Boolean), "octave: the partner's second partial");
+  assert.ok(!shares("majorThird", 0).some(Boolean), "a third shares nothing");
+});

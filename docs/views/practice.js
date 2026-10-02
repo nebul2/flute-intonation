@@ -14,7 +14,7 @@ export default {
 
   mount(root) {
     this.root = root;
-    this.showList();
+    this.showList(null);
   },
 
   unmount() { this.teardown(); },
@@ -25,8 +25,16 @@ export default {
     if (this.active) { this.active.unmount(); this.active = null; }
   },
 
-  showList() {
+  /* The list, or one group of it. Exercises that are variations on one idea
+   * share a `group` and a single card on the list, so that adding a level
+   * does not add a card to a page that is already long -- Follow me alone
+   * has three, and more are planned. */
+  showList(group = null) {
+    const moved = group !== this.group;
+    this.group = group;
     this.teardown();
+    // Into or out of a group is a new page as far as the player can tell.
+    if (moved && typeof window !== "undefined") window.scrollTo(0, 0);
     const root = this.root;
     root.replaceChildren();
     const label = labelField();
@@ -49,7 +57,7 @@ export default {
     // A spec with a `route` runs itself on its own page: Play Scales is a
     // listening exercise, not a walk through fixed target notes, so it
     // cannot be an ExerciseRun. One list of exercises either way.
-    const buttons = Object.keys(EXERCISES).map((key) => el("button", {
+    const exerciseCard = (key) => el("button", {
       class: `card exercise${EXERCISES[key].experimental ? " experimental" : ""}`,
       disabled: !engine.listening,
       onclick: () => (EXERCISES[key].route ? navigate(EXERCISES[key].route) : this.startRun(key)),
@@ -60,18 +68,31 @@ export default {
           ? el("span", { class: "chip warn-chip", text: t("home.experimental") }) : null,
       ]),
       el("div", { class: "card-desc", text: t(`practice.ex.${key}.desc`) }),
-    ]));
+    ]);
+    // A group's card opens the group; it is not an exercise, so it does not
+    // wait for the microphone.
+    const groupCard = (name) => el("button", { class: "card exercise", onclick: () => this.showList(name) }, [
+      el("div", { class: "card-title", text: `${t(`practice.group.${name}.title`)} →` }),
+      el("div", { class: "card-desc", text: t(`practice.group.${name}.desc`) }),
+    ]);
+    const keys = Object.keys(EXERCISES);
+    const buttons = group
+      ? keys.filter((key) => EXERCISES[key].group === group).map(exerciseCard)
+      : keys.filter((key) => !EXERCISES[key].group).map(exerciseCard);
+    const groups = group ? [] : [...new Set(keys.map((key) => EXERCISES[key].group).filter(Boolean))];
     // The exercise cards are the start buttons, so the row is the microphone
     // control and the note saying why the cards are dead.
     this.own.add(micGate(buttons));
     const row = this.own.add(startRow());
 
     append(root,
-      explainer(t("practice.intro")),
+      group ? el("button", { class: "secondary", text: t("practice.group.back"), onclick: () => this.showList(null) }) : null,
+      group ? el("h2", { text: t(`practice.group.${group}.title`) }) : null,
+      explainer(group ? t(`practice.group.${group}.intro`) : t("practice.intro")),
       chooser.element,
       el("div", { class: "row" }, [label.element]),
       row.element,
-      el("div", { class: "cards" }, buttons),
+      el("div", { class: "cards" }, [...buttons, ...groups.map(groupCard)]),
     );
   },
 
@@ -82,8 +103,9 @@ export default {
     const { key: tonic, quality } = this.chooser.value;
     const label = this.label ? this.label.value : "";
     this.teardown();
+    const group = this.group;
     this.active = new ExerciseRun({ key, spec: EXERCISES[key], tonic, quality, label,
-                                    onBack: () => this.showList() });
+                                    onBack: () => this.showList(group) });
     this.active.mount(this.root);
   },
 };

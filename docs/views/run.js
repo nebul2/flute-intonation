@@ -23,7 +23,7 @@
  * the microphone wherever they are not the note being played. */
 
 import { t, lang } from "../i18n.js";
-import { engine, dronePartialsToNotch } from "../audio/engine.js";
+import { engine, dronePartials, dronePartialsToNotch } from "../audio/engine.js";
 import * as settings from "../settings.js";
 import * as history from "../history.js";
 import { SpelledPitch, centsBetween } from "../core/pitch.js";
@@ -40,7 +40,7 @@ import { helpSection } from "../ui/help.js";
 import { compareAdjustment } from "../core/adjust.js";
 import { el, append, needle, meters, bandClass, bands, settleLabel, currentTuning, name, nameClass, runNav, explainer } from "../ui/widgets.js";
 import { checkboxField } from "../ui/fields.js";
-import { keyControl, followCentsControl, timbreControl } from "../ui/controls.js";
+import { keyControl, followCentsControl, timbreControl, cadenceRoleControl } from "../ui/controls.js";
 import { owner } from "../ui/owner.js";
 import { pedal, FORWARD, BACK } from "../ui/pedal.js";
 import * as profiles from "../profiles.js";
@@ -48,6 +48,7 @@ import { isRigid, validEntry } from "../core/bend.js";
 import { followRun, followPattern, blockFollow, referenceFrom, warmupVerdict, shiftedHz, directionOf,
          unmeasuredCanBend, MIN_FOLLOW_OFFSET } from "../core/follow.js";
 import { Exercise } from "../core/resolver.js";
+import { cadenceRun } from "../core/cadence.js";
 import { soundingTimbre } from "../audio/timbres.js";
 
 /* What this flute can bend, for Follow me: the measured profile where there
@@ -69,7 +70,7 @@ export function canBendOn(label) {
  * level says at what interval. See cr/010. */
 function followLevel(level) {
   return {
-    follow: level, feedback: "block", help: "follow",
+    follow: level, group: "follow", feedback: "block", help: "follow", timbreBind: "followTimbre",
     explain: ["follow.what", "follow.how", "follow.why"],
     build: (tonic, quality, chosen, opts = {}) =>
       followRun(tonic, quality, level, { cents: opts.cents, beats: opts.seconds, canBend: opts.canBend }),
@@ -177,6 +178,17 @@ export const EXERCISES = {
    * used for a while. */
   followUnison: followLevel("unison"),
   followOctave: followLevel("octave"),
+  /* The cadence: approach and dominant in tune, the arrival moved. The flute
+   * plays the top voice or the bass; strings by default, since a keyboard
+   * cannot arrive out of tune and a string band can. Chords put many
+   * partials into a room, so this one asks for headphones (cr/010). */
+  followCadence: {
+    follow: "cadence", cadence: true, group: "follow", feedback: "block", help: "follow",
+    timbreBind: "cadenceTimbre", headphones: true,
+    explain: ["follow.cadence.what", "follow.cadence.how", "follow.why"],
+    build: (tonic, quality, chosen, opts = {}) =>
+      cadenceRun(tonic, quality, { role: opts.role, cents: opts.cents, beats: opts.seconds }),
+  },
 };
 
 /* The stopper check: a tool, not an exercise, so it lives on its own page. */
@@ -266,7 +278,8 @@ export class ExerciseRun {
     const random = this.spec.randomisable ? s.practiceRandom === true : false;
     const built = this.spec.build(this.tonic, this.quality, this.chosenKey(), {
       seconds: Number(s.droneNoteSeconds) || 6, random,
-      ...(this.spec.follow ? { cents: Number(s.followCents) || 20, canBend: canBendOn(this.label) } : {}),
+      ...(this.spec.follow ? { cents: Number(s.followCents) || 20, canBend: canBendOn(this.label),
+                               role: s.cadenceRole === "bass" ? "bass" : "top" } : {}),
     });
     const tuning = currentTuning(s);
     this.run = {
@@ -291,7 +304,7 @@ export class ExerciseRun {
       // and the timbre the partner actually sounds in.
       blocks: new Map(),
       warmup: { attempts: 0, ways: [], passed: false, card: null },
-      timbre: soundingTimbre(s.followTimbre, s.headphones === true),
+      timbre: soundingTimbre(s[this.spec.timbreBind ?? "followTimbre"], s.headphones === true),
     };
     this.own = owner();
     this.buildUi();
@@ -356,9 +369,11 @@ export class ExerciseRun {
       // session is one offset, one sound, cue or no cue, or its blocks cannot
       // be compared with each other or with the next session's.
       follow: run.spec.follow ? [
-        own.add(followCentsControl({ bind: "followCents", onChange: () => this.restart() })),
-        own.add(timbreControl({ bind: "followTimbre", onChange: () => this.restart() })),
-        own.add(checkboxField({ label: t("follow.cue"), look: "toggle", bind: "followCue",
+        own.add(followCentsControl({ bind: "followCents", onChange: () => this.restart(),
+                                     ...(run.spec.cadence ? { label: t("cadence.cents") } : {}) })),
+        own.add(timbreControl({ bind: run.spec.timbreBind, onChange: () => this.restart() })),
+        run.spec.cadence ? own.add(cadenceRoleControl({ bind: "cadenceRole", onChange: () => this.restart() })) : null,
+        own.add(checkboxField({ label: t(run.spec.cadence ? "cadence.cue" : "follow.cue"), look: "toggle", bind: "followCue",
                                 onChange: () => this.restart() })),
         own.add(checkboxField({ label: t("follow.estimate"), look: "toggle", bind: "followEstimate",
                                 onChange: () => this.restart() })),
@@ -413,7 +428,7 @@ export class ExerciseRun {
       u.heading,
       u.keyPicker ? u.keyPicker.element : null,
       u.random ? el("div", { class: "row" }, [u.random.element]) : null,
-      u.follow ? el("div", { class: "row" }, u.follow.map((c) => c.element)) : null,
+      u.follow ? el("div", { class: "row" }, u.follow.filter(Boolean).map((c) => c.element)) : null,
       u.keyLine,
       // Short version folded away, sources behind it. The page stays clean and
       // nothing that explains WHY this exercise exists is more than a tap
@@ -424,7 +439,7 @@ export class ExerciseRun {
       el("p", { class: "muted small", text: t("practice.pedal") }),
       run.spec.report === "stopper" ? el("p", { class: "note-box", text: t("practice.stopper.protocol") }) : null,
       ((run.exercises.some((e) => e.drone) || run.spec.follow) && !run.settings.headphones)
-        ? el("p", { class: "note-box", text: t("drone.bleed") }) : null,
+        ? el("p", { class: "note-box", text: t(run.spec.headphones ? "follow.cadence.headphones" : "drone.bleed") }) : null,
       u.status, u.nav.top, u.panel, u.summary, u.blocks, u.rows, u.nav.bottom,
     );
     /* Two feet-sized intentions, and the letters for a keyboard.
@@ -498,13 +513,14 @@ export class ExerciseRun {
     if (!run.spec.follow) run.onsetDb = null;
 
     if (run.spec.follow) {
-      const unison = exercise.notes.find((n) => this.followUnison(n, exercise));
+      const at = exercise.notes.findIndex((n, i) => this.partnerShares(n, exercise, i));
       // With headphones nothing of the partner reaches the microphone, so
       // there is no bleed to measure and no level gate to set.
-      if (unison && run.onsetDb === null && run.settings.droneLevel > 0 && !run.settings.headphones) {
-        const hz = this.partnerHz(unison, exercise);
-        engine.drone.start(hz, run.settings.droneLevel * UNISON_DUCK, run.timbre);
-        engine.setNotches(this.partnerNotches(hz, hz));
+      if (at >= 0 && run.onsetDb === null && run.settings.droneLevel > 0 && !run.settings.headphones) {
+        const note = exercise.notes[at];
+        const hzs = this.partnerHzs(note, exercise, at);
+        engine.drone.start(hzs, run.settings.droneLevel * UNISON_DUCK, run.timbre);
+        engine.setNotches(this.partnerNotches(hzs, this.followTarget(note, exercise, at)));
         run.phase = "calibrating";
         run.calib = new BackgroundCalibration();
         this.ui.status.textContent = t("follow.calibrating");
@@ -533,21 +549,45 @@ export class ExerciseRun {
 
   /* Follow me's partner for one note: the bass of its harmonic context,
    * where the tuning puts it, moved by the block's offset. */
-  partnerHz(note, exercise) {
-    return shiftedHz(this.run.tuning.targetHz(note.context.bass), exercise.offsetCents);
+  /* How far note `i` is moved: the exercise's offset, or -- at a cadence,
+   * where only the arrival moves -- that note's own. */
+  noteOffset(exercise, i) {
+    return exercise.accompaniment ? exercise.accompaniment[i].offsetCents : exercise.offsetCents;
   }
 
-  followUnison(note, exercise) {
-    const target = shiftedHz(this.run.resolver.resolve(note), exercise.offsetCents);
-    return Math.abs(centsBetween(this.partnerHz(note, exercise), target)) <= 80.0;
+  /* What sounds under note `i`, in Hz: the bass alone, or the chord, each
+   * voice pure over the note's bass and the whole moved by the note's
+   * offset. */
+  partnerHzs(note, exercise, i) {
+    const { tuning, resolver } = this.run;
+    const bass = note.context.bass;
+    const voices = exercise.accompaniment ? exercise.accompaniment[i].voices : [bass];
+    return voices.map((v) => shiftedHz(v.equals(bass) ? tuning.targetHz(bass)
+                                                        : resolver.pure.targetHz(v, note.context),
+                                       this.noteOffset(exercise, i)));
+  }
+
+  followTarget(note, exercise, i) {
+    return shiftedHz(this.run.resolver.resolve(note), this.noteOffset(exercise, i));
+  }
+
+  /* Does the partner put anything into the room at the note's own pitch?
+   * The fundamental at unison -- and, as 8.7.4 on speakers showed, the
+   * second partial at the octave, which opened the note on the partner
+   * alone before the player had begun. Any partial within the acceptance
+   * window counts; where one does, the level gate and the duck apply. */
+  partnerShares(note, exercise, i) {
+    const target = this.followTarget(note, exercise, i);
+    return this.partnerHzs(note, exercise, i).some((hz) =>
+      dronePartials(hz).some((p) => Math.abs(centsBetween(p, target)) <= (this.run.spec.acceptance ?? 80.0)));
   }
 
   /* The plain partner is the drone the speaker notches were built for; any
    * richer one is only offered with headphones, where there is nothing in
    * the microphone to notch. */
-  partnerNotches(partnerHz, targetHz) {
-    return this.run.timbre === "plain"
-      ? dronePartialsToNotch(partnerHz, targetHz, this.run.spec.acceptance ?? 80.0) : [];
+  partnerNotches(partnerHzs, targetHz) {
+    return this.run.timbre === "plain" && partnerHzs.length === 1
+      ? dronePartialsToNotch(partnerHzs[0], targetHz, this.run.spec.acceptance ?? 80.0) : [];
   }
 
   finishCalibration() {
@@ -585,15 +625,18 @@ export class ExerciseRun {
     run.lastJudged = false;
     run.target = run.resolver.resolve(note);
     if (run.spec.follow) {
-      run.target = shiftedHz(run.target, exercise.offsetCents);
-      run.droneHz = run.settings.droneLevel > 0 ? this.partnerHz(note, exercise) : null;
+      run.target = this.followTarget(note, exercise, run.noteIdx);
+      run.partnerHzs = run.settings.droneLevel > 0 ? this.partnerHzs(note, exercise, run.noteIdx) : null;
+      run.droneHz = run.partnerHzs ? run.partnerHzs[0] : null;
     }
     if (engine.detector) engine.detector.reset();
     run.seg = new NoteSegmenter({
       targetHz: run.target,
       frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100,
       requiredSeconds: 0.6 * exercise.durationSeconds(note),
-      onsetDb: onsetThresholdFor(run.target, run.droneHz, run.onsetDb),
+      onsetDb: run.spec.follow
+        ? (run.droneHz && this.partnerShares(note, exercise, run.noteIdx) ? run.onsetDb : null)
+        : onsetThresholdFor(run.target, run.droneHz, run.onsetDb),
       acceptanceCents: run.spec.acceptance ?? 80.0,
     });
     run.phase = "playing";
@@ -630,8 +673,8 @@ export class ExerciseRun {
     const unison = run.seg.onsetDb !== null;
     const leadIn = Number(run.settings.followLeadIn) || 1.5;
     if (run.droneHz) {
-      engine.drone.start(run.droneHz, run.settings.droneLevel, run.timbre);
-      engine.setNotches(this.partnerNotches(run.droneHz, run.target));
+      engine.drone.start(run.partnerHzs, run.settings.droneLevel, run.timbre);
+      engine.setNotches(this.partnerNotches(run.partnerHzs, run.target));
       if (unison) {
         run.duckTimer = setTimeout(() => {
           run.duckTimer = null;
@@ -642,10 +685,13 @@ export class ExerciseRun {
     run.phase = "leadin";
     // The warm-up is in tune by definition and says so whatever the cue
     // setting; after it, the direction is shown only when asked for.
+    // At a cadence only the arrival can move; the chords before it are in
+    // tune and are said to be.
     const warmup = run.exIdx === 0;
-    const direction = directionOf(exercise.offsetCents);
-    const where = warmup ? "warmup"
-      : !run.settings.followCue ? "hidden"
+    const leading = exercise.accompaniment && run.noteIdx < exercise.notes.length - 1;
+    const direction = directionOf(this.noteOffset(exercise, run.noteIdx));
+    const where = warmup ? (exercise.accompaniment ? "warmupChord" : "warmup") : leading ? "chordInTune"
+      : !run.settings.followCue ? (exercise.accompaniment ? "arrivalHidden" : "hidden")
       : direction === "up" ? "sharp" : direction === "down" ? "flat" : "same";
     const cue = this.ui.partner;
     cue.hidden = false;
@@ -691,12 +737,13 @@ export class ExerciseRun {
     const exercise = run.exercise;
     const exIdx = run.exIdx;
     const readings = this.blockReadings(exIdx);
-    const reading = blockFollow(readings, exercise.offsetCents, this.referenceBefore(exIdx));
+    const reading = blockFollow(this.followed(exercise, readings), exercise.offsetCents, this.referenceBefore(exIdx));
     const actual = { up: "sharp", down: "flat" }[directionOf(exercise.offsetCents)] ?? "same";
     const card = el("div", { class: "result-row" }, [
       el("div", { class: "result-head" }, [
         el("span", { class: "result-name", text: t("follow.blockN", exIdx + 1, run.exercises.length) }),
       ]),
+      exercise.accompaniment ? el("div", { class: "muted small", text: exercise.name }) : null,
       el("p", { text: this.blockText(reading, exercise.offsetCents) }),
       called ? el("p", { class: `muted ${called === actual ? "good" : ""}`,
                          text: `${t("follow.youHeard", t(`follow.call.${called}`))} — ` +
@@ -705,7 +752,8 @@ export class ExerciseRun {
     ]);
     this.ui.blocks.prepend(card);
     this.ui.noteLabel.textContent = t("follow.blockN", exIdx + 1, run.exercises.length);
-    run.blocks.set(exIdx, { reading, readings, called, actual, card, offsetCents: exercise.offsetCents });
+    run.blocks.set(exIdx, { reading, parts: this.blockParts(exercise, readings), called, actual, card,
+                            offsetCents: exercise.offsetCents });
     run.phase = "block";
     this.ui.onward.hidden = false;
     this.ui.status.textContent = t("follow.blockDone");
@@ -730,7 +778,8 @@ export class ExerciseRun {
     const lines = verdict.notes.map((n) => el("div", { class: `mono ${n.ok ? "good" : bandClass(n.vsPartner ?? 99)}`,
       text: `${name(SpelledPitch.parse(n.name), s)}  ` + (n.vsPartner === null ? t("practice.notPlayed")
         : `${n.vsPartner >= 0 ? "+" : ""}${n.vsPartner.toFixed(0)}¢ — ` +
-          (n.ok ? t("follow.warmup.with") : t(`follow.warmup.${n.way}`))) }));
+          (n.ok ? t(run.spec.cadence ? "follow.cadence.warmupWith" : "follow.warmup.with")
+                : t(`follow.warmup.${n.way}`))) }));
     const recent = run.warmup.ways.slice(-3);
     const setup = !verdict.passed && recent.length === 3 && recent[0] && recent.every((w) => w === recent[0]);
     const card = el("div", { class: "result-row" }, [
@@ -738,7 +787,8 @@ export class ExerciseRun {
         el("span", { class: "result-name", text: t("follow.warmup.title", run.warmup.attempts) }),
       ]),
       ...lines,
-      el("p", { text: verdict.passed ? t("follow.warmup.passed") : t("follow.warmup.missed", within) }),
+      el("p", { text: verdict.passed ? t(run.spec.cadence ? "follow.cadence.warmupPassed" : "follow.warmup.passed")
+                                     : t("follow.warmup.missed", within) }),
       setup ? el("p", { class: "note-box", text: t(`follow.warmup.checkSetup.${recent[0]}`) }) : null,
     ]);
     if (run.warmup.card) run.warmup.card.remove();
@@ -761,8 +811,10 @@ export class ExerciseRun {
   /* The warm-up's last attempt stands as the reference. */
   acceptWarmup(readings, card) {
     const run = this.run;
-    const reading = blockFollow(readings, 0, new Map());
-    run.blocks.set(0, { reading, readings, called: null, actual: "same", card, offsetCents: 0 });
+    const exercise = run.exercises[0];
+    const reading = blockFollow(this.followed(exercise, readings), 0, new Map());
+    run.blocks.set(0, { reading, parts: this.blockParts(exercise, readings), called: null, actual: "same",
+                        card, offsetCents: 0 });
     run.phase = "block";
     this.ui.onward.textContent = t("follow.next");
     this.ui.onward.hidden = false;
@@ -794,9 +846,12 @@ export class ExerciseRun {
       if (entry.counted) run.summary.dropLast();
       entry.row.remove();
     }
+    // A cadence is played in its order; long tones come round reshuffled.
     const ex = run.exercises[0];
-    run.exercises[0] = new Exercise({ name: ex.name, notes: shuffled(ex.notes), drone: ex.drone,
-                                      tempoBpm: ex.tempoBpm, key: ex.key, offsetCents: ex.offsetCents });
+    if (!ex.accompaniment) {
+      run.exercises[0] = new Exercise({ name: ex.name, notes: shuffled(ex.notes), drone: ex.drone,
+                                        tempoBpm: ex.tempoBpm, key: ex.key, offsetCents: ex.offsetCents });
+    }
     this.ui.onward.hidden = true;
     this.ui.moveOn.hidden = true;
     run.exIdx = 0;
@@ -822,7 +877,24 @@ export class ExerciseRun {
   /* The notes of one block as played: name and reading against the partner. */
   blockReadings(exIdx) {
     return this.run.log.filter((e) => e.exIdx === exIdx && e.result)
-      .map((e) => ({ name: e.result.pitch.name, vsPartner: e.result.meanCents }));
+      .map((e) => ({ name: e.result.pitch.name, vsPartner: e.result.meanCents, noteIdx: e.noteIdx }));
+  }
+
+  /* The notes whose following is measured: every note of a block of long
+   * tones, and only the arrival of a cadence -- the chords before it never
+   * move, so there is nothing there to follow. */
+  followed(exercise, readings) {
+    if (!exercise.accompaniment) return readings;
+    const last = exercise.notes.length - 1;
+    return readings.filter((r) => r.noteIdx === last);
+  }
+
+  /* A block's readings grouped by the offset each was played over, which is
+   * what the reference needs: at a cadence the approach and the dominant are
+   * in tune even when the arrival is not, so each note is its own part. */
+  blockParts(exercise, readings) {
+    if (!exercise.accompaniment) return [{ offsetCents: exercise.offsetCents, readings }];
+    return readings.map((r) => ({ offsetCents: this.noteOffset(exercise, r.noteIdx), readings: [r] }));
   }
 
   /* Where each note was last played with the partner in tune, before this
@@ -831,7 +903,7 @@ export class ExerciseRun {
   referenceBefore(exIdx) {
     return referenceFrom([...this.run.blocks.entries()]
       .filter(([i]) => i < exIdx).sort(([a], [b]) => a - b)
-      .map(([, b]) => ({ offsetCents: b.offsetCents, readings: b.readings })));
+      .flatMap(([, b]) => b.parts));
   }
 
   /* Two things, kept apart: how far you moved from your own in-tune playing
@@ -847,13 +919,15 @@ export class ExerciseRun {
       : t("follow.landed", fmt(reading.vsPartner), t(reading.vsPartner >= 0 ? "follow.above" : "follow.below"));
     const sat = close(reading.vsPartner) ? t("follow.refWith")
       : t("follow.refSat", fmt(reading.vsPartner), t(reading.vsPartner >= 0 ? "follow.above" : "follow.below"));
-    if (reading.shift === null) return `${t("follow.reference")} ${sat}`;
+    // At a cadence the subject is the arrival, not a partner.
+    const k = (key) => (this.run.spec.cadence ? key.replace("follow.", "follow.cadence.") : key);
+    if (reading.shift === null) return `${t(k("follow.reference"))} ${sat}`;
     if (Math.abs(offsetCents) < MIN_FOLLOW_OFFSET) {
       return close(reading.shift)
-        ? `${t("follow.stayedWith")} ${sat}`
-        : `${t("follow.movedAnyway", fmt(reading.shift), way(reading.shift))} ${sat}`;
+        ? `${t(k("follow.stayedWith"))} ${sat}`
+        : `${t(k("follow.movedAnyway"), fmt(reading.shift), way(reading.shift))} ${sat}`;
     }
-    const partner = t("follow.partnerWent", fmt(offsetCents), way(offsetCents));
+    const partner = t(k("follow.partnerWent"), fmt(offsetCents), way(offsetCents));
     const towards = Math.sign(reading.shift) === Math.sign(offsetCents);
     const you = close(reading.shift) ? t("follow.youStayed")
       : towards
@@ -1155,9 +1229,10 @@ export class ExerciseRun {
       const exercise = run.exercises[run.exIdx];
       if (exercise && !run.blocks.has(run.exIdx)) {
         const readings = this.blockReadings(run.exIdx);
-        const reading = blockFollow(readings, exercise.offsetCents, this.referenceBefore(run.exIdx));
-        if (reading) run.blocks.set(run.exIdx, { reading, readings, called: null, actual: null, card: null,
-                                                 offsetCents: exercise.offsetCents });
+        const reading = blockFollow(this.followed(exercise, readings), exercise.offsetCents,
+                                    this.referenceBefore(run.exIdx));
+        if (reading) run.blocks.set(run.exIdx, { reading, parts: this.blockParts(exercise, readings), called: null,
+                                                 actual: null, card: null, offsetCents: exercise.offsetCents });
       }
       parts.push(this.followReport());
     }

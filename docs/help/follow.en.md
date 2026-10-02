@@ -51,6 +51,24 @@ the headjoint, before going on.
   flat, and low C and low F♯ will not be asked to go sharp. The list comes
   from one traverso, as reported in playing, not measured.
 
+## The cadence
+
+The third exercise in the group. Each cadence is three chords, played by
+strings (or organ): an approach (IV, ii6 or VI, drawn afresh each time), the
+dominant (with its seventh about half the time), and the tonic. The approach
+and the dominant are always pure over their own bass. The **final chord**, all
+of it, may arrive flat, sharp, or in tune. A keyboard cannot do that; a
+string band arriving a shade flat together does it all the time.
+
+You play the **top voice** (1–7–1 over IV, 2–7–1 over ii6, 3–2–1 over VI) or
+the **bass** (4–5–1 or 6–5–1). Every cadence ends on the same note, so the
+follow is measured on that note alone, from where you played it when the
+arrival was in tune. The first cadence is the warm-up: in tune, repeated
+until all three notes are within the line.
+
+It needs **headphones**: a chord through speakers puts more partials into
+the microphone than the app can filter out.
+
 ## What you see
 
 Nothing while you play. At the end of each block, one card says where the

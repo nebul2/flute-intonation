@@ -116,7 +116,9 @@ export function followPool(tonic, quality, level) {
   if (!spec) throw new Error(`no follow level ${level}`);
   const signature = KEY_SIGNATURES[scaleKeyFor(tonic, quality)];
   const low = SpelledPitch.parse(spec.low), high = SpelledPitch.parse(spec.high);
-  const start = new SpelledPitch(tonic, signature[tonic] ?? 0, 3);
+  // `tonic` may be a key's name ("Bb"): the letter is its first character,
+  // the signature spells the rest.
+  const start = new SpelledPitch(tonic[0], signature[tonic[0]] ?? 0, 3);
   const pool = [];
   for (let d = 0; d < 7 * 4; d++) {
     const pitch = ascend(start, d, signature);

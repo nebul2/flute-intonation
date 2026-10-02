@@ -18,9 +18,15 @@ export class TargetNote {
 
 /* `offsetCents` is how far the bass sounds from where the tuning puts it:
  * zero everywhere except "Follow me", whose partner goes flat or sharp and
- * expects to be followed. Every target in the exercise moves with it. */
+ * expects to be followed. Every target in the exercise moves with it.
+ *
+ * `accompaniment`, when present, is one entry per note -- {voices, offsetCents}
+ * -- for an exercise whose partner is a chord that changes under each note
+ * (the cadence). Its voices are spelled pitches tuned pure above the note's
+ * harmonic-context bass, moved by that note's own offset. */
 export class Exercise {
-  constructor({ name, notes, drone = null, tempoBpm = 60.0, key = "", offsetCents = 0 }) {
+  constructor({ name, notes, drone = null, tempoBpm = 60.0, key = "", offsetCents = 0,
+                accompaniment = null }) {
     if (!(tempoBpm > 0)) throw new Error("tempo_bpm must be positive");
     this.name = name;
     this.notes = Object.freeze([...notes]);
@@ -28,6 +34,10 @@ export class Exercise {
     this.tempoBpm = tempoBpm;
     this.key = key;
     this.offsetCents = offsetCents;
+    this.accompaniment = accompaniment ? Object.freeze([...accompaniment]) : null;
+    if (this.accompaniment && this.accompaniment.length !== this.notes.length) {
+      throw new Error("accompaniment needs one entry per note");
+    }
     Object.freeze(this);
   }
   get secondsPerBeat() { return 60.0 / this.tempoBpm; }

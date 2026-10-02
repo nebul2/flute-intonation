@@ -56,6 +56,8 @@ export const DEFAULTS = Object.freeze({
   followEstimate: false,
   followTimbre: "flute",
   followLeadIn: 1.5,
+  cadenceRole: "top",      // the flute's part at a cadence: "top" voice or "bass"
+  cadenceTimbre: "strings",
 });
 
 let state = null;

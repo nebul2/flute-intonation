@@ -48,6 +48,31 @@ the headjoint. Only the kept attempt is scored; the count goes in the
 record. The green box at the end of every exercise is the finished panel; it
 now says "Finished — your results are below".
 
+**8.8, exercise B and the octave fix.** On speakers the unison level worked
+but the octave did not: the partner alone started the note, then the
+player's entry restarted the bar. At the octave the partner's second partial
+*is* the note, and the gate only looked at its fundamental. The gate and the
+duck now apply wherever any partial the partner sounds lands on the note.
+(The older drone exercises still guard only the fundamental; Calibration's
+octave note has the same exposure and has not been reported.)
+
+Exercise B, the cadence, is built as designed. Two changes from the design
+text above: the top voice's line follows the approach (1–7–1 over IV,
+2–7–1 over ii6, 3–2–1 over VI) so every note is a chord tone, and the follow
+is measured on the arrival note alone, which every cadence shares, against
+the player's own in-tune arrivals. The first cadence is the warm-up, as in
+A. Approach and dominant voices are pure over their own bass; the whole
+final chord moves. Headphones are asked for and the reason given; without
+them it plays plain chords and warns.
+
+The Practice list now shows Follow me as one card opening its own page
+(`group` on the exercise spec), so further levels do not lengthen the list.
+
+Found on the way and **not fixed**: the Practice page passes a flat key as
+its name ("Bb"), and the older exercise builders expect a letter, so
+Calibration, Interval in context and the like throw on B♭, E♭ and A♭
+major. Follow me and the cadence accept the name.
+
 ## Why
 
 > Idea for a new exercise: "Follow me out of tune". This is supposed to
