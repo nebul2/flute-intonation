@@ -73,6 +73,16 @@ its name ("Bb"), and the older exercise builders expect a letter, so
 Calibration, Interval in context and the like throw on B♭, E♭ and A♭
 major. Follow me and the cadence accept the name.
 
+**8.8.1.** The player could not tell whether the cadence's flat / in tune /
+sharp question was about their landing or the chord's. It is about the
+chord, and now says so on the buttons ("Chord arrived flat") and in the
+question; the long tones' buttons name the partner the same way. The middle
+answer had read "Didn't move", which was wrong: what is checked is whether
+the partner was in tune, and after a flat block an in-tune one is a move.
+Also reported: the cadence on speakers, without headphones, heard the
+flute cleanly (MacBook, quiet room). "Needs headphones" became "headphones
+recommended", with that one setup named.
+
 ## Why
 
 > Idea for a new exercise: "Follow me out of tune". This is supposed to

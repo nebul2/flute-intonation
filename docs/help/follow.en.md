@@ -66,8 +66,14 @@ follow is measured on that note alone, from where you played it when the
 arrival was in tune. The first cadence is the warm-up: in tune, repeated
 until all three notes are within the line.
 
-It needs **headphones**: a chord through speakers puts more partials into
-the microphone than the app can filter out.
+**Headphones are recommended.** A chord through speakers puts more partials
+into the microphone than the app can filter out. On a MacBook in a quiet
+room it has still heard the flute cleanly over them; that is one setup, not
+a promise. Without headphones the chords play as plain tones.
+
+With **Before each card, let me say where the final chord arrived** on, the
+question at the end of each cadence is about the *chord*, not about you:
+did it arrive flat, in tune or sharp?
 
 ## What you see
 
@@ -102,8 +108,9 @@ session has at least two blocks each way and the gap is at least 25 points.
 - **Show which way the partner went.** On, the direction is shown while the
   partner plays alone. That is a hint about the task, not a reading of your
   playing. Off, it is ears only.
-- **Say which way before seeing the block.** At the end of each block you call
-  the partner flat, sharp or unchanged, and only then see the card. Making
+- **Say where the partner was, before each card.** At the end of each block
+  you say where the *partner* was -- flat, in tune or sharp, not how you
+  played -- and only then see the card. Making
   your own judgement before the answer is one of the few things the practice
   research supports with any consistency.
 - **The partner's level.** With speakers, at unison, the partner plays alone

@@ -375,7 +375,7 @@ export class ExerciseRun {
         run.spec.cadence ? own.add(cadenceRoleControl({ bind: "cadenceRole", onChange: () => this.restart() })) : null,
         own.add(checkboxField({ label: t(run.spec.cadence ? "cadence.cue" : "follow.cue"), look: "toggle", bind: "followCue",
                                 onChange: () => this.restart() })),
-        own.add(checkboxField({ label: t("follow.estimate"), look: "toggle", bind: "followEstimate",
+        own.add(checkboxField({ label: t(run.spec.cadence ? "cadence.estimate" : "follow.estimate"), look: "toggle", bind: "followEstimate",
                                 onChange: () => this.restart() })),
       ] : null,
       // Which key we are in now. Only exercises that change key on their own
@@ -392,7 +392,10 @@ export class ExerciseRun {
       // Follow me: which way did the partner go? Asked at the end of a block,
       // before its card, when the player has chosen to be asked.
       estimate: el("div", { class: "judge", hidden: true }, ["flat", "same", "sharp"].map((call) =>
-        el("button", { class: "secondary big", text: t(`follow.call.${call}`), onclick: () => this.estimate(call) }))),
+        // Say whose pitch is being called: at a cadence it was read as "how
+        // did I land?" when it means "where did the chord arrive?".
+        el("button", { class: "secondary big", text: t(`${run.spec.cadence ? "cadence" : "follow"}.call.${call}`),
+                       onclick: () => this.estimate(call) }))),
       // A finished block's card waits here until the player moves on.
       onward: el("button", { class: "primary", hidden: true, text: t("follow.next"), onclick: () => this.onward() }),
       // The warm-up's way out when a note will not come in: a button, never
@@ -717,7 +720,7 @@ export class ExerciseRun {
     if (run.settings.followEstimate) {
       run.phase = "estimating";
       this.ui.estimate.hidden = false;
-      this.ui.status.textContent = t("follow.whichWay");
+      this.ui.status.textContent = t(run.spec.cadence ? "cadence.whichWay" : "follow.whichWay");
       return;
     }
     this.showBlock(null);
@@ -746,9 +749,9 @@ export class ExerciseRun {
       exercise.accompaniment ? el("div", { class: "muted small", text: exercise.name }) : null,
       el("p", { text: this.blockText(reading, exercise.offsetCents) }),
       called ? el("p", { class: `muted ${called === actual ? "good" : ""}`,
-                         text: `${t("follow.youHeard", t(`follow.call.${called}`))} — ` +
+                         text: `${t("follow.youHeard", t(`${run.spec.cadence ? "cadence" : "follow"}.call.${called}`))} — ` +
                                (called === actual ? t("practice.agreed")
-                                                  : t("follow.itWent", t(`follow.call.${actual}`))) }) : null,
+                                                  : t("follow.itWent", t(`${run.spec.cadence ? "cadence" : "follow"}.call.${actual}`))) }) : null,
     ]);
     this.ui.blocks.prepend(card);
     this.ui.noteLabel.textContent = t("follow.blockN", exIdx + 1, run.exercises.length);

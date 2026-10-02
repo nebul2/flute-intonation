@@ -70,8 +70,15 @@ suivi se mesure sur cette seule note, à partir de là où tu la jouais quand
 l'arrivée était juste. La première cadence est l'échauffement : juste,
 recommencée jusqu'à ce que les trois notes soient à l'intérieur de la limite.
 
-Il faut un **casque** : un accord sur haut-parleurs envoie dans le micro plus
-d'harmoniques que l'appli ne sait en filtrer.
+**Le casque est recommandé.** Un accord sur haut-parleurs envoie dans le micro
+plus d'harmoniques que l'appli ne sait en filtrer. Sur un MacBook dans une
+pièce calme, elle a quand même bien entendu la flûte par-dessus ; c'est un
+seul cas, pas une promesse. Sans casque, les accords sont joués en sons
+simples.
+
+Avec **Avant chaque carte, me laisser dire où l'accord final est arrivé**, la
+question à la fin de chaque cadence porte sur l'*accord*, pas sur toi : est-il
+arrivé bas, juste ou haut ?
 
 ## Ce que tu vois
 
@@ -110,8 +117,9 @@ moins 25 points.
 - **Montrer dans quel sens le partenaire est parti.** Activé, le sens
   s'affiche pendant que le partenaire joue seul. C'est une indication sur la
   tâche, pas une mesure de ton jeu. Désactivé, l'oreille seule.
-- **Dire le sens avant de voir le bloc.** À la fin de chaque bloc, tu annonces
-  plus bas, plus haut ou pas bougé, et seulement ensuite tu vois la carte. Se
+- **Dire où était le partenaire, avant chaque carte.** À la fin de chaque
+  bloc, tu dis où était le *partenaire* -- plus bas, juste ou plus haut, pas
+  comment tu as joué -- et seulement ensuite tu vois la carte. Se
   faire son propre jugement avant la réponse est l'une des rares choses que
   la recherche sur l'apprentissage soutient avec une certaine constance.
 - **Le niveau du partenaire.** Sur haut-parleurs, à l'unisson, le partenaire
