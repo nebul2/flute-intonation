@@ -8,8 +8,8 @@ import { BAROQUE_415, TemperamentTuning, parseScala } from "../core/tuning.js";
 import { TEMPERAMENTS } from "../core/temperaments.js";
 import { Mode, TargetResolver } from "../core/resolver.js";
 import {
-  FOLLOW_LEVELS, offsetSequence, followPool, followBlock, followRun, followOf, blockFollow,
-  followPattern, shiftedHz, unmeasuredCanBend, directionOf, MIN_FOLLOW_OFFSET,
+  FOLLOW_LEVELS, offsetSequence, followPool, followBlock, followRun, followSet, blockFollow,
+  referenceFrom, followPattern, shiftedHz, unmeasuredCanBend, directionOf, MIN_FOLLOW_OFFSET,
 } from "../core/follow.js";
 
 const P = (s) => SpelledPitch.parse(s);
@@ -134,35 +134,97 @@ test("the pure target is the interval above the shifted partner", () => {
 
 /* ---- the follow ratio ------------------------------------------------ */
 
-test("following all the way, not at all, and half", () => {
-  // Partner 20 flat. Sitting on the partner reads 0 against it: followed.
-  approx(followOf(0, -20).ratio, 1, 1e-9);
-  approx(followOf(0, -20).moved, -20, 1e-9);
-  // Staying where a tuner would put you reads +20 against the partner.
-  approx(followOf(20, -20).ratio, 0, 1e-9);
-  approx(followOf(10, -20).ratio, 0.5, 1e-9);
-  // Overshooting the partner gives more than 100%.
-  assert.ok(followOf(-5, -20).ratio > 1);
-  // Sharp partner, the same arithmetic.
-  approx(followOf(-6, 20).ratio, 0.7, 1e-9);
+const R = (name, vsPartner) => ({ name, vsPartner });
+
+test("a session plays the same notes in every block, in a fresh order", () => {
+  const blocks = followRun("D", "major", "unison", { blocks: 6, rng: seeded(7) });
+  const names = (b) => b.notes.map((n) => n.pitch.name).sort().join(" ");
+  for (const b of blocks) assert.equal(names(b), names(blocks[0]));
+  assert.equal(new Set(blocks[0].notes.map((n) => n.pitch.name)).size, 4);
 });
 
-test("no ratio when the partner barely moved", () => {
-  assert.equal(followOf(3, 0).ratio, null);
-  assert.equal(followOf(3, MIN_FOLLOW_OFFSET - 1).ratio, null);
-  approx(followOf(3, 0).moved, 3, 1e-9);
+test("the set prefers notes that bend both ways", () => {
+  const pool = followPool("C", "major", "unison");
+  for (let seed = 1; seed <= 20; seed++) {
+    const set = followSet(pool, { notesPerBlock: 4, rng: seeded(seed) });
+    assert.ok(!set.some((p) => p.pitch.name === "F4"), "F4 will not come down; others are available");
+  }
 });
 
-test("a block's reading is the mean over notes played, ignoring skipped ones", () => {
-  const b = blockFollow([4, 8, NaN, 6], -20);
-  assert.equal(b.notes, 3);
-  approx(b.vsPartner, 6, 1e-9);
-  approx(b.ratio, 0.7, 1e-9);
-  assert.equal(blockFollow([NaN], -20), null);
+test("following is measured from your own in-tune reading, not the tuning", () => {
+  // You play A4 30 cents sharp of the tuning while the partner is in tune.
+  const reference = referenceFrom([{ offsetCents: 0, readings: [R("A4", 30)] }]);
+  approx(reference.get("A4"), 30, 1e-9);
+  // Partner 20 flat, you stay put: still 30 sharp of the tuning, 50 above them.
+  approx(blockFollow([R("A4", 50)], -20, reference).ratio, 0, 1e-9);
+  // All the way: 30 above them again, i.e. 20 lower than before.
+  approx(blockFollow([R("A4", 30)], -20, reference).ratio, 1, 1e-9);
+  approx(blockFollow([R("A4", 30)], -20, reference).shift, -20, 1e-9);
+  // Half.
+  approx(blockFollow([R("A4", 40)], -20, reference).ratio, 0.5, 1e-9);
+  // Sharp partner, overshooting.
+  assert.ok(blockFollow([R("A4", 35)], 20, reference).ratio > 1);
+});
+
+test("the first block has nothing to compare with, and says so", () => {
+  const b = blockFollow([R("A4", 30), R("E5", 10)], 0, new Map());
+  assert.equal(b.shift, null);
+  assert.equal(b.ratio, null);
+  approx(b.vsPartner, 20, 1e-9);
+});
+
+test("no ratio when the partner barely moved; a catch reports the shift", () => {
+  const reference = new Map([["A4", 30]]);
+  const b = blockFollow([R("A4", 36)], 0, reference);
+  assert.equal(b.ratio, null);
+  approx(b.shift, 6, 1e-9);
+  assert.equal(blockFollow([R("A4", 36)], MIN_FOLLOW_OFFSET - 1, reference).ratio, null);
+});
+
+test("only in-tune blocks set the reference, and the latest one wins", () => {
+  const reference = referenceFrom([
+    { offsetCents: 0, readings: [R("A4", 30)] },
+    { offsetCents: -20, readings: [R("A4", 40)] },     // moving: not a reference
+    { offsetCents: 0, readings: [R("A4", 24), R("E5", NaN)] },
+  ]);
+  approx(reference.get("A4"), 24, 1e-9);
+  assert.ok(!reference.has("E5"), "a skipped note sets nothing");
+});
+
+test("skipped notes are left out of a block's reading", () => {
+  const reference = new Map([["A4", 0], ["E5", 0]]);
+  const b = blockFollow([R("A4", -10), R("E5", NaN)], 20, reference);
+  assert.equal(b.notes, 1);
+  approx(b.ratio, 0.5, 1e-9);
+  assert.equal(blockFollow([R("A4", NaN)], 20, reference), null);
+});
+
+/* The take that found the flaw: recordings/follow-unison-follow.wav, the
+ * partner's pitch read from each lead-in and the flute against it from the
+ * note that followed (8.7 drew different notes each block, so only some
+ * have a reference). Measured from the tuning, block 2 read as 198% and
+ * block 3 as -137%: a flute sitting 20-55 cents sharp, counted as following.
+ * Measured from the player's own block 1, it is modest following up and
+ * almost none down -- which is what the numbers show by eye. */
+test("real take: a flute sitting sharp is not counted as following", () => {
+  const block1 = [R("E5", 34.2), R("F#4", 3.4), R("F#5", 27.2), R("A4", 55.1)];
+  const block2 = [R("E5", 26.4), R("G4", 19.0), R("F#4", 1.1), R("A4", 31.9)];
+  const block3 = [R("C#5", 39.4), R("B5", 49.8), R("F#5", 41.3), R("E5", 58.9)];
+  const reference = referenceFrom([{ offsetCents: 0, readings: block1 }]);
+  const up = blockFollow(block2, 20, reference);
+  const down = blockFollow(block3, -20, reference);
+  assert.equal(up.compared, 3);
+  approx(up.ratio, 0.44, 0.02, "followed sharp");
+  assert.equal(down.compared, 2);
+  approx(down.ratio, 0.03, 0.02, "followed flat");
+  // What the tuning-based figure would have said.
+  const fromTuning = (rs, off) => rs.reduce((a, r) => a + r.vsPartner + off, 0) / rs.length / off;
+  assert.ok(fromTuning(block2, 20) > 1.9 && fromTuning(block3, -20) < -1.3);
 });
 
 test("a pattern is named only when the session supports one", () => {
-  const block = (vsPartner, offset) => blockFollow([vsPartner], offset);
+  const ref = new Map([["A4", 0]]);
+  const block = (vsPartner, offset) => blockFollow([R("A4", vsPartner)], offset, ref);
   // Follows flat fully, sharp hardly at all, two blocks each way.
   const lopsided = [block(0, 0), block(0, -20), block(2, -20), block(-16, 20), block(-18, 20)];
   const p = followPattern(lopsided);
@@ -170,6 +232,8 @@ test("a pattern is named only when the session supports one", () => {
   approx(p.flat, 0.95, 1e-9);
   approx(p.sharp, 0.15, 1e-9);
   assert.equal(p.catchBlocks, 1);
+  // A first block, with no reference, is not a catch.
+  assert.equal(followPattern([blockFollow([R("A4", 3)], 0, new Map())]).catchBlocks, 0);
   // One block each way is not enough to say anything.
   assert.equal(followPattern([block(0, -20), block(-18, 20)]).readier, null);
   // Close enough is not a pattern.

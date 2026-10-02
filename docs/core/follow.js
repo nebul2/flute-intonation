@@ -11,6 +11,17 @@
  * figure, the follow ratio: how far you moved, as a share of how far the
  * partner moved.
  *
+ * "How far you moved" is measured from where *you* played the same note
+ * while the partner was in tune, never from where the tuning puts it. The
+ * first real take (8.7, unison, 2 October 2026) sat 20-55 cents sharp of
+ * the tuning on nearly every note whatever the partner did, and measured
+ * from the tuning that read as 200% following a sharp partner and as going
+ * the wrong way with a flat one. A flute sitting sharp is not following
+ * anybody. So a session plays one set of notes in every block, the first
+ * block is in tune and is the reference, and every in-tune block after it
+ * refreshes the reference -- a difference between the player's own
+ * soundings, as in Adjust to the drone.
+ *
  * Pure: no audio, no DOM, no storage. What the flute can bend is passed in
  * as a predicate, because the per-flute profiles live outside core/.
  */
@@ -142,50 +153,83 @@ export function followBlock(pool, { offsetCents = 0, notesPerBlock = FOLLOW_DEFA
   });
 }
 
-/* A whole session: one block per offset in the sequence. */
+/* The notes a whole session plays: drawn once, and played in every block in
+ * a fresh order, so each has an in-tune reference to be measured against.
+ * Notes the flute can bend both ways are preferred, since the partner will
+ * go both ways; if there are too few, the rest of the pool fills the set. */
+export function followSet(pool, { notesPerBlock = FOLLOW_DEFAULTS.notesPerBlock,
+                                  canBend = unmeasuredCanBend, rng = Math.random } = {}) {
+  const either = (p) => canBend(p.pitch, "up") && canBend(p.pitch, "down");
+  const preferred = shuffled(pool.filter(either), rng);
+  const rest = shuffled(pool.filter((p) => !either(p)), rng);
+  return [...preferred, ...rest].slice(0, notesPerBlock);
+}
+
+/* A whole session: one block per offset in the sequence, every block the
+ * same set of notes. The set's own bend check has already been made, so the
+ * blocks are not filtered again -- a note left out of one block would have
+ * nothing to compare with. */
 export function followRun(tonic, quality, level, { blocks, cents, catchRate, notesPerBlock,
                                                    beats, canBend, rng = Math.random } = {}) {
   const pool = followPool(tonic, quality, level);
   const key = scaleKeyFor(tonic, quality);
+  const set = followSet(pool, { notesPerBlock, canBend, rng });
   return offsetSequence({ blocks, cents, catchRate, rng })
-    .map((offsetCents) => followBlock(pool, { offsetCents, notesPerBlock, beats, canBend, rng, key }));
+    .map((offsetCents) => followBlock(set, { offsetCents, notesPerBlock: set.length, beats,
+                                             canBend: () => true, rng, key }));
 }
 
-/* What one note, or one block's mean, says about following.
+/* The reference: for each note, where it was last played while the partner
+ * was in tune, in cents from the tuning's target. Built from the blocks
+ * before the one being read, in order. `blocks` is [{offsetCents, readings}]
+ * where a reading is {name, vsPartner} -- the spelled name and analyseNote's
+ * meanCents against the partner. */
+export function referenceFrom(blocks) {
+  const reference = new Map();
+  for (const { offsetCents, readings } of blocks) {
+    if (Math.abs(offsetCents) >= MIN_FOLLOW_OFFSET) continue;
+    for (const r of readings) {
+      if (Number.isFinite(r.vsPartner)) reference.set(r.name, r.vsPartner + offsetCents);
+    }
+  }
+  return reference;
+}
+
+/* One block, read.
  *
- * `vsPartner` is the reading against the partner's target (analyseNote's
- * meanCents), so where you sat relative to the in-tune target is that plus
- * the offset: `moved`. The ratio is moved over offset -- 1 is all the way
- * with the partner, 0 is where a tuner would have put you -- and is null
- * when the partner did not move far enough for it to mean anything. */
-export function followOf(vsPartner, offsetCents) {
-  const moved = vsPartner + offsetCents;
-  const ratio = Math.abs(offsetCents) >= MIN_FOLLOW_OFFSET ? moved / offsetCents : null;
-  return { moved, ratio, vsPartner, offsetCents };
-}
-
-/* A block reduced to one reading: the mean against the partner over the
- * notes actually played. Null when none were. */
-export function blockFollow(vsPartnerCents, offsetCents) {
-  const played = vsPartnerCents.filter((c) => Number.isFinite(c));
+ * `vsPartner` is the mean against the partner over the notes played: where
+ * you sat relative to them, which is worth saying on its own. `shift` is how
+ * far you moved from your own reference for the same notes, over the notes
+ * that have one; `ratio` is that over the partner's offset -- 1 is all the
+ * way with the partner, 0 is where you played the note when it was in tune.
+ * Null when nothing was played, `shift` null when no note has a reference
+ * yet (the first block), `ratio` null when the partner did not move far
+ * enough for it to mean anything. */
+export function blockFollow(readings, offsetCents, reference = new Map()) {
+  const played = readings.filter((r) => Number.isFinite(r.vsPartner));
   if (!played.length) return null;
-  const mean = played.reduce((a, b) => a + b, 0) / played.length;
-  return { ...followOf(mean, offsetCents), notes: played.length };
+  const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const shifts = played.filter((r) => reference.has(r.name))
+    .map((r) => r.vsPartner + offsetCents - reference.get(r.name));
+  const shift = shifts.length ? mean(shifts) : null;
+  const ratio = shift !== null && Math.abs(offsetCents) >= MIN_FOLLOW_OFFSET ? shift / offsetCents : null;
+  return { vsPartner: mean(played.map((r) => r.vsPartner)), shift, ratio, offsetCents,
+           notes: played.length, compared: shifts.length };
 }
 
 /* Across a session: the mean ratio each way, and whether one direction is
  * followed more readily than the other -- named only when the session holds
- * enough blocks each way and the gap is real. A catch block contributes how
- * far you moved when nothing asked you to. */
+ * enough blocks each way and the gap is real. An in-tune block after the
+ * first contributes how far you moved when nothing asked you to. */
 export function followPattern(blocks) {
   const of = (dir) => blocks.filter((b) => b && directionOf(b.offsetCents) === dir && b.ratio !== null);
   const meanRatio = (list) => (list.length ? list.reduce((a, b) => a + b.ratio, 0) / list.length : null);
   const flat = of("down"), sharp = of("up");
-  const catches = blocks.filter((b) => b && Math.abs(b.offsetCents) < MIN_FOLLOW_OFFSET);
+  const catches = blocks.filter((b) => b && Math.abs(b.offsetCents) < MIN_FOLLOW_OFFSET && b.shift !== null);
   const result = {
     flat: meanRatio(flat), flatBlocks: flat.length,
     sharp: meanRatio(sharp), sharpBlocks: sharp.length,
-    catchMoved: catches.length ? catches.reduce((a, b) => a + b.moved, 0) / catches.length : null,
+    catchMoved: catches.length ? catches.reduce((a, b) => a + b.shift, 0) / catches.length : null,
     catchBlocks: catches.length,
     readier: null,
   };

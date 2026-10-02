@@ -15,9 +15,12 @@ jamais. Celle-ci bouge.
 - Le partenaire joue chaque note **d'abord, seul**, un instant. Puis tu le
   rejoins sur la même note (ou une octave au-dessus) et tu tiens jusqu'à ce
   que la barre soit pleine.
-- Les notes vont par **blocs de quatre**. Dans un bloc, le partenaire ne bouge
-  pas. Entre deux blocs, il peut baisser, monter, ou rester où il est.
-- Le **premier bloc est toujours juste**, pour partir de quelque part.
+- Les notes vont par **blocs de quatre** : les quatre mêmes notes dans chaque
+  bloc d'une séance, dans un ordre différent à chaque fois. Dans un bloc, le
+  partenaire ne bouge pas. Entre deux blocs, il peut baisser, monter, ou
+  rester où il est.
+- Le **premier bloc est toujours juste**, et c'est ta référence : jusqu'où tu
+  suis se mesure à partir de là où tu jouais ces mêmes notes à ce moment-là.
 - Ensuite, environ **un bloc sur quatre est juste aussi**. Sans eux, la leçon
   serait « bouge toujours » au lieu de « écoute ».
 - Le partenaire ne demande jamais à une note d'aller où ta flûte ne peut pas
@@ -34,10 +37,21 @@ le partenaire et jusqu'où tu l'as suivi :
 > Le partenaire est parti de 20¢ plus bas. Tu l'as suivi de 14¢ (70 %) et tu
 > étais 6¢ au-dessus.
 
-**100 %**, c'est jusqu'au partenaire. **0 %**, c'est là où un accordeur
-t'aurait mis. Plus de 100 %, tu l'as dépassé. Le pourcentage n'est donné que
-si le partenaire a bougé d'au moins 8 cents ; en dessous, ce serait un
-rapport entre deux bruits.
+**100 %**, tu as bougé jusqu'au partenaire. **0 %**, tu as joué les notes là
+où tu les jouais quand le partenaire était juste. Plus de 100 %, tu l'as
+dépassé. Le pourcentage n'est donné que si le partenaire a bougé d'au moins
+8 cents ; en dessous, ce serait un rapport entre deux bruits.
+
+Pourquoi mesurer à partir de ton propre jeu plutôt que du tempérament : la
+première vraie prise de cet exercice était de 20 à 55 cents trop haute sur
+presque toutes les notes, quoi que fasse le partenaire. Mesuré à partir du
+tempérament, cela se lisait comme suivre deux fois trop un partenaire qui
+monte, et suivre à l'envers un partenaire qui baisse. Une flûte qui joue haut
+ne suit personne : elle ne doit pas compter.
+
+Où tu te situais par rapport au partenaire est un autre chiffre (« tu étais
+6¢ au-dessus »), et il vaut aussi d'être lu : c'est ce que ton partenaire
+entend vraiment.
 
 Les mesures note par note sont gardées et montrées à la fin, avec un résumé
 par sens. « Tu suis plus volontiers vers le bas que vers le haut » n'est dit
@@ -56,6 +70,10 @@ moins 25 points.
   plus bas, plus haut ou pas bougé, et seulement ensuite tu vois la carte. Se
   faire son propre jugement avant la réponse est l'une des rares choses que
   la recherche sur l'apprentissage soutient avec une certaine constance.
+- **Le niveau du partenaire.** Sur haut-parleurs, à l'unisson, le partenaire
+  joue seul à plein niveau et baisse d'environ 12 dB juste avant que tu
+  entres, pour que ce qui revient dans le micro ne soit pas pris pour ta
+  note. Au casque, il ne baisse jamais.
 - **Le son du partenaire.** Bourdon simple, flûte, cordes ou orgue. Tout sauf
   le bourdon simple demande un casque. Sur haut-parleurs, un son plus riche
   revient dans le micro avec plus d'harmoniques que l'appli ne sait en

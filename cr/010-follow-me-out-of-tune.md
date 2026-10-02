@@ -12,6 +12,28 @@ the existing one in Settings, not a new one on the check page. A finished
 block waits for the player to move on (button or forward pedal) instead of
 moving on by itself.
 
+**8.7.1, after the first real take** (`recordings/follow-unison-follow.wav`,
+unison, speakers, 2 October 2026). The partner read exactly where the app put
+it in every lead-in, so the audio path is sound. Three findings:
+
+- **The follow ratio was measured from the wrong place.** The player sat
+  20-55 ¢ sharp of the tuning on nearly every note whatever the partner did.
+  Measured from the tuning, that read as ≈200% following a sharp partner and
+  as following a flat one the wrong way. It is now measured from the player's
+  own in-tune playing of the same notes: a session plays one set of four
+  notes in every block, block 1 (always in tune) is the reference, and later
+  in-tune blocks refresh it. On that take this gives ≈44% up and ≈3% down
+  (pinned in `tests/follow.test.js`). The run summary used to say a flute
+  sitting sharp "cancels"; that was copied from Adjust, was false here, and
+  is gone.
+- **At unison the partner was turned down for the whole note, lead-in
+  included.** It now plays alone at full level and drops 0.4 s before the
+  player's entry, on speakers only; with headphones it never drops and there
+  is no calibration. The player reports having heard it clearly anyway.
+- **The speaker gate held, with a thin margin.** Partner bleed ≈ −30 dB,
+  gate ≈ −20 dB, and the quiet low notes (F♯4, G4, E4) and B5 only 2-4 dB
+  above it. One B5 dipped below and split. Watch this on the iPad.
+
 ## Why
 
 > Idea for a new exercise: "Follow me out of tune". This is supposed to

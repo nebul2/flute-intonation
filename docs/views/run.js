@@ -45,7 +45,7 @@ import { owner } from "../ui/owner.js";
 import { pedal, FORWARD, BACK } from "../ui/pedal.js";
 import * as profiles from "../profiles.js";
 import { isRigid, validEntry } from "../core/bend.js";
-import { followRun, followPattern, blockFollow, shiftedHz, directionOf, unmeasuredCanBend,
+import { followRun, followPattern, blockFollow, referenceFrom, shiftedHz, directionOf, unmeasuredCanBend,
          MIN_FOLLOW_OFFSET } from "../core/follow.js";
 import { soundingTimbre } from "../audio/timbres.js";
 
@@ -185,6 +185,9 @@ export const STOPPER = { build: () => stopperCheck(), feedback: "end", acceptanc
 // its level (about -12 dB): at the drone's own pitch the measured background
 // *is* the drone's bleed, and without ducking the player had to out-shout it.
 const UNISON_DUCK = 0.25;
+// Follow me lowers its partner this long before the player's entry: the level
+// moves with a 0.08 s time constant, so 0.4 s is five of them.
+const DUCK_AHEAD_SECONDS = 0.4;
 
 /* This page's own wording: where the shared label says "off", a note being
  * scored against a target says which way it went, which is the thing the
@@ -300,6 +303,7 @@ export class ExerciseRun {
     this.mounted = false;
     if (this.own) { this.own.dispose(); this.own = null; }
     if (this.run?.nextTimer) clearTimeout(this.run.nextTimer);
+    if (this.run?.duckTimer) clearTimeout(this.run.duckTimer);
     engine.drone.stop();
     engine.setNotches([]);
     this.run = null;
@@ -485,7 +489,9 @@ export class ExerciseRun {
 
     if (run.spec.follow) {
       const unison = exercise.notes.find((n) => this.followUnison(n, exercise));
-      if (unison && run.onsetDb === null && run.settings.droneLevel > 0) {
+      // With headphones nothing of the partner reaches the microphone, so
+      // there is no bleed to measure and no level gate to set.
+      if (unison && run.onsetDb === null && run.settings.droneLevel > 0 && !run.settings.headphones) {
         const hz = this.partnerHz(unison, exercise);
         engine.drone.start(hz, run.settings.droneLevel * UNISON_DUCK, run.timbre);
         engine.setNotches(this.partnerNotches(hz, hz));
@@ -605,20 +611,31 @@ export class ExerciseRun {
     const run = this.run;
     const exercise = run.exercise;
     this.ui.target.textContent = "";
+    // The gate is set only on speakers at unison, and only then is the
+    // partner lowered -- not while it plays alone, which is when it has to be
+    // heard, but just before you come in, so it has settled by the time the
+    // segmenter listens. With headphones it is never lowered.
     const unison = run.seg.onsetDb !== null;
+    const leadIn = Number(run.settings.followLeadIn) || 1.5;
     if (run.droneHz) {
-      engine.drone.start(run.droneHz, run.settings.droneLevel * (unison ? UNISON_DUCK : 1), run.timbre);
+      engine.drone.start(run.droneHz, run.settings.droneLevel, run.timbre);
       engine.setNotches(this.partnerNotches(run.droneHz, run.target));
+      if (unison) {
+        run.duckTimer = setTimeout(() => {
+          run.duckTimer = null;
+          if (this.run === run && run.phase === "leadin") engine.drone.setLevel(run.settings.droneLevel * UNISON_DUCK);
+        }, Math.max(0, leadIn - DUCK_AHEAD_SECONDS) * 1000);
+      }
     }
     run.phase = "leadin";
     const direction = directionOf(exercise.offsetCents);
     const cue = run.settings.followCue
       ? ` ${t(`follow.cue.${direction === "up" ? "sharp" : direction === "down" ? "flat" : "same"}`)}` : "";
     this.ui.status.textContent = t("follow.listen") + cue;
-    const leadIn = Number(run.settings.followLeadIn) || 1.5;
     run.nextTimer = setTimeout(() => {
       run.nextTimer = null;
       if (this.run !== run || run.phase !== "leadin") return;
+      if (unison) engine.drone.setLevel(run.settings.droneLevel * UNISON_DUCK);   // in case the duck timer was late
       run.phase = "playing";
       this.ui.status.textContent = (unison ? t("follow.joinUnison") : t("follow.join")) + cue;
     }, leadIn * 1000);
@@ -650,8 +667,8 @@ export class ExerciseRun {
     const run = this.run;
     const exercise = run.exercise;
     const exIdx = run.exIdx;
-    const readings = run.log.filter((e) => e.exIdx === exIdx && e.result).map((e) => e.result.meanCents);
-    const reading = blockFollow(readings, exercise.offsetCents);
+    const readings = this.blockReadings(exIdx);
+    const reading = blockFollow(readings, exercise.offsetCents, this.referenceBefore(exIdx));
     const actual = { up: "sharp", down: "flat" }[directionOf(exercise.offsetCents)] ?? "same";
     const card = el("div", { class: "result-row" }, [
       el("div", { class: "result-head" }, [
@@ -665,31 +682,52 @@ export class ExerciseRun {
     ]);
     this.ui.blocks.prepend(card);
     this.ui.noteLabel.textContent = t("follow.blockN", exIdx + 1, run.exercises.length);
-    run.blocks.set(exIdx, { reading, called, actual, card, offsetCents: exercise.offsetCents });
+    run.blocks.set(exIdx, { reading, readings, called, actual, card, offsetCents: exercise.offsetCents });
     run.phase = "block";
     this.ui.onward.hidden = false;
     this.ui.status.textContent = t("follow.blockDone");
   }
 
+  /* The notes of one block as played: name and reading against the partner. */
+  blockReadings(exIdx) {
+    return this.run.log.filter((e) => e.exIdx === exIdx && e.result)
+      .map((e) => ({ name: e.result.pitch.name, vsPartner: e.result.meanCents }));
+  }
+
+  /* Where each note was last played with the partner in tune, before this
+   * block. Recomputed rather than kept, so a block taken back with "again"
+   * and replayed is read against the same reference as the first time. */
+  referenceBefore(exIdx) {
+    return referenceFrom([...this.run.blocks.entries()]
+      .filter(([i]) => i < exIdx).sort(([a], [b]) => a - b)
+      .map(([, b]) => ({ offsetCents: b.offsetCents, readings: b.readings })));
+  }
+
+  /* Two things, kept apart: how far you moved from your own in-tune playing
+   * of the same notes (the follow), and where you sat against the partner
+   * (which a flute sitting sharp affects, and which is worth knowing). */
   blockText(reading, offsetCents) {
     if (!reading) return t("follow.noReading");
     const fmt = (c) => Math.abs(c).toFixed(0);
     const way = (c) => t(c >= 0 ? "follow.sharp" : "follow.flat");
-    if (Math.abs(offsetCents) < MIN_FOLLOW_OFFSET) {
-      return Math.abs(reading.moved) <= bands(this.run.settings).inTuneCents
-        ? t("follow.stayedWith")
-        : t("follow.movedAnyway", fmt(reading.moved), way(reading.moved));
-    }
-    const partner = t("follow.partnerWent", fmt(offsetCents), way(offsetCents));
-    const towards = Math.sign(reading.moved) === Math.sign(offsetCents);
-    const stayed = Math.abs(reading.moved) <= bands(this.run.settings).inTuneCents;
-    const you = stayed ? t("follow.youStayed")
-      : towards
-      ? t("follow.youFollowed", fmt(reading.moved), Math.round(100 * reading.ratio))
-      : t("follow.youWentOther", fmt(reading.moved), way(reading.moved));
-    const landed = Math.abs(reading.vsPartner) <= bands(this.run.settings).inTuneCents
+    const close = (c) => Math.abs(c) <= bands(this.run.settings).inTuneCents;
+    const landed = close(reading.vsPartner)
       ? t("follow.landedWith")
       : t("follow.landed", fmt(reading.vsPartner), t(reading.vsPartner >= 0 ? "follow.above" : "follow.below"));
+    const sat = close(reading.vsPartner) ? t("follow.refWith")
+      : t("follow.refSat", fmt(reading.vsPartner), t(reading.vsPartner >= 0 ? "follow.above" : "follow.below"));
+    if (reading.shift === null) return `${t("follow.reference")} ${sat}`;
+    if (Math.abs(offsetCents) < MIN_FOLLOW_OFFSET) {
+      return close(reading.shift)
+        ? `${t("follow.stayedWith")} ${sat}`
+        : `${t("follow.movedAnyway", fmt(reading.shift), way(reading.shift))} ${sat}`;
+    }
+    const partner = t("follow.partnerWent", fmt(offsetCents), way(offsetCents));
+    const towards = Math.sign(reading.shift) === Math.sign(offsetCents);
+    const you = close(reading.shift) ? t("follow.youStayed")
+      : towards
+      ? t("follow.youFollowed", fmt(reading.shift), Math.round(100 * reading.ratio))
+      : t("follow.youWentOther", fmt(reading.shift), way(reading.shift));
     return `${partner} ${you} ${landed}`;
   }
 
@@ -737,6 +775,7 @@ export class ExerciseRun {
     });
     if (!target) return;
     if (run.nextTimer) { clearTimeout(run.nextTimer); run.nextTimer = null; }
+    if (run.duckTimer) { clearTimeout(run.duckTimer); run.duckTimer = null; }
 
     if (target.give === "pending") {
       // A reading already in the summary, with no row yet: the judging phase.
@@ -831,7 +870,11 @@ export class ExerciseRun {
     const run = this.run;
     const label = this.ui.noteLabel.textContent;
     // The partner stops with the note: it entered first, and leaves with you.
-    if (run.spec.follow) { engine.drone.stop(); engine.setNotches([]); }
+    if (run.spec.follow) {
+      if (run.duckTimer) { clearTimeout(run.duckTimer); run.duckTimer = null; }
+      engine.drone.stop();
+      engine.setNotches([]);
+    }
     let row;
     if (!result) {
       row = el("div", { class: "result-row" }, [el("span", { class: "result-name", text: label }),
@@ -896,6 +939,7 @@ export class ExerciseRun {
     if (run.spec.endless) stopped = false;     // stopping is how an endless run ends
     run.stopped = stopped;
     if (run.nextTimer) clearTimeout(run.nextTimer);
+    if (run.duckTimer) clearTimeout(run.duckTimer);
     engine.drone.stop();
     engine.setNotches([]);
     // A clear "over" state: a tick (or a square when stopped early), no
@@ -948,9 +992,9 @@ export class ExerciseRun {
       // never got a card.
       const exercise = run.exercises[run.exIdx];
       if (exercise && !run.blocks.has(run.exIdx)) {
-        const readings = run.log.filter((e) => e.exIdx === run.exIdx && e.result).map((e) => e.result.meanCents);
-        const reading = blockFollow(readings, exercise.offsetCents);
-        if (reading) run.blocks.set(run.exIdx, { reading, called: null, actual: null, card: null,
+        const readings = this.blockReadings(run.exIdx);
+        const reading = blockFollow(readings, exercise.offsetCents, this.referenceBefore(run.exIdx));
+        if (reading) run.blocks.set(run.exIdx, { reading, readings, called: null, actual: null, card: null,
                                                  offsetCents: exercise.offsetCents });
       }
       parts.push(this.followReport());
@@ -1067,6 +1111,7 @@ export class ExerciseRun {
       blocks: [...run.blocks.entries()].sort(([a], [b]) => a - b).map(([, b]) => ({
         offset_cents: b.offsetCents,
         vs_partner_cents: b.reading ? Math.round(b.reading.vsPartner * 100) / 100 : null,
+        shift_cents: b.reading?.shift == null ? null : Math.round(b.reading.shift * 100) / 100,
         ratio: b.reading?.ratio == null ? null : Math.round(b.reading.ratio * 1000) / 1000,
         called: b.called, notes: b.reading?.notes ?? 0,
       })),

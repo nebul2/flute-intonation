@@ -14,9 +14,11 @@ one moves.
 
 - The partner plays each note **first, alone**, for a moment. Then you join
   at the same note (or an octave above) and hold it until the bar fills.
-- Notes come in **blocks of four**. Within a block the partner stays where it
-  is. Between blocks it may go flat, go sharp, or stay put.
-- The **first block is always in tune**, so you start from somewhere.
+- Notes come in **blocks of four**: the same four notes in every block of a
+  session, in a different order each time. Within a block the partner stays
+  where it is. Between blocks it may go flat, go sharp, or stay put.
+- The **first block is always in tune**, and it is your reference: how far
+  you follow is measured from where you played those same notes then.
 - About **one block in four after that is in tune too**. Without those, the
   lesson would be "always move" instead of "listen".
 - The partner never asks a note to bend the way your flute cannot take it.
@@ -32,10 +34,19 @@ partner went and how far you went with it:
 
 > The partner went 20¢ flat. You followed 14¢ (70%) and sat 6¢ above them.
 
-**100%** means all the way to the partner. **0%** means you stayed where a
-tuner would have put you. Over 100% means you went past them. The percentage
-is shown only when the partner moved at least 8 cents; below that, it would
-be a ratio of noise.
+**100%** means you moved all the way with the partner. **0%** means you
+played the notes where you played them when the partner was in tune. Over
+100% means you went past them. The percentage is shown only when the partner
+moved at least 8 cents; below that, it would be a ratio of noise.
+
+Why measure from your own playing rather than from the tuning: the first real
+take of this exercise sat 20 to 55 cents sharp of the tuning on nearly every
+note, whatever the partner did. Measured from the tuning, that read as
+following a sharp partner twice over and following a flat one the wrong way.
+A flute sitting sharp is not following anybody, so it must not count.
+
+Where you sat against the partner is a separate figure ("sat 6¢ above them"),
+and it is worth reading too: it is what your partner actually hears.
 
 The per-note readings are kept and shown at the end, with a summary per
 direction. "You follow down more readily than up" is said only when the
@@ -53,6 +64,10 @@ session has at least two blocks each way and the gap is at least 25 points.
   the partner flat, sharp or unchanged, and only then see the card. Making
   your own judgement before the answer is one of the few things the practice
   research supports with any consistency.
+- **The partner's level.** With speakers, at unison, the partner plays alone
+  at full level and drops by about 12 dB just before you come in, so that its
+  bleed into the microphone cannot be mistaken for your note. With headphones
+  it never drops.
 - **The partner's sound.** Plain drone, flute, strings or organ. Anything but
   plain needs headphones. Through speakers, a richer sound comes back into
   the microphone with more partials than the app can filter out, so without
