@@ -23,6 +23,10 @@ comes round again, the same notes in a new order, until all four are within
 your "a little off" line (10¢ unless you have changed it in Settings) in the
 same attempt.
 
+"That again" (or the back pedal) starts the warm-up over from its first
+note at any point in it, since one note over cannot rescue an attempt that
+needs all four together.
+
 If a note will not come in, **Move on anyway** is always there; it is a
 button rather than the pedal, so it is never pressed by accident. Your last
 attempt then stands as the reference, and the card says how far off it was.

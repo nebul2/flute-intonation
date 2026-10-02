@@ -775,6 +775,19 @@ export class ExerciseRun {
   retryWarmup() {
     const run = this.run;
     if (!run || run.phase !== "warmup") return;
+    this.restartWarmup();
+  }
+
+  /* Back to the first note of the warm-up, with the notes so far in this
+   * attempt taken out of the summary and the log. Used by Try again, and by
+   * "That again" anywhere in the warm-up: the player asked for the second
+   * after finding that one note again was not what a missed warm-up wants. */
+  restartWarmup() {
+    const run = this.run;
+    if (run.nextTimer) { clearTimeout(run.nextTimer); run.nextTimer = null; }
+    if (run.duckTimer) { clearTimeout(run.duckTimer); run.duckTimer = null; }
+    engine.drone.stop();
+    engine.setNotches([]);
     for (let i = run.log.length - 1; i >= 0; i--) {
       if (run.log[i].exIdx !== 0) continue;
       const [entry] = run.log.splice(i, 1);
@@ -907,6 +920,17 @@ export class ExerciseRun {
       exIdx: run.exIdx, noteIdx: run.noteIdx, hasNote: !!run.note,
     });
     if (!target) return;
+    // In Follow me's warm-up, again means the whole warm-up again: one note
+    // over cannot rescue an attempt that needs all four together. On a missed
+    // attempt's card it is Try again; mid-attempt it starts the attempt
+    // over, uncounted; after a pass it reopens the warm-up and takes the
+    // pass back.
+    if (run.spec.follow && target.exIdx === 0) {
+      if (run.phase === "warmup") { this.retryWarmup(); return; }
+      this.dropBlock(0);
+      this.restartWarmup();
+      return;
+    }
     if (run.nextTimer) { clearTimeout(run.nextTimer); run.nextTimer = null; }
     if (run.duckTimer) { clearTimeout(run.duckTimer); run.duckTimer = null; }
 

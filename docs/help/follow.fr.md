@@ -23,6 +23,10 @@ aller. Le bloc recommence, les mêmes notes dans un autre ordre, jusqu'à ce que
 les quatre soient à moins de ta limite « un peu faux » (10¢ sauf si tu l'as
 changée dans les Réglages) dans le même essai.
 
+« Encore celle-ci » (ou la pédale arrière) reprend l'échauffement depuis sa première
+note à tout moment, puisqu'une seule note de plus ne peut pas sauver un essai
+qui demande les quatre ensemble.
+
 Si une note ne veut pas venir, **Continuer quand même** est toujours là ;
 c'est un bouton et non la pédale, pour ne jamais être pressé par accident. Ton
 dernier essai sert alors de référence, et la carte dit de combien il était
