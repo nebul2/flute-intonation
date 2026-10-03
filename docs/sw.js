@@ -10,7 +10,7 @@
  * PRECACHE must list every file the app serves. A test compares it against
  * the files on disk, so a new module cannot be forgotten. */
 
-const VERSION = "phase 8.9 · 2026-10-02";
+const VERSION = "phase 8.9.1 · 2026-10-03";
 const CACHE = `bongout-${VERSION}`;
 
 const PRECACHE = [

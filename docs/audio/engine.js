@@ -28,6 +28,22 @@ const STATES = ["idle", "starting", "listening", "refused", "error"];
  * without a delay anyone notices. */
 const WARMUP_SECONDS = 0.3;
 
+/* The rate the analysis runs at, whatever the hardware runs at.
+ *
+ * Everything downstream was tuned at 44.1-48 kHz: the detector's sub-sample
+ * interpolation, and every constant that counts frames (onset, release, the
+ * free-play tracker's gap, the median). An iPad with AirPods connected ran
+ * at 16 kHz -- the iPadOS rate for a Bluetooth headset microphone -- and
+ * read pitch sharp (+2.7c at A5, +5-6.5c in the third octave, measured on
+ * the shipped detector) with 32 ms frames that merged notes split by a short
+ * breath. Asking for 48 kHz makes the browser resample: the same 16 kHz
+ * audio upsampled reads as native 48 kHz does, within a cent. It cannot
+ * restore what a narrowband microphone never captured -- see narrowInput. */
+export const ANALYSIS_RATE = 48000;
+
+/* Below this the input is a narrowband (voice-call) microphone. */
+export const NARROW_INPUT_HZ = 32000;
+
 // Notch width is f/Q: at Q = 25 a notch on D4 (277 Hz) is ~11 Hz (~70 cents)
 // wide, narrower than the 80-cent acceptance window that decides whether a
 // notch may be engaged at all.
@@ -312,12 +328,11 @@ class Engine {
     }
 
     try {
-      this.context = new (window.AudioContext || window.webkitAudioContext)();
+      const source = this.openContext(window.AudioContext || window.webkitAudioContext);
       await this.context.resume();
       await this.context.audioWorklet.addModule(new URL("./worklet.js", import.meta.url));
       this.detector = new Detector(this.context.sampleRate);
 
-      const source = this.context.createMediaStreamSource(this.stream);
       const capture = new AudioWorkletNode(this.context, "capture", { numberOfOutputs: 0 });
 
       // Three notch filters between the microphone and the detector, parked
@@ -359,6 +374,38 @@ class Engine {
       this.stop();
       this.setState("error", err);
     }
+  }
+
+  /* The context, at ANALYSIS_RATE if the browser will resample to it, and
+   * the microphone's source node in it. Two ways to refuse: a constructor
+   * that does not take the rate (older Safari), and a browser that will not
+   * connect a stream at one rate to a context at another (Firefox throws on
+   * createMediaStreamSource). Either way, the device's own rate -- what every
+   * version before this one used. */
+  openContext(Context) {
+    this.contextFallback = false;
+    this.context = null;
+    try {
+      this.context = new Context({ sampleRate: ANALYSIS_RATE });
+      return this.context.createMediaStreamSource(this.stream);
+    } catch (_refused) {
+      if (this.context) this.context.close?.()?.catch?.(() => {});
+      this.contextFallback = true;
+      this.context = new Context();
+      return this.context.createMediaStreamSource(this.stream);
+    }
+  }
+
+  /* The microphone's own rate, when the browser says. */
+  get inputRate() {
+    return this.stream?.getAudioTracks?.()[0]?.getSettings?.().sampleRate ?? null;
+  }
+
+  /* A voice-call microphone: the input, or failing a report the context,
+   * below NARROW_INPUT_HZ. On an iPad that is a Bluetooth headset's mic. */
+  get narrowInput() {
+    const rate = this.inputRate ?? (this.context ? this.context.sampleRate : null);
+    return rate !== null && rate < NARROW_INPUT_HZ;
   }
 
   /* Engage notches at these frequencies (up to three; 0 or missing = off). */

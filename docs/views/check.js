@@ -16,6 +16,9 @@ import { pitchClassLabel } from "../ui/naming.js";
 import { owner } from "../ui/owner.js";
 import { pedal, tableIntent, assignments, FORWARD, BACK } from "../ui/pedal.js";
 
+/* An input at or above this is as good as the analysis can use. */
+const GOOD_INPUT_HZ = 44100;
+
 /* The octave stays a bare number here rather than following octaveStyle. On
  * every other page a register word ("Re grave") is the friendlier name; on a
  * hardware check, where the question is whether the machine hears what is in
@@ -48,7 +51,12 @@ export default {
     // context is suspended), frames of digital silence (the input iPadOS
     // chose is not the one in the room), or a level bar that is simply low.
     const diag = el("div", { class: "diag" });
-    const control = own.add(audioControl());
+    // What the microphone delivers, against what the measurements were tuned
+    // at. Red below 44.1 kHz, the other standard rate and as accurate as 48;
+    // the AirPods case read 16 kHz here and nowhere else.
+    const rate = el("p", { class: "rate-line" });
+    // The rate line above says it in full here; no second warning.
+    const control = own.add(audioControl({ narrowNote: false }));
     const drone = el("button", { class: "secondary", text: t("check.drone"), disabled: true });
 
     const updateDrone = () => {
@@ -86,6 +94,14 @@ export default {
         hz.textContent = engine.listening ? t("check.listening") : t("check.pressStart");
         cents.textContent = "";
         meter.setCents(null);
+      }
+      if (engine.listening) {
+        const input = engine.inputRate;
+        rate.textContent = input ? t("check.rate", input, engine.sampleRate) : t("check.rateUnreported", engine.sampleRate);
+        rate.className = `rate-line ${input && input < GOOD_INPUT_HZ ? "off" : input ? "good" : ""}`;
+      } else {
+        rate.textContent = t("check.rateIdeal");
+        rate.className = "rate-line";
       }
       const last = engine.lastFrame;
       diag.textContent = t("check.diag", frames,
@@ -182,6 +198,7 @@ export default {
         note,
         el("div", { class: "readout" }, [hz, cents]),
         meter.element,
+        rate,
         diag,
         el("div", { class: "controls" }, [control.element, drone]),
       ]),

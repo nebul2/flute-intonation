@@ -235,6 +235,11 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .stats td.good { color: var(--good); } .stats td.close { color: var(--close); } .stats td.off { color: var(--off); }
 .rows[hidden] { display: none; }
 
+/* The hardware check's input-rate line: green when the microphone delivers
+ * 44.1 kHz or more, red below. */
+.rate-line { text-align: center; font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
+.rate-line.good { color: var(--good); }
+.rate-line.off { color: var(--off); }
 .note-box { color: var(--muted); font-size: 0.82rem; line-height: 1.5; border-left: 2px solid var(--edge); padding-left: 0.8rem; max-width: 40rem; }
 .example { color: var(--ink); }
 .mono { font-family: var(--mono); font-size: 0.85rem; }

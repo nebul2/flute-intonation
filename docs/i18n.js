@@ -377,12 +377,16 @@ export const STRINGS = {
     "audio.listening": "microphone: listening",
     "audio.refused": "microphone refused — allow it in the browser and reload",
     "audio.error": (msg) => `audio error: ${msg}`,
+    "audio.narrow": (hz) => `This microphone is delivering ${hz} Hz audio, the quality of a phone call. On an iPad or iPhone that is almost always Bluetooth headphones (AirPods) using their own microphone. Readings will be less reliable: disconnect them, or use wired headphones, so the built-in microphone is used.`,
     "audio.start": "Start the microphone",
     "audio.stop": "Stop",
     "audio.granted": (sr, agc, ns, ec) =>
       `${sr} Hz · AGC ${agc ? "ON (browser kept it)" : "off"} · noise-suppression ${ns ? "ON" : "off"} · echo-cancel ${ec ? "ON" : "off"}`,
 
     "check.title": "Hardware check",
+    "check.rateIdeal": "Microphone input: ideally 48 000 Hz (44 100 is as good). Start the microphone to see yours.",
+    "check.rate": (input, analysis) => `Microphone input: ${input} Hz — ideally 48 000 (44 100 is as good)${input < 44100 ? ". Below that, readings drift sharp and short notes merge: usually Bluetooth headphones using their own microphone." : "."} Analysed at ${analysis} Hz.`,
+    "check.rateUnreported": (analysis) => `Microphone input: rate not reported by this browser. Analysed at ${analysis} Hz.`,
     "check.intro": "Press Start, allow the microphone, play a note. Drone tests the speakers. A foot pedal is checked further down.",
     "check.pressStart": "press Start",
     "check.listening": "listening",
@@ -1160,12 +1164,16 @@ export const STRINGS = {
     "audio.listening": "micro : à l'écoute",
     "audio.refused": "micro refusé — autorisez-le dans le navigateur et rechargez",
     "audio.error": (msg) => `erreur audio : ${msg}`,
+    "audio.narrow": (hz) => `Ce micro fournit un son à ${hz} Hz, la qualité d'un appel téléphonique. Sur un iPad ou un iPhone, ce sont presque toujours des écouteurs Bluetooth (AirPods) qui utilisent leur propre micro. Les mesures seront moins fiables : déconnecte-les, ou utilise un casque filaire, pour que le micro intégré soit utilisé.`,
     "audio.start": "Démarrer le micro",
     "audio.stop": "Arrêter",
     "audio.granted": (sr, agc, ns, ec) =>
       `${sr} Hz · AGC ${agc ? "ACTIF (imposé par le navigateur)" : "coupé"} · réduction de bruit ${ns ? "ACTIVE" : "coupée"} · anti-écho ${ec ? "ACTIF" : "coupé"}`,
 
     "check.title": "Test matériel",
+    "check.rateIdeal": "Entrée du micro : idéalement 48 000 Hz (44 100 convient aussi). Démarre le micro pour voir la tienne.",
+    "check.rate": (input, analysis) => `Entrée du micro : ${input} Hz — idéalement 48 000 (44 100 convient aussi)${input < 44100 ? ". En dessous, les mesures tirent vers le haut et les notes courtes fusionnent : en général des écouteurs Bluetooth qui utilisent leur propre micro." : "."} Analysé à ${analysis} Hz.`,
+    "check.rateUnreported": (analysis) => `Entrée du micro : fréquence non indiquée par ce navigateur. Analysé à ${analysis} Hz.`,
     "check.intro": "Appuyez sur Démarrer, autorisez le micro, jouez une note. Le bourdon teste les haut-parleurs. La pédale se teste plus bas.",
     "check.pressStart": "appuyez sur Démarrer",
     "check.listening": "à l'écoute",

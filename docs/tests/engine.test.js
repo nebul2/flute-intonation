@@ -108,3 +108,72 @@ test("with no saved microphone nothing is retried", async () => {
   assert.equal(asked.length, 1);
   assert.equal(engine.deviceDropped, false);
 });
+
+/* ---- the analysis rate --------------------------------------------------- */
+
+/* A fake graph whose context can refuse a rate in either of the two ways
+ * real browsers do: in its constructor (older Safari) or when a stream at
+ * another rate is connected (Firefox). */
+function rateGraph({ trackRate = 16000, refuse = null } = {}) {
+  const log = { contexts: [], closed: 0 };
+  const node = (name) => ({ name, connect() {} });
+  class FakeContext {
+    constructor(options) {
+      log.contexts.push(options ?? null);
+      if (refuse === "constructor" && options?.sampleRate) throw new Error("rate not supported");
+      this.sampleRate = options?.sampleRate ?? trackRate;
+      this.state = "suspended"; this.currentTime = 0;
+      this.destination = node("destination");
+      this.audioWorklet = { addModule: async () => {} };
+    }
+    resume() { this.state = "running"; return Promise.resolve(); }
+    close() { log.closed += 1; this.state = "closed"; return Promise.resolve(); }
+    createMediaStreamSource() {
+      if (refuse === "connect" && this.sampleRate !== trackRate) {
+        const err = new Error("different sample-rate"); err.name = "NotSupportedError"; throw err;
+      }
+      return node("source");
+    }
+    createBiquadFilter() { return Object.assign(node("notch"), { type: "", frequency: { value: 0 }, Q: { value: 0 } }); }
+    createGain() { return Object.assign(node("gain"), { gain: { value: 1 } }); }
+  }
+  globalThis.navigator ??= {};
+  navigator.mediaDevices = {
+    getUserMedia: async () => ({
+      getAudioTracks: () => [{ getSettings: () => ({ sampleRate: trackRate }), muted: false, enabled: true }],
+      getTracks: () => [{ stop() {} }],
+    }),
+  };
+  globalThis.window = { AudioContext: FakeContext };
+  globalThis.AudioWorkletNode = function () { return Object.assign(node("capture"), { port: {} }); };
+  return log;
+}
+
+test("the analysis runs at 48 kHz whatever the microphone runs at", async () => {
+  // An iPad with AirPods connected: a 16 kHz voice-call microphone.
+  reset();
+  const log = rateGraph({ trackRate: 16000 });
+  await engine.start();
+  assert.equal(engine.state, "listening");
+  assert.equal(log.contexts[0]?.sampleRate, 48000);
+  assert.equal(engine.sampleRate, 48000);
+  assert.equal(engine.contextFallback, false);
+  assert.equal(engine.inputRate, 16000);
+  assert.equal(engine.narrowInput, true, "and the narrow microphone is still named");
+  engine.stop();
+});
+
+test("a browser that will not take the rate falls back to its own", async () => {
+  for (const refuse of ["constructor", "connect"]) {
+    reset();
+    const log = rateGraph({ trackRate: 44100, refuse });
+    await engine.start();
+    assert.equal(engine.state, "listening", `${refuse}: still starts`);
+    assert.equal(engine.contextFallback, true, refuse);
+    assert.equal(engine.sampleRate, 44100, `${refuse}: the device's own rate`);
+    assert.equal(log.contexts.at(-1), null, `${refuse}: retried with no options`);
+    if (refuse === "connect") assert.equal(log.closed, 1, "the refused context is closed");
+    assert.equal(engine.narrowInput, false);
+    engine.stop();
+  }
+});

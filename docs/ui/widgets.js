@@ -56,11 +56,15 @@ export function statusText(s = settings.get()) {
 
 /* ---- microphone control -------------------------------------------- */
 
-export function audioControl({ showGranted = true } = {}) {
+export function audioControl({ showGranted = true, narrowNote = true } = {}) {
   const button = el("button", { class: "primary" });
   const chip = el("span", { class: "chip audio" });
   const granted = el("div", { class: "diag" });
-  const wrap = el("div", { class: "audio-control" }, [button, chip, showGranted ? granted : null]);
+  // A voice-call microphone, said wherever the microphone is started: an
+  // iPad with AirPods connected records through their 16 kHz mic, and the
+  // only sign was a number on the hardware check page.
+  const narrow = el("p", { class: "note-box", hidden: true });
+  const wrap = el("div", { class: "audio-control" }, [button, chip, showGranted ? granted : null, narrowNote ? narrow : null]);
 
   function update() {
     chip.textContent = engine.state === "error"
@@ -75,6 +79,8 @@ export function audioControl({ showGranted = true } = {}) {
     } else {
       granted.textContent = "";
     }
+    narrow.hidden = !(engine.listening && engine.narrowInput);
+    if (!narrow.hidden) narrow.textContent = t("audio.narrow", engine.inputRate ?? engine.sampleRate);
   }
 
   button.addEventListener("click", async () => {
