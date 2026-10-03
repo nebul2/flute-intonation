@@ -251,6 +251,17 @@ export default {
       options: () => [8, 10, 12, 15, 20].map((c) => ({ value: c, label: t("settings.cents", c) })),
     }));
 
+    // For investigating how a device hears: Listen to me keeps a record of
+    // each session to send by hand. Off unless asked for.
+    const debugCapture = own.add(checkboxField({
+      look: "option", bind: "debugCapture",
+      label: t("settings.debugCapture"), help: t("settings.debugCaptureHelp"),
+    }));
+    const debugAudio = own.add(checkboxField({
+      look: "option", bind: "debugAudio",
+      label: t("settings.debugAudio"), help: t("settings.debugAudioHelp"),
+    }));
+
     const analyticsToggle = own.add(checkboxField({
       look: "option", bind: "analytics",
       label: t("settings.analytics"), help: t("settings.analyticsHelp"),
@@ -301,6 +312,9 @@ export default {
       el("p", { class: "note-box", text: t("settings.advancedHelp") }),
       inTuneCents.element,
       nearlyCents.element,
+      el("h2", { text: t("settings.debug") }),
+      debugCapture.element,
+      debugAudio.element,
     );
   },
 

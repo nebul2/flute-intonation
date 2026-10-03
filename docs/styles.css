@@ -235,6 +235,9 @@ button.big { padding: 0.9rem 1.6rem; font-size: 1.1rem; }
 .stats td.good { color: var(--good); } .stats td.close { color: var(--close); } .stats td.off { color: var(--off); }
 .rows[hidden] { display: none; }
 
+/* Listen to me's debug record, at the foot of the summary. */
+.debug { margin-top: 1.5rem; }
+
 /* The hardware check's input-rate line: green when the microphone delivers
  * 44.1 kHz or more, amber for a lower input the browser resamples, red when
  * the analysis itself runs below 44.1 kHz. */

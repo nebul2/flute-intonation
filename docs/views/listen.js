@@ -33,6 +33,9 @@ import { selectField, checkboxField } from "../ui/fields.js";
 import { keyQuality, startRow } from "../ui/controls.js";
 import { owner } from "../ui/owner.js";
 import { postAttack, scoredWindow, SCORING_RULE } from "../core/scoring.js";
+import { FrameLog, AudioTape, debugRecord, deviceName, stamp } from "../debug.js";
+import { shareOrDownload } from "../download.js";
+import { VERSION } from "../app-version.js";
 import { el, append, labelField, meters, bandClass, bandLabel, settleLabel, currentTuning, name, nameClass, tunerCandidates, nearestCandidate, runNav, explainer } from "../ui/widgets.js";
 
 /* How long the tonic must be held to begin. Collected by the same state
@@ -199,8 +202,18 @@ export default {
       droneHz, calib: droneHz ? new BackgroundCalibration() : null, onsetDb: null,
       tracker: new RegionTracker({ frameSeconds: engine.detector ? engine.detector.frameSeconds : 512 / 44100 }),
       notes: [], regions: [], shortCount: 0, glideCount: 0, trillCount: 0, lastVoiced: null,
+      // Settings > debug record: every frame, and the audio if asked for.
+      debug: s.debugCapture ? {
+        log: new FrameLog(), trackerStartMs: null,
+        tape: s.debugAudio && engine.sampleRate ? new AudioTape(engine.sampleRate) : null,
+      } : null,
     };
     const run = this.run;
+    if (run.debug?.tape) {
+      this.own.add(engine.onSamples((block) => {
+        if (this.run === run && run.phase !== "finished") run.debug.tape.push(block);
+      }));
+    }
     const root = this.root;
     root.replaceChildren();
 
@@ -340,6 +353,7 @@ export default {
   onFrame(frame) {
     const run = this.run;
     if (!run || run.phase === "finished") return;
+    if (run.debug) run.debug.log.push(frame);
     if (run.phase === "calibrating") {
       if (run.calib.push(frame)) this.finishCalibration();
       return;
@@ -359,8 +373,68 @@ export default {
       return;
     }
 
+    if (run.debug && run.debug.trackerStartMs === null) run.debug.trackerStartMs = run.debug.log.at(frame.t);
     const region = run.tracker.push(frame);
     if (region) this.addRegion(region);
+  },
+
+  /* The debug record's button, built when the session ends. The files are
+   * made here rather than on the press: on an iPad the share sheet must open
+   * from the press itself, and building a few megabytes of WAV first would
+   * lose the gesture. */
+  debugSection(run) {
+    const runs = alternationRuns(run.regions.map((entry) => entry.region));
+    const ornament = new Set();
+    for (const { start, end } of runs) for (let i = start; i < end; i++) ornament.add(i);
+    const r2 = (x) => (Number.isFinite(x) ? Math.round(x * 100) / 100 : null);
+    const now = new Date();
+    const who = deviceName(navigator.userAgent ?? "", navigator.maxTouchPoints ?? 0);
+    const base = `listen-debug-${who}-${stamp(now)}`;
+    const tape = run.debug.tape;
+    const s = run.settings;
+    const record = debugRecord({
+      app: VERSION, at: now,
+      device: {
+        name: who, user_agent: navigator.userAgent ?? "", context_rate: engine.sampleRate,
+        input_rate: engine.inputRate, context_fallback: engine.contextFallback === true,
+        granted: engine.granted, track: engine.trackInfo,
+      },
+      settings: { reference_hz: s.referenceHz, temperament: s.temperament, root: s.root, mode: s.mode,
+                  headphones: s.headphones === true, drone_level: s.droneLevel },
+      session: { grounding: run.grounding, key: run.key, quality: run.quality,
+                 drone: run.droneHz !== null, label: run.label || null },
+      frameSeconds: run.tracker.frameSeconds, log: run.debug.log,
+      trackerStartMs: run.debug.trackerStartMs,
+      regions: run.regions.map((entry, i) => {
+        const kind = ornament.has(i) ? "trill-run" : entry.baseKind;
+        const note = kind === "note" && entry.note ? {
+          pitch: entry.note.pitch.name, cents: r2(entry.note.primaryCents),
+          tempered_cents: r2(entry.note.temperedCents), stdev: r2(entry.note.stdev),
+        } : null;
+        return { atSeconds: entry.region.atSeconds, seconds: entry.region.seconds,
+                 medianHz: entry.region.medianHz, frames: entry.region.framesHz.length,
+                 blips: entry.region.blips, kind, note };
+      }),
+      notes: run.notes.map((n) => ({ pitch: n.pitch.name, cents: r2(n.primaryCents), seconds: r2(n.seconds) })),
+      audioFile: tape ? `${base}.wav` : null, audioSeconds: tape ? tape.seconds : 0,
+    });
+    const files = [{ name: `${base}.json`, blob: new Blob([JSON.stringify(record)], { type: "application/json" }) }];
+    if (tape) files.push({ name: `${base}.wav`, blob: new Blob([tape.toWav()], { type: "audio/wav" }) });
+
+    const status = el("p", { class: "muted small" });
+    const button = el("button", {
+      class: "secondary",
+      text: t("listen.debug.send", run.debug.log.length, tape ? Math.round(tape.seconds) : 0),
+      onclick: async () => {
+        const how = await shareOrDownload(files, base);
+        status.textContent = t(`listen.debug.${how}`, files.map((f) => f.name).join(", "));
+      },
+    });
+    return el("div", { class: "debug" }, [
+      el("h3", { text: t("listen.debug.title") }),
+      el("p", { class: "note-box", text: t("listen.debug.where") }),
+      el("div", { class: "controls left" }, [button]), status,
+    ]);
   },
 
   /* Both readings for a closed note: against the temperament, and as a pure
@@ -675,6 +749,7 @@ export default {
     if (run.shortCount) parts.push(el("p", { class: "muted", text: t("listen.short", run.shortCount) }));
     if (run.glideCount) parts.push(el("p", { class: "muted", text: t("listen.glides", run.glideCount) }));
     if (run.trillCount) parts.push(el("p", { class: "muted", text: t("listen.trills", run.trillCount) }));
+    if (run.debug) parts.push(this.debugSection(run));
     u.summary.replaceChildren(...parts);
 
     if (run.notes.length) {

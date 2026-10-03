@@ -58,6 +58,10 @@ export const DEFAULTS = Object.freeze({
   followLeadIn: 1.5,
   cadenceRole: "top",      // the flute's part at a cadence: "top" voice or "bass"
   cadenceTimbre: "strings",
+  // Listen to me keeps a debug record of each session -- frames, regions,
+  // the audio path -- to be sent by hand to whoever is investigating.
+  debugCapture: false,
+  debugAudio: false,      // ...and the microphone audio with it (a few MB a minute)
 });
 
 let state = null;

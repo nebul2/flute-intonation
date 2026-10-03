@@ -254,6 +254,7 @@ class Engine {
     this.lastFrame = null;
     this.frames = 0;
     this.frameListeners = new Set();
+    this.sampleListeners = new Set();
     this.stateListeners = new Set();
     this.drone = new Drone(this);
     this.deviceId = null;
@@ -282,6 +283,8 @@ class Engine {
   }
 
   onFrame(cb) { this.frameListeners.add(cb); return () => this.frameListeners.delete(cb); }
+  /* The raw blocks the detector is given, for a debug recording. */
+  onSamples(cb) { this.sampleListeners.add(cb); return () => this.sampleListeners.delete(cb); }
   onState(cb) { this.stateListeners.add(cb); return () => this.stateListeners.delete(cb); }
 
   emit() { this.stateListeners.forEach((cb) => cb(this)); }
@@ -362,6 +365,7 @@ class Engine {
           if (warmed === warmupFrames) this.detector.reset();
           return;
         }
+        this.sampleListeners.forEach((cb) => cb(event.data));
         const frame = this.detector.process(event.data);
         frame.t = performance.now();
         this.lastFrame = frame;
