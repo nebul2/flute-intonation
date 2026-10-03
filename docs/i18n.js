@@ -377,7 +377,7 @@ export const STRINGS = {
     "audio.listening": "microphone: listening",
     "audio.refused": "microphone refused — allow it in the browser and reload",
     "audio.error": (msg) => `audio error: ${msg}`,
-    "audio.narrow": (hz) => `This microphone is delivering ${hz} Hz audio, the quality of a phone call. On an iPad or iPhone that is almost always Bluetooth headphones (AirPods) using their own microphone. Readings will be less reliable: disconnect them, or use wired headphones, so the built-in microphone is used.`,
+    "audio.narrow": (hz) => `The microphone input is ${hz} Hz: a Bluetooth device is in the audio path — headphones, AirPods or hearing aids. The app resamples it, so the pitch arithmetic is unaffected; what matters is whose microphone it is. If it is theirs (on your head, and processed), choose this device's own microphone in Settings → Microphone.`,
     "audio.start": "Start the microphone",
     "audio.stop": "Stop",
     "audio.granted": (sr, agc, ns, ec) =>
@@ -385,7 +385,9 @@ export const STRINGS = {
 
     "check.title": "Hardware check",
     "check.rateIdeal": "Microphone input: ideally 48 000 Hz (44 100 is as good). Start the microphone to see yours.",
-    "check.rate": (input, analysis) => `Microphone input: ${input} Hz — ideally 48 000 (44 100 is as good)${input < 44100 ? ". Below that, readings drift sharp and short notes merge: usually Bluetooth headphones using their own microphone." : "."} Analysed at ${analysis} Hz.`,
+    "check.rate": (input, analysis) => `Microphone input: ${input} Hz — ideally 48 000 (44 100 is as good). Analysed at ${analysis} Hz.`,
+    "check.rateResampled": (input, analysis) => `Microphone input: ${input} Hz, resampled to ${analysis} for analysis, which measures pitch as accurately as 48 000. A low input rate means a Bluetooth device is in the audio path (headphones, hearing aids): check in Settings → Microphone that the device's own microphone is selected, not theirs.`,
+    "check.rateLow": (input, analysis) => `Microphone input: ${input} Hz, analysed at only ${analysis} Hz — this browser would not resample. Readings drift sharp, worst in the upper register, and short notes may merge.`,
     "check.rateUnreported": (analysis) => `Microphone input: rate not reported by this browser. Analysed at ${analysis} Hz.`,
     "check.intro": "Press Start, allow the microphone, play a note. Drone tests the speakers. A foot pedal is checked further down.",
     "check.pressStart": "press Start",
@@ -1164,7 +1166,7 @@ export const STRINGS = {
     "audio.listening": "micro : à l'écoute",
     "audio.refused": "micro refusé — autorisez-le dans le navigateur et rechargez",
     "audio.error": (msg) => `erreur audio : ${msg}`,
-    "audio.narrow": (hz) => `Ce micro fournit un son à ${hz} Hz, la qualité d'un appel téléphonique. Sur un iPad ou un iPhone, ce sont presque toujours des écouteurs Bluetooth (AirPods) qui utilisent leur propre micro. Les mesures seront moins fiables : déconnecte-les, ou utilise un casque filaire, pour que le micro intégré soit utilisé.`,
+    "audio.narrow": (hz) => `L'entrée du micro est à ${hz} Hz : un appareil Bluetooth est sur le trajet du son — écouteurs, AirPods ou appareils auditifs. L'appli rééchantillonne, donc le calcul de la hauteur n'en souffre pas ; ce qui compte, c'est de quel micro il s'agit. Si c'est le leur (sur ta tête, et traité), choisis le micro de l'appareil dans Réglages → Micro.`,
     "audio.start": "Démarrer le micro",
     "audio.stop": "Arrêter",
     "audio.granted": (sr, agc, ns, ec) =>
@@ -1172,7 +1174,9 @@ export const STRINGS = {
 
     "check.title": "Test matériel",
     "check.rateIdeal": "Entrée du micro : idéalement 48 000 Hz (44 100 convient aussi). Démarre le micro pour voir la tienne.",
-    "check.rate": (input, analysis) => `Entrée du micro : ${input} Hz — idéalement 48 000 (44 100 convient aussi)${input < 44100 ? ". En dessous, les mesures tirent vers le haut et les notes courtes fusionnent : en général des écouteurs Bluetooth qui utilisent leur propre micro." : "."} Analysé à ${analysis} Hz.`,
+    "check.rate": (input, analysis) => `Entrée du micro : ${input} Hz — idéalement 48 000 (44 100 convient aussi). Analysé à ${analysis} Hz.`,
+    "check.rateResampled": (input, analysis) => `Entrée du micro : ${input} Hz, rééchantillonnée à ${analysis} pour l'analyse, qui mesure la hauteur aussi précisément qu'à 48 000. Une fréquence d'entrée basse signale un appareil Bluetooth sur le trajet du son (écouteurs, appareils auditifs) : vérifie dans Réglages → Micro que c'est bien le micro de l'appareil qui est choisi, pas le leur.`,
+    "check.rateLow": (input, analysis) => `Entrée du micro : ${input} Hz, analysée à seulement ${analysis} Hz — ce navigateur ne rééchantillonne pas. Les mesures tirent vers le haut, surtout dans l'aigu, et les notes courtes peuvent fusionner.`,
     "check.rateUnreported": (analysis) => `Entrée du micro : fréquence non indiquée par ce navigateur. Analysé à ${analysis} Hz.`,
     "check.intro": "Appuyez sur Démarrer, autorisez le micro, jouez une note. Le bourdon teste les haut-parleurs. La pédale se teste plus bas.",
     "check.pressStart": "appuyez sur Démarrer",

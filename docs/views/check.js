@@ -96,9 +96,18 @@ export default {
         meter.setCents(null);
       }
       if (engine.listening) {
-        const input = engine.inputRate;
-        rate.textContent = input ? t("check.rate", input, engine.sampleRate) : t("check.rateUnreported", engine.sampleRate);
-        rate.className = `rate-line ${input && input < GOOD_INPUT_HZ ? "off" : input ? "good" : ""}`;
+        // Red only for an analysis that itself runs low (a browser that
+        // refused 48 kHz). A low *input* resampled to 48 kHz measures as
+        // accurately -- 24 kHz from hearing aids reads within a cent of
+        // native -- so it is amber: what is left to check is whose
+        // microphone it is.
+        const input = engine.inputRate, analysis = engine.sampleRate;
+        const state = analysis && analysis < GOOD_INPUT_HZ ? "off"
+          : input && input < GOOD_INPUT_HZ ? "close" : input ? "good" : "";
+        rate.textContent = state === "off" ? t("check.rateLow", input ?? analysis, analysis)
+          : state === "close" ? t("check.rateResampled", input, analysis)
+          : input ? t("check.rate", input, analysis) : t("check.rateUnreported", analysis);
+        rate.className = `rate-line ${state}`;
       } else {
         rate.textContent = t("check.rateIdeal");
         rate.className = "rate-line";
