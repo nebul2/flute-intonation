@@ -138,7 +138,12 @@ export function compare(a, b) {
   lines.push(`${a.file} (${a.device?.name}, input ${a.device?.input_rate ?? "?"} Hz, analysed ${a.device?.context_rate} Hz)`);
   lines.push(`${b.file} (${b.device?.name}, input ${b.device?.input_rate ?? "?"} Hz, analysed ${b.device?.context_rate} Hz)`);
   for (const r of [a, b]) {
-    if (r.drops?.count) lines.push(`  ${r.device?.name}: ${r.drops.count} gaps in the frame clock, longest ${r.drops.longestMs} ms -- frames never received`);
+    const d = r.drops ?? {};
+    // Records written before `lost` existed: work it out from the frames.
+    const t = r.frames.t_ms;
+    const lost = d.lost ?? Math.max(0, Math.round(t[t.length - 1] / 1000 / r.frame_s) + 1 - t.length);
+    if (lost > 2) lines.push(`  ${r.device?.name}: about ${lost} frames missing (${(lost * r.frame_s).toFixed(2)} s of audio never reached the detector)`);
+    else if (d.count) lines.push(`  ${r.device?.name}: ${d.count} late deliveries (longest ${Math.round(d.longestMs)} ms), nothing lost`);
   }
   if (!lag) { lines.push("  could not line the two up: are they the same playing?"); return lines; }
   lines.push(`  lined up with ${b.device?.name} ${lag.lagS >= 0 ? "+" : ""}${lag.lagS.toFixed(2)} s; `

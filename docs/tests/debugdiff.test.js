@@ -86,6 +86,12 @@ test("the frame log counts frames the page never received", () => {
   const drops = log.drops(512 / 48000);
   assert.equal(drops.count, 1);
   approx(drops.longestMs, 4 * step, 0.2);
+  assert.equal(drops.lost, 3, "frames 4, 5 and 6 never came");
+  // Late in a bunch but all there: gaps, nothing lost.
+  const bunched = new FrameLog();
+  [0, 1, 2, 2.9, 3.0, 3.1, 6, 7].forEach((k) => bunched.push({ t: k * step, hz: 400, levelDb: -20 }));
+  assert.equal(bunched.drops(512 / 48000).lost, 0);
+  assert.ok(bunched.drops(512 / 48000).count >= 1);
   approx(log.t[0], 0, 1e-9, "times from the first frame");
 });
 

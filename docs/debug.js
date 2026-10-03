@@ -36,8 +36,12 @@ export class FrameLog {
 
   get length() { return this.t.length; }
 
-  /* Gaps in the frame clock longer than `factor` frames: frames the page
-   * never received, which no analysis of the frames themselves can see. */
+  /* Gaps in the frame clock longer than `factor` frames, and how many frames
+   * are actually missing. The two differ: an iPad delivers frames in late
+   * bunches (gaps of 2-3 frames) with nothing lost -- its first debug record
+   * had 28 such gaps and a frame count matching its audio sample for sample.
+   * `lost` is the clock's span against the frames that arrived; only that
+   * says audio went missing. */
   drops(frameSeconds, factor = 1.8) {
     const limit = frameSeconds * 1000 * factor;
     let count = 0, longest = 0;
@@ -45,7 +49,9 @@ export class FrameLog {
       const gap = this.t[i] - this.t[i - 1];
       if (gap > limit) { count += 1; longest = Math.max(longest, gap); }
     }
-    return { count, longestMs: longest };
+    const span = this.t.length ? this.t[this.t.length - 1] / 1000 : 0;
+    const lost = Math.max(0, Math.round(span / frameSeconds) + 1 - this.t.length);
+    return { count, longestMs: Math.round(longest * 10) / 10, lost };
   }
 
   toJSON() { return { t_ms: this.t, hz: this.hz, db: this.db }; }
